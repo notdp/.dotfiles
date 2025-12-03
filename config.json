@@ -1,0 +1,7 @@
+{
+  "link_targets": [
+    "~/.claude/commands",
+    "~/.codex/prompts",
+    "~/.factory/commands"
+  ]
+}
