@@ -2,7 +2,7 @@
 
 [中文](./README.zh-CN.md)
 
-Share a single commands directory across Claude CLI, Codex CLI, and Factory CLI.
+Share a single commands directory across Claude Code, Codex, Droid, and Antigravity.
 
 ## What it does
 
@@ -10,52 +10,36 @@ Share a single commands directory across Claude CLI, Codex CLI, and Factory CLI.
 ~/.claude/commands   → ~/.dotfiles/commands (symlink)
 ~/.codex/prompts     → ~/.dotfiles/commands (symlink)
 ~/.factory/commands  → ~/.dotfiles/commands (symlink)
+~/.gemini/antigravity/global_workflows → ~/.dotfiles/commands (symlink)
 ```
 
 Edit once, apply everywhere.
 
 ## Install
-
-### Quick Install
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash
 ```
 
-Deps: none for the default path. `jq` is only needed when `scripts/config.json` exists; `rsync` is used for migrating existing dirs (falls back to `cp -an`).
+## Supported CLIs
 
-### Version Control & Customization
+- Claude Code (`~/.claude/commands`)
+- Codex (`~/.codex/prompts`)
+- Droid (`~/.factory/commands`)
+- Antigravity (`~/.gemini/antigravity/global_workflows`)
 
-1. Fork & clone:
-
-```bash
-git clone https://github.com/<your-username>/.dotfiles.git ~/.dotfiles
-```
-
-2. Run installer:
-
-```bash
-cd ~/.dotfiles && ./scripts/install.sh
-```
+Want another IDE/CLI? PR to `scripts/config.json`.
 
 ## Uninstall
 
 ```bash
-cd ~/.dotfiles && ./scripts/uninstall.sh
+curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/uninstall.sh | bash
 ```
 
-## Configuration
+## Advanced (optional)
 
-Edit `scripts/config.json` to customize link targets:
+- Custom install path (defaults to `~/.dotfiles`):
 
-```json
-{
-  "link_targets": [
-    "~/.claude/commands",
-    "~/.codex/prompts",
-    "~/.factory/commands"
-  ]
-}
+```bash
+curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/install.sh | bash -s -- ~/.my-dotfiles
+curl -fsSL https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/uninstall.sh | bash -s -- ~/.my-dotfiles
 ```
-
-The installer backs up existing directories before creating symlinks.

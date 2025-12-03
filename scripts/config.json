@@ -2,6 +2,7 @@
   "link_targets": [
     "~/.claude/commands",
     "~/.codex/prompts",
-    "~/.factory/commands"
+    "~/.factory/commands",
+    "~/.gemini/antigravity/global_workflows"
   ]
 }

@@ -2,39 +2,6 @@
 
 set -euo pipefail
 
-resolve_dotfiles_dir() {
-    local source="${BASH_SOURCE[0]:-}"
-    if [ -n "$source" ] && [ -f "$source" ]; then
-        local script_dir
-        script_dir="$(cd "$(dirname "$source")" && pwd)"
-        local parent_dir
-        parent_dir="$(dirname "$script_dir")"
-        if [ "$(basename "$parent_dir")" = ".dotfiles" ]; then
-            printf "%s\n" "$parent_dir"
-            return
-        fi
-    fi
-    printf "%s\n" "$HOME/.dotfiles"
-}
-
-DOTFILES_DIR="${DOTFILES_DIR:-$(resolve_dotfiles_dir)}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")" && pwd)"
-
-# 配置文件仅放在 scripts/ 下，必要时可用环境变量 CONFIG_FILE 覆盖
-CONFIG_FILE="${CONFIG_FILE:-$SCRIPT_DIR/config.json}"
-
-COMMANDS_DIR="$DOTFILES_DIR/commands"
-
-DEFAULT_LINK_TARGETS=(
-    "~/.claude/commands"
-    "~/.codex/prompts"
-    "~/.factory/commands"
-)
-
-log() { echo "[info] $*"; }
-warn() { echo "[warn] $*" >&2; }
-err() { echo "[error] $*" >&2; exit 1; }
-
 expand_path() {
     case "$1" in
         "~") echo "$HOME" ;;
@@ -43,23 +10,48 @@ expand_path() {
     esac
 }
 
-LINK_TARGETS=()
-if [ -f "$CONFIG_FILE" ]; then
-    if command -v jq >/dev/null 2>&1; then
-        while IFS= read -r line; do
-            [ -n "$line" ] && LINK_TARGETS+=("$line")
-        done < <(jq -r '.link_targets[]' "$CONFIG_FILE")
+# 通过参数或环境变量指定安装目录，默认 ~/.dotfiles
+if [ "${1:-}" != "" ]; then
+    DOTFILES_DIR="$(expand_path "$1")"
+else
+    DOTFILES_DIR="$(expand_path "${DOTFILES_DIR:-$HOME/.dotfiles}")"
+fi
+COMMANDS_DIR="$DOTFILES_DIR/commands"
 
-        if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
-            warn "config.json 为空，使用默认链接目标"
-            LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
+CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
+
+DEFAULT_LINK_TARGETS=(
+    "~/.claude/commands"
+    "~/.codex/prompts"
+    "~/.factory/commands"
+    "~/.gemini/antigravity/global_workflows"
+)
+
+log() { echo "[info] $*"; }
+warn() { echo "[warn] $*" >&2; }
+LINK_TARGETS=()
+
+if command -v curl >/dev/null 2>&1; then
+    REMOTE_CONFIG=$(curl -fsSL "$CONFIG_URL" 2>/dev/null || echo "")
+    if [ -n "$REMOTE_CONFIG" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            while IFS= read -r line; do
+                [ -n "$line" ] && LINK_TARGETS+=("$line")
+            done < <(echo "$REMOTE_CONFIG" | jq -r '.link_targets[]')
+            if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
+                warn "远端配置缺少 link_targets 或为空，使用默认链接目标"
+            fi
+        else
+            warn "未找到 jq，无法解析远端配置，使用默认链接目标"
         fi
     else
-        warn "未找到 jq，忽略 config.json，使用默认链接目标"
-        LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
+        warn "获取远端配置失败，使用默认链接目标"
     fi
 else
-    warn "未找到 config.json（期望位于 scripts/config.json），使用默认链接目标"
+    warn "未找到 curl，无法获取远端配置，使用默认链接目标"
+fi
+
+if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
     LINK_TARGETS=("${DEFAULT_LINK_TARGETS[@]}")
 fi
 
