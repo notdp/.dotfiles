@@ -38,6 +38,9 @@ def restore(version=None):
         print(f"错误: {backup} 不存在")
         sys.exit(1)
     
+    # 先删除再复制，避免 macOS 保留旧元数据导致签名失效
+    if DROID.exists():
+        DROID.unlink()
     shutil.copy2(backup, DROID)
     print(f"已恢复: {backup.name} -> droid")
 
