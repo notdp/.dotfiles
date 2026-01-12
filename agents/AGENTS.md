@@ -26,8 +26,4 @@
 • If you break this rule, say:
   > Correction: I made an unverified claim. That was incorrect.
 
-## CLI 工具使用规范
 
-### GitHub CLI (gh)
-- 查看 PR 时避免使用 `gh pr view <number>`（会因 Projects Classic 废弃报错）
-- 改用：`gh pr view <number> --json title,body,state,url,headRefName,baseRefName,additions,deletions,files,author`
