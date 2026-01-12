@@ -1,5 +1,6 @@
 ---
 description: 增强指令（仅输出，禁止执行）
+argument-hint: <你的原始指令>
 ---
 
 

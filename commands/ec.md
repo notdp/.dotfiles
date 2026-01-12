@@ -1,5 +1,6 @@
 ---
 description: 增强指令（带代码库语义搜索)
+argument-hint: <你的原始指令>
 ---
 
 
