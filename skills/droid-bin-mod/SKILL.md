@@ -44,11 +44,13 @@ seq 1 100 > /tmp/test100.txt
 │ ... output truncated. press Ctrl+O for detailed view               │
 └────────────────────────────────────────────────────────────────────┘
 
-mod1: "command truncated. press Ctrl+O" → hidden
-mod2: command >50 chars truncated → >99 chars
-mod3: output truncated at 4 lines → 99 lines
-mod4: diff truncated at 20 lines → 99 lines
-mod5: output hint "press Ctrl+O" shows when >4 lines → >99 lines
+mod1: 命令框 "command truncated. press Ctrl+O" 提示 → 隐藏
+mod2: 命令超 50 字符截断 → 超 99 字符才截断
+mod3: 命令输出截断行数 4 行 → 99 行
+mod4: Edit diff 截断行数 20 行 → 99 行
+mod5: 输出区 "output truncated. press Ctrl+O" 提示 >4 行 → >99 行
+
+注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
 
 select: 1,2,3,4,5 / all / restore
 ```
@@ -175,14 +177,18 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 
 ## 修改汇总
 
-| #   | 修改项    | 原始         | 修改后         | 字节 | 说明                 |
-| --- | --------- | ------------ | -------------- | ---- | -------------------- |
-| 1   | 截断条件  | `if(!H&&!Q)` | `if(!0\|\|!Q)` | 0    | 核心：永远返回原文   |
-| 2   | 命令阈值  | `length>50`  | `length>99`    | 0    | 命令文本显示长度     |
-| 3   | 输出预览  | `slice(0,4)` | `slice(0,99)`  | +1   | 输出内容显示行数     |
-| 4   | diff 行数 | `LD=20`      | `LD=99`        | 0    | Edit diff 显示行数   |
-| 5   | 输出提示  | `>4&&`       | `>99&&`        | +1   | 超99行才显示提示     |
-| 补偿 | substring | `substring`  | `xxxxxxx`      | -2   | 被短路，可任意调整   |
+| #   | 修改项       | 原始         | 修改后         | 字节 | 说明                                      |
+| --- | ------------ | ------------ | -------------- | ---- | ----------------------------------------- |
+| 1   | 截断条件     | `if(!H&&!Q)` | `if(!0\|\|!Q)` | 0    | 短路截断函数，隐藏命令框 "press Ctrl+O"   |
+| 2   | 命令阈值     | `length>50`  | `length>99`    | 0    | 命令超 99 字符才截断                      |
+| 3   | 输出预览     | `slice(0,4)` | `slice(0,99)`  | +1   | 输出内容显示 99 行                        |
+| 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
+| 5   | 输出区提示   | `>4&&`       | `>99&&`        | +1   | 输出区超 99 行才显示 "press Ctrl+O"       |
+| 补偿 | substring   | `substring`  | `xxxxxxx`      | -2   | 被 mod1 短路，可任意调整                  |
+
+**注**：mod1 和 mod5 都影响 "press Ctrl+O" 提示，但位置不同：
+- mod1: 命令框提示（command truncated）
+- mod5: 输出区提示（output truncated）
 
 ## 修改脚本
 
