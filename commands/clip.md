@@ -1,30 +1,25 @@
 ---
-description: 将文本内容复制到剪贴板并在 macOS 上使用 pbcopy
+description: Copy content to clipboard
+argument-hint: <content to copy>
 ---
 
+Copy the provided content to the system clipboard.
 
-# 将文本复制到剪贴板的快速指南
+## Commands
 
-当用户需要将内容复制到剪贴板时，**直接执行 shell 命令**完成操作。
+- macOS: `printf '%s' 'content' | pbcopy`
+- Linux: `printf '%s' 'content' | xclip -selection clipboard`
+- Windows: `printf '%s' 'content' | clip`
 
-## 执行方式 (macOS)
+## Rules
 
-```bash
-echo -n '要复制的内容' | pbcopy
-```
-
-多行内容：
-```bash
-pbcopy <<'EOF'
-第一行
-第二行
-EOF
-```
-
-## 规则
-
-1. **必须执行命令**：不要只输出内容，要运行 `pbcopy` 将内容写入剪贴板
-2. 执行成功后简短确认（如"已复制"）
-3. 内容中有单引号时用 `$'...'` 或 heredoc 处理
-4. 敏感信息先确认再执行
-5. 不擅自修改用户提供的原文
+1. Execute the command, don't just output
+2. Use `printf '%s'` instead of `echo` (avoids trailing newline issues)
+3. For multi-line or special characters, use heredoc:
+   ```bash
+   pbcopy <<'EOF'
+   content here
+   EOF
+   ```
+4. Confirm after execution: "Copied"
+5. Do not modify the original content
