@@ -16,9 +16,10 @@
 
 **Skills:**
 ```
-~/.claude/skills     → ~/.dotfiles/skills (软链)
-~/.codex/skills      → ~/.dotfiles/skills (软链)
-~/.factory/skills    → ~/.dotfiles/skills (软链)
+~/.claude/skills                → ~/.dotfiles/skills (软链)
+~/.codex/skills                 → ~/.dotfiles/skills (软链)
+~/.factory/skills               → ~/.dotfiles/skills (软链)
+~/.gemini/antigravity/skills    → ~/.dotfiles/skills (软链)
 ```
 
 **全局 Agent 配置 (AGENTS.md):**

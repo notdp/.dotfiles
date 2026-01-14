@@ -8,7 +8,8 @@
   "skills": [
     "~/.claude/skills",
     "~/.codex/skills",
-    "~/.factory/skills"
+    "~/.factory/skills",
+    "~/.gemini/antigravity/skills"
   ],
   "agents": [
     "~/.claude/CLAUDE.md",

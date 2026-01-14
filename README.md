@@ -16,9 +16,10 @@ Share commands, skills, and global agent instructions across Claude Code, Codex,
 
 **Skills:**
 ```
-~/.claude/skills     → ~/.dotfiles/skills (symlink)
-~/.codex/skills      → ~/.dotfiles/skills (symlink)
-~/.factory/skills    → ~/.dotfiles/skills (symlink)
+~/.claude/skills                → ~/.dotfiles/skills (symlink)
+~/.codex/skills                 → ~/.dotfiles/skills (symlink)
+~/.factory/skills               → ~/.dotfiles/skills (symlink)
+~/.gemini/antigravity/skills    → ~/.dotfiles/skills (symlink)
 ```
 
 **Global Agent Instructions (AGENTS.md):**
