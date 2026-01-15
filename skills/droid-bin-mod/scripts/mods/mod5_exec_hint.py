@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
-"""mod5: EXECUTE 输出提示条件 >4 → >99 (+1 byte)
+"""mod5: 输出提示条件 (由 mod3 自动处理)
 
-配合 mod3 的 slice(0,99)：显示 99 行，超过 99 行才提示
+mod3 修改 aGR=4→99 后，>aGR&& 判断自动变为 >99
+此脚本仅检查状态，不做修改
 """
 import sys
+import re
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
-from common import load_droid, save_droid, replace_one, V
+from common import load_droid, V
 
 data = load_droid()
 
-# D>4&&q1.jsxDEV... (exec-preview 附近)
-data, diff = replace_one(
-    data,
-    rb',(' + V + rb')>4&&(' + V + rb')\.jsxDEV',
-    lambda m: b',' + m.group(1) + b'>99&&' + m.group(2) + b'.jsxDEV',
-    'mod5 exec提示条件',
-    near_marker=b'exec-preview')
-
-save_droid(data)
-print(f"mod5 完成 ({diff:+d} bytes)")
+# 检查 mod3 是否已执行
+pattern = rb'(' + V + rb')=99,(' + V + rb')=5,(' + V + rb')=200'
+if re.search(pattern, data):
+    print("mod5: 已由 mod3 处理，跳过")
+else:
+    print("mod5: 请先运行 mod3")
+    sys.exit(1)

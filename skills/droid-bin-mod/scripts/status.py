@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
 """检查 droid 当前状态：原版/已修改/部分修改"""
+import re
 from pathlib import Path
 
 droid = Path.home() / '.local/bin/droid'
+V = rb'[A-Za-z_$][A-Za-z0-9_$]*'
 
 with open(droid, 'rb') as f:
     data = f.read()
-
-# 用语义数字检测 (这些数字有含义，升级后通常不变)
-# mod1: 检测短路条件 !0|| (修改后) vs &&! (原版)
-# mod2: command.length>99 (修改后) vs >50 (原版)
-# mod3b: =8, (修改后) vs =80, (原版)，配合 =3) 确认是截断函数
-# mod4: =99, (修改后) vs =20, (原版)，配合 var 和后面跟变量声明
 
 results = {}
 
 # mod1: 截断条件
 if b'if(!0||!' in data:
     results['mod1'] = 'modified'
-elif b'isTruncated:!1}' in data:  # 用不变的字符串确认函数存在
+elif b'isTruncated:!1}' in data:
     results['mod1'] = 'original'
 else:
     results['mod1'] = 'unknown'
 
-# mod2: 命令阈值 (command.length 是不变的)
+# mod2: 命令阈值
 if b'command.length>99' in data:
     results['mod2'] = 'modified'
 elif b'command.length>50' in data:
@@ -31,31 +27,24 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3: 输出行数 slice(0,4) → slice(0,99)
-if b'slice(0,99)' in data and b'exec-preview' in data:
+# mod3+mod5: 输出行数 (VAR=4/99,VAR2=5,VAR3=200)
+if re.search(V + rb'=99,' + V + rb'=5,' + V + rb'=200', data):
     results['mod3'] = 'modified'
-elif b'slice(0,4)' in data and b'exec-preview' in data:
+    results['mod5'] = 'modified'
+elif re.search(V + rb'=4,' + V + rb'=5,' + V + rb'=200', data):
     results['mod3'] = 'original'
+    results['mod5'] = 'original'
 else:
     results['mod3'] = 'unknown'
+    results['mod5'] = 'unknown'
 
-# mod4: diff行数 (检测 =20, 或 =99, 配合 var 声明上下文)
-import re
-V = rb'[A-Za-z_$][A-Za-z0-9_$]*'
+# mod4: diff行数
 if re.search(rb'var ' + V + rb'=99,' + V + rb',', data):
     results['mod4'] = 'modified'
 elif re.search(rb'var ' + V + rb'=20,' + V + rb',', data):
     results['mod4'] = 'original'
 else:
     results['mod4'] = 'unknown'
-
-# mod5: exec输出提示条件 >4 → >99
-if re.search(rb',' + V + rb'>99&&' + V + rb'\.jsxDEV', data):
-    results['mod5'] = 'modified'
-elif re.search(rb',' + V + rb'>4&&' + V + rb'\.jsxDEV', data):
-    results['mod5'] = 'original'
-else:
-    results['mod5'] = 'unknown'
 
 # 输出
 total = 5
@@ -66,7 +55,8 @@ print(f"droid 状态:\n")
 for name, status in results.items():
     icon = '✓' if status == 'modified' else '○' if status == 'original' else '?'
     label = {'modified': '已修改', 'original': '原版', 'unknown': '未知'}[status]
-    print(f"  {icon} {name}: {label}")
+    note = ' (由 mod3 控制)' if name == 'mod5' else ''
+    print(f"  {icon} {name}: {label}{note}")
 
 print()
 if mod_count == total:

@@ -89,20 +89,13 @@ strings ~/.local/bin/droid | grep -E "var [A-Z]{2}=20,"
 | 4 diff 行数 | (后跟变量声明)   | `var V=20,V,` (后跟逗号+变量)           | `var LD=20,UDR,`          |
 | 5 输出提示  | `exec-preview`   | `,V>4&&V\.jsxDEV` (marker附近)          | `,D>4&&q1.jsxDEV`         |
 
-### 字节补偿池
+### 0.49+ 版本变化
 
-修改 3 和 5 各 +1 字节，共 +2 字节，需要补偿。
+mod3 和 mod5 现在使用同一个变量控制：`aGR=4`
+- `slice(0,aGR)` - 截取前 aGR 行显示
+- `D>aGR&&` - 超过 aGR 行才显示提示
 
-**补偿点：截断函数内的 `substring`**（被 mod1 短路后永远不执行）
-
-| 补偿点 | 位置 | 原始 | 补偿范围 |
-| ------ | ---- | ---- | -------- |
-| substring | 截断函数内 `X.substring(0,Y)` | 9 字符 | **-9 到 +∞ bytes** |
-
-用法：`python3 comp_substring.py <bytes>`
-- `comp_substring.py -2` — 缩减 2 字节（当前默认，补偿 mod3+mod5）
-- `comp_substring.py -9` — 最大缩减 9 字节
-- `comp_substring.py +10` — 扩展 10 字节（无上限）
+修改 `aGR=4` → `aGR=99` 一次性解决 mod3 和 mod5，0 字节变化，不需要补偿。
 
 ## 修改原理
 
@@ -145,26 +138,17 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 - 原来超 50 字符就截断
 - 现在超 99 字符才截断
 
-### 修改 3: 输出预览行数
+### 修改 3+5: 输出预览行数和提示条件
 
 **位置**: 命令执行结果显示区域
 
-**修改**: `slice(0,4)` → `slice(0,99)`
+**修改**: `aGR=4` → `aGR=99`
 
-- 原来只显示前 4 行输出
-- 现在显示前 99 行
-
-### 修改 5: 输出提示条件
-
-**位置**: 命令执行结果显示区域（exec-preview 附近）
-
-**修改**: `>4&&` → `>99&&`
-
-- 原来超过 4 行就显示 "press Ctrl+O" 提示
-- 现在超过 99 行才显示提示
-- 配合 mod3 的 99 行截断，提示只在实际被截断时显示
-
-**字节补偿**: mod3(+1) + mod5(+1) = +2 bytes，用 `comp_substring.py -2` 补偿
+- 变量 `aGR` 同时控制：
+  - `slice(0,aGR)` - 显示前多少行
+  - `D>aGR&&` - 超过多少行显示提示
+- 修改变量定义，一次性解决两个问题
+- 0 字节变化，不需要补偿
 
 ### 修改 4: diff/edit 显示行数
 
@@ -181,14 +165,13 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | --- | ------------ | ------------ | -------------- | ---- | ----------------------------------------- |
 | 1   | 截断条件     | `if(!H&&!Q)` | `if(!0\|\|!Q)` | 0    | 短路截断函数，隐藏命令框 "press Ctrl+O"   |
 | 2   | 命令阈值     | `length>50`  | `length>99`    | 0    | 命令超 99 字符才截断                      |
-| 3   | 输出预览     | `slice(0,4)` | `slice(0,99)`  | +1   | 输出内容显示 99 行                        |
+| 3+5 | 输出行数     | `aGR=4`      | `aGR=99`       | +1   | 输出显示 99 行，超过才显示提示            |
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
-| 5   | 输出区提示   | `>4&&`       | `>99&&`        | +1   | 输出区超 99 行才显示 "press Ctrl+O"       |
-| 补偿 | substring   | `substring`  | `xxxxxxx`      | -2   | 被 mod1 短路，可任意调整                  |
+| 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
-**注**：mod1 和 mod5 都影响 "press Ctrl+O" 提示，但位置不同：
+**注**：
 - mod1: 命令框提示（command truncated）
-- mod5: 输出区提示（output truncated）
+- mod3+5: 输出区行数和提示（output truncated）由同一变量控制
 
 ## 修改脚本
 
@@ -199,28 +182,21 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 ```bash
 mods/mod1_truncate_condition.py  # 截断条件短路 (0 bytes)
 mods/mod2_command_length.py      # 命令阈值 50→99 (0 bytes)
-mods/mod3_output_lines.py        # 输出行数 4→99 (+1 byte)
+mods/mod3_output_lines.py        # 输出行数 aGR=4→99 (+1 byte, 同时解决 mod5)
 mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
-mods/mod5_exec_hint.py           # 输出提示 >4→>99 (+1 byte)
+mods/mod5_exec_hint.py           # 由 mod3 自动处理
 ```
+
+mod3 产生 +1 byte，需要用补偿脚本平衡。
 
 ### compensations/ - 字节补偿
 
-mod3 + mod5 共 +2 bytes，必须用补偿脚本平衡，否则二进制损坏。
-
 ```bash
 compensations/comp_substring.py <bytes>  # 范围：-9 到 +∞ bytes
-compensations/comp_r80_to_r8.py          # 固定 -1 byte
 ```
 
-**用法**：
-```bash
-python3 comp_substring.py       # 默认 -2 bytes (补偿 mod3+mod5)
-python3 comp_substring.py -9    # 最大缩减 9 bytes
-python3 comp_substring.py +10   # 扩展 10 bytes (无上限)
-```
-
-原理：修改被 mod1 短路的 `substring` 函数名长度，该代码永远不执行，可任意调整。
+用法：`python3 comp_substring.py -1` 补偿 mod3 的 +1 byte。
+原理：修改被 mod1 短路的 `substring` 函数名长度，该代码永远不执行。
 
 ### 执行示例（跨平台）
 
@@ -231,10 +207,9 @@ python3 comp_substring.py +10   # 扩展 10 bytes (无上限)
 # 2. 执行修改
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py  # +1 byte, 同时解决 mod5
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod5_exec_hint.py
-python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -2
+python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -1  # 补偿 -1 byte
 
 # 3. macOS: 重新签名
 [[ "$OSTYPE" == "darwin"* ]] && codesign -s - ~/.local/bin/droid
