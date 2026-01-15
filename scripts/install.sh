@@ -10,25 +10,15 @@ expand_path() {
     esac
 }
 
-# 通过参数或环境变量指定安装目录
-# 优先级: 命令行参数 > 环境变量 > 脚本所在目录的父目录 > ~/.dotfiles
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-
+# 通过参数或环境变量指定安装目录，默认 ~/.dotfiles
 if [ "${1:-}" != "" ]; then
     DOTFILES_DIR="$(expand_path "$1")"
-elif [ "${DOTFILES_DIR:-}" != "" ]; then
-    DOTFILES_DIR="$(expand_path "$DOTFILES_DIR")"
-elif [ -d "$SCRIPT_PARENT_DIR/commands" ] && [ -d "$SCRIPT_PARENT_DIR/skills" ]; then
-    # 脚本在 dotfiles/scripts/ 目录下，使用父目录
-    DOTFILES_DIR="$SCRIPT_PARENT_DIR"
 else
-    DOTFILES_DIR="$(expand_path "$HOME/.dotfiles")"
+    DOTFILES_DIR="$(expand_path "${DOTFILES_DIR:-$HOME/.dotfiles}")"
 fi
 COMMANDS_DIR="$DOTFILES_DIR/commands"
 SKILLS_DIR="$DOTFILES_DIR/skills"
 DROIDS_DIR="$DOTFILES_DIR/droids"
-BMAD_SRC_DIR="$DOTFILES_DIR/_bmad"
 AGENTS_FILE="$DOTFILES_DIR/agents/AGENTS.md"
 
 CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
@@ -250,27 +240,6 @@ for raw_dir in "${DROID_TARGETS[@]}"; do
     ln -s "$DROIDS_DIR" "$dir"
     log "创建软链: $dir -> $DROIDS_DIR"
 done
-
-# 创建 ~/.dotfiles/_bmad symlink (BMAD 源模板，供 bmad-init 使用)
-BMAD_LINK="$HOME/.dotfiles/_bmad"
-if [ -d "$BMAD_SRC_DIR" ]; then
-    if [ -L "$BMAD_LINK" ]; then
-        target="$(readlink "$BMAD_LINK")"
-        if [ "$target" = "$BMAD_SRC_DIR" ]; then
-            log "已存在软链: $BMAD_LINK -> $target"
-        else
-            rm "$BMAD_LINK"
-            ln -s "$BMAD_SRC_DIR" "$BMAD_LINK"
-            log "创建软链: $BMAD_LINK -> $BMAD_SRC_DIR"
-        fi
-    elif [ ! -e "$BMAD_LINK" ]; then
-        mkdir -p "$(dirname "$BMAD_LINK")"
-        ln -s "$BMAD_SRC_DIR" "$BMAD_LINK"
-        log "创建软链: $BMAD_LINK -> $BMAD_SRC_DIR"
-    else
-        warn "跳过：$BMAD_LINK 已存在且不是软链"
-    fi
-fi
 
 # 处理 agents 文件软链接（文件级别，非目录）
 for raw_file in "${AGENT_TARGETS[@]}"; do
