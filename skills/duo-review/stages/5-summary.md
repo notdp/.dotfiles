@@ -88,7 +88,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 | <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> Codex      | 发现问题 → ✅ 验证通过 |
 | <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Opus | 发现问题 → ✅ 已修复   |
 
-**修复分支**: [`bot🤖/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot🤖/pr-$PR_NUMBER)
+**修复分支**: [`bot/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot/pr-$PR_NUMBER)
 
 **结论**: 问题已修复并验证通过。
 
@@ -112,7 +112,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 | <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Opus | $OPUS_CONCLUSION  |
 
 **交叉确认**: 第 N 轮达成共识
-**修复分支**: [`bot🤖/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot🤖/pr-$PR_NUMBER)
+**修复分支**: [`bot/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot/pr-$PR_NUMBER)
 
 **结论**: 问题已修复并验证通过。
 

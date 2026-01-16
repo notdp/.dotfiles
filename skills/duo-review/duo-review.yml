@@ -28,7 +28,7 @@ jobs:
     steps:
       - id: check
         run: |
-          if [[ "${{ github.head_ref }}" == bot🤖/* ]]; then
+          if [[ "${{ github.head_ref }}" == bot/* ]]; then
             echo "should_run=false" >> $GITHUB_OUTPUT
           else
             echo "should_run=true" >> $GITHUB_OUTPUT

@@ -27,10 +27,10 @@ flowchart TD
 ```bash
 $S/duo-set.sh $PR_NUMBER stage 4
 $S/duo-set.sh $PR_NUMBER s4:round 1
-$S/duo-set.sh $PR_NUMBER s4:branch "bot🤖/pr-$PR_NUMBER"
+$S/duo-set.sh $PR_NUMBER s4:branch "bot/pr-$PR_NUMBER"
 
 # 创建修复分支（-B 强制覆盖已存在的同名分支）
-git checkout -B "bot🤖/pr-$PR_NUMBER" "$PR_BRANCH"
+git checkout -B "bot/pr-$PR_NUMBER" "$PR_BRANCH"
 ```
 
 ---
