@@ -55,11 +55,11 @@ $S/opus-resume.sh $OPUS_SESSION "
 ## 完成后
 git add -A
 git commit -m 'fix(duo): ...'
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:opus:status done
+~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
+~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:opus:status done
 
 ## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
 
 ### 评论格式
 <!-- duo-fix-opus -->
@@ -106,12 +106,12 @@ git diff origin/$PR_BRANCH..HEAD
 3. 代码质量是否符合规范
 
 ## 完成后
-- 验证通过: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:verified 1
-- 验证失败: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:verified 0
-然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:codex:status done
+- 验证通过: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:verified 1
+- 验证失败: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:verified 0
+然后: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:codex:status done
 
 ## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
 
 ### 评论格式
 <!-- duo-verify-codex -->

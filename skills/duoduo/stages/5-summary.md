@@ -25,7 +25,7 @@ $S/duo-set.sh $PR_NUMBER stage 5
 
 SUMMARY=$(python3 - <<'PY'
 import os, subprocess
-S = os.path.expanduser('~/.factory/skills/duo-review/scripts')
+S = os.path.expanduser('~/.factory/skills/duoduo/scripts')
 PR = '$PR_NUMBER'
 
 def get(field):
@@ -59,7 +59,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 ### 情况 A: both_ok（双方都没发现问题）
 
 ```markdown
-<!-- duo-review-summary -->
+<!-- duoduo-summary -->
 ## ✅ Duo Review | PR #$PR_NUMBER
 
 | Agent                                                                                                   | 结论         |
@@ -80,7 +80,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 ### 情况 B: same_issues + 修复验证通过
 
 ```markdown
-<!-- duo-review-summary -->
+<!-- duoduo-summary -->
 ## ✅ Duo Review | PR #$PR_NUMBER
 
 | Agent                                                                                                   | 结论                  |
@@ -103,7 +103,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 ### 情况 C: divergent + 达成共识 + 修复
 
 ```markdown
-<!-- duo-review-summary -->
+<!-- duoduo-summary -->
 ## ✅ Duo Review | PR #$PR_NUMBER
 
 | Agent                                                                                                   | 结论              |
@@ -127,7 +127,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 ### 情况 D: divergent + 达成共识 + 无需修复
 
 ```markdown
-<!-- duo-review-summary -->
+<!-- duoduo-summary -->
 ## ✅ Duo Review | PR #$PR_NUMBER
 
 | Agent                                                                                                   | 结论              |
@@ -150,7 +150,7 @@ $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY"
 ### 情况 E: 未达成共识或修复未验证
 
 ```markdown
-<!-- duo-review-summary -->
+<!-- duoduo-summary -->
 ## ⚠️ Duo Review | PR #$PR_NUMBER
 
 | Agent                                                                                                   | 结论              |

@@ -1,6 +1,6 @@
 ---
-name: duo-review
-description: 双 AI Agent (GPT-5.1 Codex Max + Claude Opus 4.5) 交叉审查 PR。自动判断共识、决定是否需要交叉确认和修复。当用户要求审查 PR 或提到 "duo review" 时触发。
+name: duoduo
+description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需要交叉确认和修复。当用户要求审查 PR 或提到 "duoduo review" 时触发。
 ---
 
 # Duo Review - 双 Agent 交叉审查
@@ -49,7 +49,7 @@ flowchart TD
 ## 脚本路径
 
 ```bash
-S=~/.factory/skills/duo-review/scripts
+S=~/.factory/skills/duoduo/scripts
 ```
 
 ## 可用脚本

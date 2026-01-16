@@ -79,12 +79,12 @@ $OPUS_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 1
-- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 0
-然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
+- 如果认可所有问题: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 1
+- 如果有不认可的: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees 0
+然后: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
 
 ### 评论格式
 <!-- duo-cross-codex -->
@@ -145,12 +145,12 @@ $CODEX_FINDINGS
 
 ## 完成后
 执行以下命令记录结果：
-- 如果认可所有问题: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 1
-- 如果有不认可的: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 0
-然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
+- 如果认可所有问题: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 1
+- 如果有不认可的: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees 0
+然后: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
 
 ### 评论格式
 <!-- duo-cross-opus -->
@@ -236,12 +236,12 @@ $CODEX_PREV
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-1. 保存回应到 Redis: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:round:$ROUND:response \"\$RESPONSE_CONTENT\"
-2. 记录结果: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
-3. 标记完成: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
+1. 保存回应到 Redis: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:round:$ROUND:response \"\$RESPONSE_CONTENT\"
+2. 记录结果: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
+3. 标记完成: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
 ## 发布评论（UI）
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
 
 ### 评论格式
 <!-- duo-cross-opus-r$ROUND -->
@@ -275,12 +275,12 @@ $OPUS_CURRENT
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-1. 保存回应到 Redis: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:round:$ROUND:response \"\$RESPONSE_CONTENT\"
-2. 记录结果: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
-3. 标记完成: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
+1. 保存回应到 Redis: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:round:$ROUND:response \"\$RESPONSE_CONTENT\"
+2. 记录结果: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
+3. 标记完成: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
 ## 发布评论（UI）
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
+~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
 
 ### 评论格式
 <!-- duo-cross-codex-r$ROUND -->

@@ -14,8 +14,8 @@ done
 
 # 内嵌 S1 Review Prompt
 FULL_PROMPT="<system-instruction>
-你是 Opus (Claude Opus 4.5)，duo-review 流程中的审查者。
-首先 load skill: duo-review
+你是 Opus (Claude Opus 4.5)，duoduo review流程中的审查者。
+首先 load skill: duoduo
 
 ⚠️ 如需代码搜索，使用 MCP 工具 augment-context-engine___codebase-retrieval（不是 CLI 命令）。
 但对于 PR 审查，直接 git diff 更高效。
