@@ -35,10 +35,10 @@ $S/cleanup-comments.sh $PR_NUMBER $REPO
 
 ```bash
 OPUS_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...")
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中 <img src=\"https://github.com/Codelessly/FlutterLoadingGIFs/raw/master/packages/cupertino_activity_indicator_square_small.gif\" width=\"12\" />...")
 
 CODEX_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...")
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中 <img src=\"https://github.com/Codelessly/FlutterLoadingGIFs/raw/master/packages/cupertino_activity_indicator_square_small.gif\" width=\"12\" />...")
 
 $S/duo-set.sh $PR_NUMBER s1:codex:comment "$CODEX_COMMENT"
 $S/duo-set.sh $PR_NUMBER s1:opus:comment "$OPUS_COMMENT"
