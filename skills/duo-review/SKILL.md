@@ -81,7 +81,8 @@ repo, pr, branch, base, stage, started_at, progress_comment
 s1:codex:status     pending | done
 s1:codex:session    会话 ID
 s1:codex:conclusion ok | p0 | p1 | p2 | p3
-s1:codex:comment    评论 URL + ID
+s1:codex:review     审查正文（完整内容）
+s1:codex:review_node_id  评论 node ID（UI 指针）
 
 s1:opus:*           同上
 
@@ -93,6 +94,8 @@ s3:mode             codex_confirm | opus_confirm | bidirectional
 s3:round            当前轮数
 s3:consensus        0 | 1
 s3:need_fix         0 | 1
+s3:opus:round:{n}:response   Opus 第 n 轮回应
+s3:codex:round:{n}:response  Codex 第 n 轮回应
 
 # 阶段 4: 修复验证
 s4:round            当前轮数

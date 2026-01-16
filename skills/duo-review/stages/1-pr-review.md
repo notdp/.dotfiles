@@ -40,8 +40,8 @@ OPUS_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
 CODEX_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
 <img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中 <img src=\"https://github.com/Codelessly/FlutterLoadingGIFs/raw/master/packages/cupertino_activity_indicator_square_small.gif\" width=\"12\" />...")
 
-$S/duo-set.sh $PR_NUMBER s1:codex:comment "$CODEX_COMMENT"
-$S/duo-set.sh $PR_NUMBER s1:opus:comment "$OPUS_COMMENT"
+$S/duo-set.sh $PR_NUMBER s1:codex:review_node_id "$CODEX_COMMENT"
+$S/duo-set.sh $PR_NUMBER s1:opus:review_node_id "$OPUS_COMMENT"
 ```
 
 ## 1.4 并行启动审查
@@ -56,7 +56,8 @@ $S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Post review: \$S/edit-comment.sh $OPUS_COMMENT "你的评论内容"
+3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:opus:review \"\$REVIEW_CONTENT\"
+4. Post review: \$S/edit-comment.sh $OPUS_COMMENT \"\$REVIEW_CONTENT\"
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.
@@ -110,7 +111,8 @@ $S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 ## Steps
 1. Read REVIEW.md for project conventions
 2. Run: gh pr diff $PR_NUMBER --repo $REPO
-3. Post review: \$S/edit-comment.sh $CODEX_COMMENT "你的评论内容"
+3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:codex:review \"\$REVIEW_CONTENT\"
+4. Post review: \$S/edit-comment.sh $CODEX_COMMENT \"\$REVIEW_CONTENT\"
 
 ### How Many Findings to Return
 Output all findings that the original author would fix if they knew about it. If there is no finding that a person would definitely love to see and fix, prefer outputting no findings. Do not stop at the first qualifying finding. Continue until you've listed every qualifying finding.

@@ -57,11 +57,10 @@ $S/duo-set.sh $PR_NUMBER s3:round 1
 
 当 `MODE = codex_confirm`：Codex 说 ok，但 Opus 发现了问题。
 
-### A.1 Orchestrator 读取 Opus 评论
+### A.1 Orchestrator 读取 Opus 审查
 
 ```bash
-OPUS_COMMENT_ID=$($S/duo-get.sh $PR_NUMBER s1:opus:comment | head -1)
-OPUS_FINDINGS=$(gh api /repos/$REPO/issues/comments/${OPUS_COMMENT_ID#*IC_} --jq '.body')
+OPUS_FINDINGS=$($S/duo-get.sh $PR_NUMBER s1:opus:review)
 ```
 
 ### A.2 让 Codex 评估
@@ -124,11 +123,10 @@ fi
 
 当 `MODE = opus_confirm`：Opus 说 ok，但 Codex 发现了问题。
 
-### B.1 Orchestrator 读取 Codex 评论
+### B.1 Orchestrator 读取 Codex 审查
 
 ```bash
-CODEX_COMMENT_ID=$($S/duo-get.sh $PR_NUMBER s1:codex:comment | head -1)
-CODEX_FINDINGS=$(gh api /repos/$REPO/issues/comments/${CODEX_COMMENT_ID#*IC_} --jq '.body')
+CODEX_FINDINGS=$($S/duo-get.sh $PR_NUMBER s1:codex:review)
 ```
 
 ### B.2 让 Opus 评估
@@ -220,22 +218,34 @@ flowchart TD
 OPUS_SESSION=$($S/duo-get.sh $PR_NUMBER s1:opus:session)
 ROUND=$($S/duo-get.sh $PR_NUMBER s3:round)
 
+# 获取 Codex 上轮回应（第 1 轮时读初始审查）
+if [ "$ROUND" -eq 1 ]; then
+  CODEX_PREV=$($S/duo-get.sh $PR_NUMBER s1:codex:review)
+else
+  PREV_ROUND=$((ROUND - 1))
+  CODEX_PREV=$($S/duo-get.sh $PR_NUMBER s3:codex:round:$PREV_ROUND:response)
+fi
+
 $S/opus-resume.sh $OPUS_SESSION "
-## 回应 Codex
-读取 PR 评论中 Codex 的最新观点，逐个回应：
+## Codex 的观点
+$CODEX_PREV
+
+## 任务
+逐个回应 Codex 的观点：
 - ✅ 认可 - 问题确实存在
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
+1. 保存回应到 Redis: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:round:$ROUND:response \"\$RESPONSE_CONTENT\"
+2. 记录结果: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:agrees <0|1>
+3. 标记完成: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:opus:status done
 
-## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+## 发布评论（UI）
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
 
 ### 评论格式
-<!-- duo-cross-opus-rN -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 回应 | Round N
+<!-- duo-cross-opus-r$ROUND -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 回应 | Round $ROUND
 
 (对 Codex 观点的回应)
 "
@@ -252,22 +262,29 @@ $S/duo-wait.sh $PR_NUMBER s3:opus:status done
 ```bash
 CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER s1:codex:session)
 
+# 获取 Opus 本轮回应
+OPUS_CURRENT=$($S/duo-get.sh $PR_NUMBER s3:opus:round:$ROUND:response)
+
 $S/codex-resume.sh $CODEX_SESSION "
-## 回应 Opus
-读取 PR 评论中 Opus 的最新观点，逐个回应：
+## Opus 的观点
+$OPUS_CURRENT
+
+## 任务
+逐个回应 Opus 的观点：
 - ✅ 认可 - 问题确实存在
 - ❌ 不认可 - 解释原因
 
 ## 完成后
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
-~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
+1. 保存回应到 Redis: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:round:$ROUND:response \"\$RESPONSE_CONTENT\"
+2. 记录结果: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:agrees <0|1>
+3. 标记完成: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s3:codex:status done
 
-## 发布评论
-~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+## 发布评论（UI）
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"\$RESPONSE_CONTENT\"
 
 ### 评论格式
-<!-- duo-cross-codex-rN -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 回应 | Round N
+<!-- duo-cross-codex-r$ROUND -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 回应 | Round $ROUND
 
 (对 Opus 观点的回应)
 "
