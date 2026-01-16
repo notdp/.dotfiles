@@ -59,7 +59,19 @@ git commit -m 'fix(duo): ...'
 ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:opus:status done
 
 ## 发布评论
-用 gh pr comment 说明修复内容
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-fix-opus -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 修复 | PR #$PR_NUMBER
+
+### 修复内容
+**Commit**: [\`<short_hash>\`](https://github.com/$REPO/commit/<full_hash>)
+
+(说明修复了什么问题)
+
+### 文件变更
+(列出修改的文件及行数变更)
 "
 ```
 
@@ -99,7 +111,14 @@ git diff origin/$PR_BRANCH..HEAD
 然后: ~/.factory/skills/duo-review/scripts/duo-set.sh $PR_NUMBER s4:codex:status done
 
 ## 发布评论
-用 gh pr comment 发布验证结果
+~/.factory/skills/duo-review/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+
+### 评论格式
+<!-- duo-verify-codex -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 验证 | PR #$PR_NUMBER
+
+### 验证结果
+(✅ 通过 / ❌ 失败 + 原因)
 "
 ```
 

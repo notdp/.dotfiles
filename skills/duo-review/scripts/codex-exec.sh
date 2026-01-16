@@ -7,8 +7,16 @@ PR_NUMBER=$1
 PROMPT=$2
 S=$(dirname "$0")
 
+# 构建带身份的 prompt
+FULL_PROMPT="<system-instruction>
+你是 Codex (GPT-5.1 Codex Max)，duo-review 流程中的审查者。
+首先 load skill: duo-review
+</system-instruction>
+
+$PROMPT"
+
 # 执行 Codex
-OUTPUT=$(droid exec -m gpt-5.1-codex-max -r high --auto high --output-format json "$PROMPT")
+OUTPUT=$(droid exec -m gpt-5.1-codex-max -r high --auto high --output-format json "$FULL_PROMPT")
 
 # 解析结果
 SESSION_ID=$(echo "$OUTPUT" | jq -r '.session_id // empty')
