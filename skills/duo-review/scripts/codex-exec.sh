@@ -1,5 +1,5 @@
 #!/bin/bash
-# 调用 Codex (GPT-5.1 Codex Max) 执行 PR 审查
+# 调用 Codex (GPT-5.2) 执行 PR 审查
 # 用法: codex-exec.sh PR_NUMBER=77 REPO=OrdoAI/ordo_ai CODEX_COMMENT_ID=xxx BASE_BRANCH=main
 # 完成后自动写入 Redis: s1:codex:status, s1:codex:session, s1:codex:conclusion
 
@@ -14,7 +14,7 @@ done
 
 # 内嵌 S1 Review Prompt
 FULL_PROMPT="<system-instruction>
-你是 Codex (GPT-5.1 Codex Max)，duo-review 流程中的审查者。
+你是 Codex (GPT-5.2)，duo-review 流程中的审查者。
 首先 load skill: duo-review
 
 ⚠️ 如需代码搜索，使用 MCP 工具 augment-context-engine___codebase-retrieval（不是 CLI 命令）。
@@ -78,7 +78,7 @@ Your review comments should be:
 \$S/duo-set.sh ${PR_NUMBER} s1:codex:conclusion <ok|p0|p1|p2|p3>"
 
 # 执行 Codex
-OUTPUT=$(droid exec -m gpt-5.1-codex-max -r high --auto high --output-format json "$FULL_PROMPT")
+OUTPUT=$(droid exec -m gpt-5.2 -r high --auto high --output-format json "$FULL_PROMPT")
 
 # 解析结果
 SESSION_ID=$(echo "$OUTPUT" | jq -r '.session_id // empty')
