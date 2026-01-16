@@ -53,7 +53,10 @@ gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[] | select(.bod
 2. 运行 gh pr diff $PR_NUMBER --repo $REPO 查看变更
 
 ## 输出
-用 scripts/edit-comment.sh $CODEX_COMMENT_ID "评论内容" 编辑评论。
+用以下方式编辑评论（从 stdin 读取内容）：
+```bash
+echo "评论内容" | scripts/edit-comment.sh $CODEX_COMMENT_ID
+```
 
 评论内容格式：
 <!-- duo-codex-r1 -->
@@ -75,7 +78,10 @@ gh pr view $PR_NUMBER --repo $REPO --json comments -q '.comments[] | select(.bod
 2. 运行 gh pr diff $PR_NUMBER --repo $REPO 查看变更
 
 ## 输出
-用 scripts/edit-comment.sh $OPUS_COMMENT_ID "评论内容" 编辑评论。
+用以下方式编辑评论（从 stdin 读取内容）：
+```bash
+echo "评论内容" | scripts/edit-comment.sh $OPUS_COMMENT_ID
+```
 
 评论内容格式：
 <!-- duo-opus-r1 -->

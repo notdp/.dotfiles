@@ -10,11 +10,10 @@ flowchart LR
 
 ## 步骤 1: Orchestrator 生成汇总并编辑进度评论
 
-将 `PROGRESS_COMMENT_ID` 的内容替换为最终汇总：
+将 `PROGRESS_COMMENT_ID` 的内容替换为最终汇总（从 stdin 读取内容）：
 
 ```bash
-scripts/edit-comment.sh $PROGRESS_COMMENT_ID $REPO "
-<!-- duo-review-summary -->
+echo "<!-- duo-review-summary -->
 ## 🔄 Duo Review 汇总
 
 ### 审查结论
@@ -28,5 +27,5 @@ scripts/edit-comment.sh $PROGRESS_COMMENT_ID $REPO "
 (✅ 无需修复 / ✅ 修复已验证通过 / ⚠️ 修复未验证通过)
 
 修复分支：[bot🤖/pr-{PR_NUMBER}](https://github.com/{REPO}/compare/{PR_BRANCH}...bot🤖/pr-{PR_NUMBER})
-"
+" | scripts/edit-comment.sh $PROGRESS_COMMENT_ID
 ```

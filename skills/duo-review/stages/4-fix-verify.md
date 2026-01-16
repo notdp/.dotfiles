@@ -49,7 +49,10 @@ gh pr view $PR_NUMBER --repo $REPO --json comments -q '[.comments[] | select(.bo
 - 修复后执行 git add 和 git commit
 
 ## 输出
-用 scripts/edit-comment.sh $FIX_COMMENT_ID 编辑占位评论（不要发新评论）。
+用以下方式编辑占位评论（从 stdin 读取内容）：
+```bash
+echo "评论内容" | scripts/edit-comment.sh $FIX_COMMENT_ID
+```
 
 评论格式：
 <!-- duo-opus-fix-{ROUND} -->
