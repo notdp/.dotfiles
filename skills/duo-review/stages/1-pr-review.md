@@ -61,7 +61,7 @@ echo "评论内容" | scripts/edit-comment.sh $CODEX_COMMENT_ID
 评论内容格式：
 <!-- duo-codex-r1 -->
 ## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" /> Round 1 | GPT-5.1 Codex Max | ✅ PR
-> 🕐 审查时间：(scripts/get-time.sh)
+> 🕐 审查时间：(scripts/get-time.sh) | Session: $SESSION_ID
 
 (审查内容)
 
@@ -86,7 +86,7 @@ echo "评论内容" | scripts/edit-comment.sh $OPUS_COMMENT_ID
 评论内容格式：
 <!-- duo-opus-r1 -->
 ## <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" /> Round 1 | Opus 4.5 | ✅ PR
-> 🕐 审查时间：(scripts/get-time.sh)
+> 🕐 审查时间：(scripts/get-time.sh) | Session: $SESSION_ID
 
 (审查内容)
 
