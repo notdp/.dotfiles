@@ -55,7 +55,7 @@ $S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 
 ## Steps
 1. Read REVIEW.md for project conventions
-2. Run: git diff origin/$BASE_BRANCH...HEAD
+2. Get diff: git diff origin/main...HEAD
 3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:opus:review \"\$REVIEW_CONTENT\"
 4. Post review: \$S/edit-comment.sh $OPUS_COMMENT \"\$REVIEW_CONTENT\"
 
@@ -110,7 +110,7 @@ $S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 
 ## Steps
 1. Read REVIEW.md for project conventions
-2. Run: git diff origin/$BASE_BRANCH...HEAD
+2. Get diff: git diff origin/main...HEAD
 3. Save review to Redis: \$S/duo-set.sh $PR_NUMBER s1:codex:review \"\$REVIEW_CONTENT\"
 4. Post review: \$S/edit-comment.sh $CODEX_COMMENT \"\$REVIEW_CONTENT\"
 
