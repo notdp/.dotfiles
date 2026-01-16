@@ -20,7 +20,8 @@ $S/duo-set.sh $PR_NUMBER stage 5
 RESULT=$($S/duo-get.sh $PR_NUMBER s2:result)
 CODEX_CONCLUSION=$($S/duo-get.sh $PR_NUMBER s1:codex:conclusion)
 OPUS_CONCLUSION=$($S/duo-get.sh $PR_NUMBER s1:opus:conclusion)
-PROGRESS_ID=$($S/duo-get.sh $PR_NUMBER progress_comment)
+CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER s1:codex:session)
+OPUS_SESSION=$($S/duo-get.sh $PR_NUMBER s1:opus:session)
 CONSENSUS=$($S/duo-get.sh $PR_NUMBER s3:consensus)
 NEED_FIX=$($S/duo-get.sh $PR_NUMBER s3:need_fix)
 VERIFIED=$($S/duo-get.sh $PR_NUMBER s4:verified)
@@ -41,6 +42,13 @@ FIX_BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 | <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Opus | ✅ 未发现问题 |
 
 **结论**: 双方审查员均未发现问题，PR 可以合并。
+
+<details>
+<summary>Session IDs</summary>
+
+- Codex: `$CODEX_SESSION`
+- Opus: `$OPUS_SESSION`
+</details>
 ```
 
 ### 情况 B: same_issues + 修复验证通过
@@ -57,6 +65,13 @@ FIX_BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 **修复分支**: [`bot🤖/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot🤖/pr-$PR_NUMBER)
 
 **结论**: 问题已修复并验证通过。
+
+<details>
+<summary>Session IDs</summary>
+
+- Codex: `$CODEX_SESSION`
+- Opus: `$OPUS_SESSION`
+</details>
 ```
 
 ### 情况 C: divergent + 达成共识 + 修复
@@ -74,6 +89,13 @@ FIX_BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 **修复分支**: [`bot🤖/pr-$PR_NUMBER`](https://github.com/$REPO/compare/$PR_BRANCH...bot🤖/pr-$PR_NUMBER)
 
 **结论**: 问题已修复并验证通过。
+
+<details>
+<summary>Session IDs</summary>
+
+- Codex: `$CODEX_SESSION`
+- Opus: `$OPUS_SESSION`
+</details>
 ```
 
 ### 情况 D: divergent + 达成共识 + 无需修复
@@ -90,6 +112,13 @@ FIX_BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 **交叉确认**: 第 N 轮达成共识
 
 **结论**: 经交叉确认，无需修复，PR 可以合并。
+
+<details>
+<summary>Session IDs</summary>
+
+- Codex: `$CODEX_SESSION`
+- Opus: `$OPUS_SESSION`
+</details>
 ```
 
 ### 情况 E: 未达成共识或修复未验证
@@ -106,12 +135,19 @@ FIX_BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 **交叉确认**: 共 N 轮，未达成共识
 
 **结论**: ⚠️ 需人工审查。请查看评论详情。
+
+<details>
+<summary>Session IDs</summary>
+
+- Codex: `$CODEX_SESSION`
+- Opus: `$OPUS_SESSION`
+</details>
 ```
 
-## 5.3 更新进度评论
+## 5.3 发布汇总评论
 
 ```bash
-echo "$SUMMARY_CONTENT" | $S/edit-comment.sh $PROGRESS_ID
+$S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY_CONTENT"
 ```
 
 ## 清理
