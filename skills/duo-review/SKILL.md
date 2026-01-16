@@ -54,24 +54,24 @@ S=~/.factory/skills/duo-review/scripts
 
 ## 可用脚本
 
-| 脚本 | 用途 | 用法 |
-|------|------|------|
-| `duo-init.sh` | 初始化 Redis | `duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH` |
-| `duo-set.sh` | 设置状态 | `duo-set.sh $PR_NUMBER <field> <value>` |
-| `duo-get.sh` | 获取状态 | `duo-get.sh $PR_NUMBER <field>` |
-| `duo-wait.sh` | 等待条件 | `duo-wait.sh $PR_NUMBER <field1> <value1> [...]` |
-| `duo-status.sh` | 完整状态 | `duo-status.sh $PR_NUMBER` |
-| `codex-exec.sh` | 启动 Codex | `codex-exec.sh $PR_NUMBER "<prompt>"` |
-| `opus-exec.sh` | 启动 Opus | `opus-exec.sh $PR_NUMBER "<prompt>"` |
-| `codex-resume.sh` | 恢复 Codex | `codex-resume.sh <session_id> "<prompt>"` |
-| `opus-resume.sh` | 恢复 Opus | `opus-resume.sh <session_id> "<prompt>"` |
-| `post-comment.sh` | 发评论 | `post-comment.sh $PR_NUMBER $REPO "<body>"` |
-| `edit-comment.sh` | 编辑评论 | `echo "<body>" \| edit-comment.sh <comment_id>` |
-| `cleanup-comments.sh` | 清理评论 | `cleanup-comments.sh $PR_NUMBER $REPO` |
+| 脚本                      | 用途         | 用法                                                                            |
+| ------------------------- | ------------ | ------------------------------------------------------------------------------- |
+| `$S/duo-init.sh`          | 初始化 Redis | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH`                       |
+| `$S/duo-set.sh`           | 设置状态     | `$S/duo-set.sh $PR_NUMBER <field> <value>`                                      |
+| `$S/duo-get.sh`           | 获取状态     | `$S/duo-get.sh $PR_NUMBER <field>`                                              |
+| `$S/duo-wait.sh`          | 等待条件     | `$S/duo-wait.sh $PR_NUMBER <field1> <value1> [...]`                             |
+| `$S/duo-status.sh`        | 完整状态     | `$S/duo-status.sh $PR_NUMBER`                                                   |
+| `$S/codex-exec.sh`        | 启动 Codex   | `$S/codex-exec.sh PR_NUMBER=N REPO=o/r CODEX_COMMENT_ID=xxx BASE_BRANCH=main`   |
+| `$S/opus-exec.sh`         | 启动 Opus    | `$S/opus-exec.sh PR_NUMBER=N REPO=o/r OPUS_COMMENT_ID=xxx BASE_BRANCH=main`     |
+| `$S/codex-resume.sh`      | 恢复 Codex   | `$S/codex-resume.sh <session_id> "<prompt>"`                                    |
+| `$S/opus-resume.sh`       | 恢复 Opus    | `$S/opus-resume.sh <session_id> "<prompt>"`                                     |
+| `$S/post-comment.sh`      | 发评论       | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                                  |
+| `$S/edit-comment.sh`      | 编辑评论     | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                              |
+| `$S/cleanup-comments.sh`  | 清理评论     | `$S/cleanup-comments.sh $PR_NUMBER $REPO`                                       |
 
 ## Redis 状态结构
 
-```
+```plain
 Key: duo:{PR_NUMBER}
 
 # 元信息
@@ -107,17 +107,17 @@ s4:verified         0 | 1
 
 **每个阶段执行前，必须先读取对应的 stages/ 文件获取详细指令！**
 
-| 阶段 | 文件 | 执行者 | 说明 |
-|------|------|--------|------|
-| 1 | `stages/1-pr-review.md` | Codex + Opus | 并行审查 |
-| 2 | `stages/2-judge-consensus.md` | Orchestrator | 判断共识 |
-| 3 | `stages/3-cross-confirm.md` | Orchestrator + Agent | 交叉确认 |
-| 4 | `stages/4-fix-verify.md` | Opus + Codex | 修复验证 |
-| 5 | `stages/5-summary.md` | Orchestrator | 汇总 |
+| 阶段 | 文件                          | 执行者               | 说明     |
+| ---- | ----------------------------- | -------------------- | -------- |
+| 1    | `stages/1-pr-review.md`       | Codex + Opus         | 并行审查 |
+| 2    | `stages/2-judge-consensus.md` | Orchestrator         | 判断共识 |
+| 3    | `stages/3-cross-confirm.md`   | Orchestrator + Agent | 交叉确认 |
+| 4    | `stages/4-fix-verify.md`      | Opus + Codex         | 修复验证 |
+| 5    | `stages/5-summary.md`         | Orchestrator         | 汇总     |
 
 ## 图标
 
-```
+```plain
 Codex: <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="18" />
 Opus:  <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="18" />
 Loading: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14" />
