@@ -2,58 +2,65 @@
 
 **执行者**: Orchestrator + Codex + Opus
 
-## ⚠️ 重要规则
+## 流程图
 
-1. **禁止读取脚本内容** - 直接执行，不要检查脚本里写了什么
-2. **必须使用 fireAndForget: true** - Codex 和 Opus 必须并行启动，不能串行
-
-## 流程
-
-```plain
-初始化 Redis → 创建占位评论 → 并行启动 Codex/Opus (fireAndForget) → duo-wait 等待完成
+```mermaid
+flowchart TD
+    Start([开始]) --> Init[初始化 Redis]
+    Init --> Clean[清理旧评论]
+    Clean --> Create[创建占位评论]
+    Create --> Launch[并行启动 Codex + Opus]
+    Launch --> Wait[等待完成]
+    Wait --> Done([进入阶段 2])
 ```
 
-## 1.1 初始化
+## ⚠️ 重要规则
+
+1. **禁止读取 diff** - 直接执行脚本，不要先看 PR 内容
+2. **必须并行启动** - 使用 `fireAndForget: true` 同时启动 Codex 和 Opus
+
+## 1.1 初始化 Redis
 
 ```bash
 $S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH
 ```
 
-## 1.2 创建占位评论
+## 1.2 清理旧评论
+
+```bash
+$S/cleanup-comments.sh $PR_NUMBER $REPO
+```
+
+## 1.3 创建占位评论
 
 ```bash
 PROGRESS_ID=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-review-progress -->
 ## 🔄 Duo Review 进度
-<img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" /> 审查中...
-")
+<img src=\"https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f\" width=\"14\" /> 审查中...")
 
 CODEX_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...
-")
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg\" width=\"18\" /> **Codex** 审查中...")
 
 OPUS_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-r1 -->
-<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...
-")
+<img src=\"https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg\" width=\"18\" /> **Opus** 审查中...")
 
 $S/duo-set.sh $PR_NUMBER progress_comment "$PROGRESS_ID"
 $S/duo-set.sh $PR_NUMBER s1:codex:comment "$CODEX_COMMENT"
 $S/duo-set.sh $PR_NUMBER s1:opus:comment "$OPUS_COMMENT"
 ```
 
-## 1.3 启动 Codex
+## 1.4 并行启动审查
 
-**⚠️ 必须使用 Execute 工具的 `fireAndForget: true` 参数！不要读脚本内容！**
+**⚠️ 必须使用 `fireAndForget: true`！**
 
-脚本会自动写入 Redis（status, session, conclusion）。
+### 启动 Codex
 
 ```bash
-$S/codex-exec.sh $PR_NUMBER "You are acting as a reviewer for a proposed code change made by another engineer.
-
-Review PR #$PR_NUMBER ($REPO).
+$S/codex-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 
 ## Steps
 1. Read REVIEW.md for project conventions
-2. gh pr diff $PR_NUMBER --repo $REPO
+2. Run: gh pr diff $PR_NUMBER --repo $REPO
 3. Update comment: echo 'content' | \$S/edit-comment.sh $CODEX_COMMENT
 
 ### How Many Findings to Return
@@ -83,37 +90,31 @@ Your review comments should be:
 - Ignore trivial style unless it obscures meaning or violates documented standards.
 
 ### Priority Levels
-- 🔴 **[P0]** - Drop everything to fix. Blocking release/operations
-- 🟠 **[P1]** - Urgent. Should be addressed in next cycle
-- 🟡 **[P2]** - Normal. To be fixed eventually
-- 🟢 **[P3]** - Low. Nice to have
+- 🔴 [P0] - Drop everything to fix. Blocking release/operations
+- 🟠 [P1] - Urgent. Should be addressed in next cycle
+- 🟡 [P2] - Normal. To be fixed eventually
+- 🟢 [P3] - Low. Nice to have
 
 ## Output Format
 <!-- duo-codex-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex | PR #$PR_NUMBER
 > 🕐 YYYY-MM-DD HH:MM (GMT+8)
 
-### Findings (or 'No issues found')
-- 🔴[P0]/🟠[P1]/🟡[P2]/🟢[P3] Title - reason
+### Findings
+(No issues found OR list by priority)
 
 ### Conclusion
-✅ No issues OR list highest priority found"
+✅ No issues OR highest priority found"
 ```
 
-## 1.4 启动 Opus
-
-**⚠️ 必须使用 Execute 工具的 `fireAndForget: true` 参数！不要读脚本内容！**
-
-脚本会自动写入 Redis（status, session, conclusion）。
+### 启动 Opus
 
 ```bash
-$S/opus-exec.sh $PR_NUMBER "You are acting as a reviewer for a proposed code change made by another engineer.
-
-Review PR #$PR_NUMBER ($REPO).
+$S/opus-exec.sh $PR_NUMBER "You are reviewing PR #$PR_NUMBER ($REPO).
 
 ## Steps
 1. Read REVIEW.md for project conventions
-2. gh pr diff $PR_NUMBER --repo $REPO
+2. Run: gh pr diff $PR_NUMBER --repo $REPO
 3. Update comment: echo 'content' | \$S/edit-comment.sh $OPUS_COMMENT
 
 ### How Many Findings to Return
@@ -143,21 +144,21 @@ Your review comments should be:
 - Ignore trivial style unless it obscures meaning or violates documented standards.
 
 ### Priority Levels
-- 🔴 **[P0]** - Drop everything to fix. Blocking release/operations
-- 🟠 **[P1]** - Urgent. Should be addressed in next cycle
-- 🟡 **[P2]** - Normal. To be fixed eventually
-- 🟢 **[P3]** - Low. Nice to have
+- 🔴 [P0] - Drop everything to fix. Blocking release/operations
+- 🟠 [P1] - Urgent. Should be addressed in next cycle
+- 🟡 [P2] - Normal. To be fixed eventually
+- 🟢 [P3] - Low. Nice to have
 
 ## Output Format
 <!-- duo-opus-r1 -->
 ## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus | PR #$PR_NUMBER
 > 🕐 YYYY-MM-DD HH:MM (GMT+8)
 
-### Findings (or 'No issues found')
-- 🔴[P0]/🟠[P1]/🟡[P2]/🟢[P3] Title - reason
+### Findings
+(No issues found OR list by priority)
 
 ### Conclusion
-✅ No issues OR list highest priority found"
+✅ No issues OR highest priority found"
 ```
 
 ## 1.5 等待完成
@@ -171,7 +172,7 @@ $S/duo-wait.sh $PR_NUMBER s1:codex:status done s1:opus:status done
 完成后 Redis 中有：
 - `s1:codex:status = done`
 - `s1:codex:session = <UUID>`
-- `s1:codex:conclusion = ok|p0|p1|p2|p3`
+- `s1:codex:conclusion = ok | p0 | p1 | p2 | p3`
 - `s1:opus:*` 同上
 
 → 进入阶段 2
