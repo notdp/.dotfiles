@@ -112,7 +112,7 @@ S=~/.factory/skills/duoduo/scripts
 | `$S/post-comment.sh` | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
 | `$S/edit-comment.sh` | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
 | `$S/get-comment.sh`  | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
-| `$S/duo-resume.sh`   | 恢复 session       | `$S/duo-resume.sh $PR_NUMBER <name>`                               |
+| `$S/session-resume.py` | 恢复 session     | `python3 $S/session-resume.py <name> $PR_NUMBER`                   |
 
 ## Redis 状态结构
 
@@ -235,7 +235,7 @@ mention:status      idle | processing | done
    # 检查并恢复 Opus（如需与 Opus 沟通）
    OPUS_PID=$(redis-cli HGET "duo:$PR_NUMBER" opus:pid)
    if [ -z "$OPUS_PID" ] || ! kill -0 "$OPUS_PID" 2>/dev/null; then
-     $S/duo-resume.sh $PR_NUMBER opus
+     python3 $S/session-resume.py opus $PR_NUMBER
    fi
    ```
 
