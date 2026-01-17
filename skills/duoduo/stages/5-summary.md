@@ -56,4 +56,5 @@ CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER codex:session)
 
 ```bash
 $S/post-comment.sh $PR_NUMBER $REPO "$SUMMARY_CONTENT"
+$S/duo-set.sh $PR_NUMBER stage done
 ```

@@ -58,7 +58,7 @@ while true; do
     STAGE=$($S/duo-get.sh $PR_NUMBER stage 2>/dev/null || echo "1")
     
     if [ "$STAGE" != "$LAST_STAGE" ]; then
-        if [ "$STAGE" = "5" ]; then
+        if [ "$STAGE" = "done" ]; then
             RESULT=$($S/duo-get.sh $PR_NUMBER s2:result 2>/dev/null || echo "")
             echo "✅ 完成: $RESULT"
             echo ""
