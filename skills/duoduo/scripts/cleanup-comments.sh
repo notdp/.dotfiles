@@ -24,11 +24,7 @@ if [ -z "$IDS" ]; then
   exit 0
 fi
 
-# 逐个删除
-for id in $IDS; do
-  echo "删除: $id"
-  gh api graphql -f query="mutation { deleteIssueComment(input: {id: \"$id\"}) { clientMutationId } }" >/dev/null 2>&1
-  sleep 0.3
-done
+# 并行删除
+echo "$IDS" | xargs -P 4 -I {} sh -c 'echo "删除: {}"; gh api graphql -f query="mutation { deleteIssueComment(input: {id: \"{}\"}) { clientMutationId } }" >/dev/null 2>&1'
 
 echo "清理完成"

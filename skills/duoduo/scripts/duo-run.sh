@@ -5,7 +5,7 @@
 
 set -e
 
-S=~/.dotfiles/skills/duoduo/scripts
+S=~/.factory/skills/duoduo/scripts
 export RUNNER=${RUNNER:-local}
 
 # local/droid 模式：从 gh 获取 PR 信息
@@ -39,7 +39,8 @@ pkill -f "session-start.py.*$PR_NUMBER" 2>/dev/null || true
 rm -f /tmp/duo-$PR_NUMBER-* 2>/dev/null || true
 redis-cli DEL duo:$PR_NUMBER >/dev/null 2>&1 || true
 $S/cleanup-comments.sh $PR_NUMBER $REPO >/dev/null 2>&1 || true
-git push origin --delete "bot/pr-$PR_NUMBER" 2>/dev/null || true
+gh api "repos/$REPO/git/matching-refs/heads/duo/pr$PR_NUMBER-" --jq '.[].ref' 2>/dev/null | \
+  sed 's|refs/heads/||' | xargs -P 4 -I {} gh api "repos/$REPO/git/refs/heads/{}" -X DELETE 2>/dev/null || true
 
 # 启动 Orchestrator
 $S/orchestrator-start.py $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH $RUNNER

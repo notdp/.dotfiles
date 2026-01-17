@@ -27,10 +27,9 @@ flowchart TD
 ```bash
 $S/duo-set.sh $PR_NUMBER stage 4
 $S/duo-set.sh $PR_NUMBER s4:round 1
-
-# 创建修复分支（-B 强制覆盖已存在的同名分支）
-git checkout -B "bot/pr-$PR_NUMBER" "$PR_BRANCH"
 ```
+
+> **注意**: 修复分支由 Opus 在 4.3 步骤中创建。
 
 ---
 
@@ -61,6 +60,16 @@ OPUS_FIX_COMMENT=$($S/duo-get.sh $PR_NUMBER s4:opus:comment_id)
 $S/fifo-send.sh opus $PR_NUMBER "
 ## 任务
 读取 PR 评论中双方都标记为 🔧 Fix 的问题，进行修复。
+
+## 第一步：创建修复分支
+根据修复内容决定语义描述（kebab-case，≤30字符），然后创建分支：
+\`\`\`bash
+DESC='<根据修复内容命名>'  # 例: timeout-retry, null-check, api-validation
+DESC=\$(echo \"\$DESC\" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+\$//g')
+BRANCH=\"duo/pr$PR_NUMBER-\$DESC\"
+git checkout -B \"\$BRANCH\" \"$PR_BRANCH\"
+\$S/duo-set.sh $PR_NUMBER s4:branch \"\$BRANCH\"
+\`\`\`
 
 ## 要求
 - 只修复达成共识的问题

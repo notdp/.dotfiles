@@ -19,7 +19,7 @@ description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需
 
    ```bash
    export RUNNER=droid
-   ~/.dotfiles/skills/duoduo/scripts/duo-run.sh $PR_NUMBER
+   ~/.factory/skills/duoduo/scripts/duo-run.sh $PR_NUMBER
    ```
 
 4. 若检测不到 PR，询问用户输入 PR 编号
@@ -132,6 +132,9 @@ s1:opus:comment_id
 
 # 阶段结果（Orchestrator 写入）
 s2:result           both_ok | same_issues | divergent
+
+# 阶段 4 状态（Opus 写入）
+s4:branch           修复分支名（格式: duo/pr<PR>-<desc>）
 ```
 
 ## 阶段执行
