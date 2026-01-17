@@ -45,7 +45,10 @@ jobs:
 
 **配置步骤**：
 
-1. 创建 GitHub App（需要 `contents: write`, `pull_requests: write`, `issues: write` 权限）
+1. 创建 GitHub App，配置权限：
+   - `Contents`: Read-only
+   - `Pull requests`: Read and write
+   - `Issues`: Read and write
 2. 安装到目标仓库
 3. 在仓库 Settings → Secrets and variables → Actions 添加：
    - `DUO_APP_ID`: App ID
