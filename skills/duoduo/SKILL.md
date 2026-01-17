@@ -5,6 +5,27 @@ description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需
 
 # Duo Review - 双 Agent 交叉审查
 
+## ⚠️ 启动检测
+
+执行 `echo $RUNNER` 检测环境变量：
+
+**有输出** → 脚本启动，跳过确认，直接执行阶段流程
+
+**无输出** → 用户直接启动，进入交互模式：
+
+1. 执行 `gh pr view --json number,baseRefName,headRefName` 获取 PR 信息
+2. 向用户确认："检测到 PR #XX (head → base)，开始审查？"
+3. 用户确认后执行：
+
+   ```bash
+   export RUNNER=droid
+   ~/.dotfiles/skills/duoduo/scripts/duo-run.sh $PR_NUMBER
+   ```
+
+4. 若检测不到 PR，询问用户输入 PR 编号
+
+**⛔ 禁止**：如果 `duo-run.sh` 执行失败，**禁止**自己手动调用 `duo-init.sh` 或其他脚本来"修复"。直接报错并告知用户。
+
 ## 角色
 
 | 角色             | 模型                | 职责                           |
@@ -13,10 +34,36 @@ description: 双 AI Agent 交叉审查 PR。自动判断共识、决定是否需
 | **Codex**        | GPT-5.2             | PR 审查、交叉确认、验证修复    |
 | **Opus**         | Claude Opus 4.5     | PR 审查、交叉确认、执行修复    |
 
+## 通信架构
+
+```mermaid
+flowchart TB
+    subgraph Agents
+        Orchestrator[Orchestrator<br/>中心枢纽]
+        Opus[Opus<br/>Claude Opus 4.5]
+        Codex[Codex<br/>GPT-5.2]
+        
+        Orchestrator <-->|FIFO| Opus
+        Orchestrator <-->|FIFO| Codex
+    end
+    
+    Agents -->|UI| PR[PR Comments]
+```
+
+- **FIFO** = 数据通道（双向通信）
+- **评论** = 纯 UI（给人看，不参与数据流）
+
 ## ⚠️ Orchestrator 行为规范
 
-**禁止：** 读取 PR diff、REVIEW.md、代码文件
-**必须：** 直接执行脚本，使用 Redis 协调状态，读取评论判断共识
+**禁止：**
+
+- 读取 PR diff、REVIEW.md、代码文件
+- 等待 Agent 时执行任何命令（FIFO 消息会丢失！）
+
+**必须：**
+
+- 启动 Agent 后直接回复"等待中..."然后结束回复
+- Agent 结果会自动作为新消息发来：`<OPUS>...</OPUS>` / `<CODEX>...</CODEX>`
 
 ## 五阶段总览
 
@@ -31,10 +78,10 @@ flowchart TD
     
     S3 -->|共识: 无需修复| S5
     S3 -->|共识: 需修复| S4
-    S3 -->|10轮未达成| S5
+    S3 -->|5轮未达成| S5
     
     S4 -->|验证通过| S5
-    S4 -->|10轮未通过| S5
+    S4 -->|5轮未通过| S5
     
     S5 --> End([结束])
 ```
@@ -54,53 +101,37 @@ S=~/.factory/skills/duoduo/scripts
 
 ## 可用脚本
 
-| 脚本                      | 用途         | 用法                                                                            |
-| ------------------------- | ------------ | ------------------------------------------------------------------------------- |
-| `$S/duo-init.sh`          | 初始化 Redis | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH`                       |
-| `$S/duo-set.sh`           | 设置状态     | `$S/duo-set.sh $PR_NUMBER <field> <value>`                                      |
-| `$S/duo-get.sh`           | 获取状态     | `$S/duo-get.sh $PR_NUMBER <field>`                                              |
-| `$S/duo-wait.sh`          | 等待条件     | `$S/duo-wait.sh $PR_NUMBER <field1> <value1> [...]`                             |
-| `$S/duo-status.sh`        | 完整状态     | `$S/duo-status.sh $PR_NUMBER`                                                   |
-| `$S/codex-exec.sh`        | 启动 Codex   | `$S/codex-exec.sh PR_NUMBER=N REPO=o/r CODEX_COMMENT_ID=xxx BASE_BRANCH=main`   |
-| `$S/opus-exec.sh`         | 启动 Opus    | `$S/opus-exec.sh PR_NUMBER=N REPO=o/r OPUS_COMMENT_ID=xxx BASE_BRANCH=main`     |
-| `$S/codex-resume.sh`      | 恢复 Codex   | `$S/codex-resume.sh <session_id> "<prompt>"`                                    |
-| `$S/opus-resume.sh`       | 恢复 Opus    | `$S/opus-resume.sh <session_id> "<prompt>"`                                     |
-| `$S/post-comment.sh`      | 发评论       | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                                  |
-| `$S/edit-comment.sh`      | 编辑评论     | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                              |
-| `$S/cleanup-comments.sh`  | 清理评论     | `$S/cleanup-comments.sh $PR_NUMBER $REPO`                                       |
+| 脚本                 | 用途               | 用法                                                               |
+| -------------------- | ------------------ | ------------------------------------------------------------------ |
+| `$S/duo-init.sh`     | 初始化 Redis       | `$S/duo-init.sh $PR_NUMBER $REPO $PR_BRANCH $BASE_BRANCH [RUNNER]` |
+| `$S/duo-set.sh`      | 设置状态           | `$S/duo-set.sh $PR_NUMBER <field> <value>`                         |
+| `$S/duo-get.sh`      | 获取状态           | `$S/duo-get.sh $PR_NUMBER <field>`                                 |
+| `$S/opus-start.py`   | 启动 Opus session  | `$S/opus-start.py $COMMENT_ID`                                     |
+| `$S/codex-start.py`  | 启动 Codex session | `$S/codex-start.py $COMMENT_ID`                                    |
+| `$S/fifo-send.sh`    | 给 session 发消息  | `$S/fifo-send.sh <orchestrator\|opus\|codex> $PR "<msg>"`          |
+| `$S/post-comment.sh` | 发评论             | `$S/post-comment.sh $PR_NUMBER $REPO "<body>"`                     |
+| `$S/edit-comment.sh` | 编辑评论           | `echo "<body>" \| $S/edit-comment.sh <comment_id>`                 |
+| `$S/get-comment.sh`  | 读取评论           | `$S/get-comment.sh $PR_NUMBER $REPO <marker>`                      |
 
 ## Redis 状态结构
 
 ```plain
 Key: duo:{PR_NUMBER}
 
-# 元信息
-repo, pr, branch, base, stage, started_at, progress_comment
+# 元信息（duo-init.sh 初始化）
+repo, pr, branch, base, runner, stage, started_at
 
-# 阶段 1: PR 审查
-s1:codex:status     pending | done
-s1:codex:session    会话 ID
-s1:codex:conclusion ok | p0 | p1 | p2 | p3
-s1:codex:review     审查正文（完整内容）
-s1:codex:review_node_id  评论 node ID（UI 指针）
+# Session 管理（session-start.py 自动写入）
+orchestrator:session, orchestrator:fifo, orchestrator:pid, orchestrator:log
+opus:session, opus:fifo, opus:pid, opus:log
+codex:session, codex:fifo, codex:pid, codex:log
 
-s1:opus:*           同上
+# 评论 ID（Orchestrator 写入，阶段 1 创建占位评论后保存）
+s1:codex:comment_id
+s1:opus:comment_id
 
-# 阶段 2: 共识结果
+# 阶段结果（Orchestrator 写入）
 s2:result           both_ok | same_issues | divergent
-
-# 阶段 3: 交叉确认
-s3:mode             codex_confirm | opus_confirm | bidirectional
-s3:round            当前轮数
-s3:consensus        0 | 1
-s3:need_fix         0 | 1
-s3:opus:round:{n}:response   Opus 第 n 轮回应
-s3:codex:round:{n}:response  Codex 第 n 轮回应
-
-# 阶段 4: 修复验证
-s4:round            当前轮数
-s4:branch           修复分支名
-s4:verified         0 | 1
 ```
 
 ## 阶段执行
@@ -120,5 +151,6 @@ s4:verified         0 | 1
 ```plain
 Codex: <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="18" />
 Opus:  <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="18" />
-Loading: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14" />
+Codex Loading: <img src="https://media.tenor.com/y98Q1SkqLCAAAAAM/chat-gpt.gif" width="18" />
+Opus Loading:  <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="18" />
 ```

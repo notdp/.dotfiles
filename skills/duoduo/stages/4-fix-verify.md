@@ -1,4 +1,4 @@
-# 阶段 4: 修复验证（最多 10 轮）
+# 阶段 4: 修复验证（最多 5 轮）
 
 **执行者**: Orchestrator + Opus + Codex
 
@@ -15,7 +15,7 @@ flowchart TD
     Verify --> Judge{验证结果}
     
     Judge -->|✅ 通过| S5([阶段 5: 汇总])
-    Judge -->|❌ 失败| Check{轮数 < 10?}
+    Judge -->|❌ 失败| Check{轮数 < 5?}
     
     Check -->|是| Inc[Round++]
     Inc --> Round
@@ -27,7 +27,6 @@ flowchart TD
 ```bash
 $S/duo-set.sh $PR_NUMBER stage 4
 $S/duo-set.sh $PR_NUMBER s4:round 1
-$S/duo-set.sh $PR_NUMBER s4:branch "bot/pr-$PR_NUMBER"
 
 # 创建修复分支（-B 强制覆盖已存在的同名分支）
 git checkout -B "bot/pr-$PR_NUMBER" "$PR_BRANCH"
@@ -35,15 +34,31 @@ git checkout -B "bot/pr-$PR_NUMBER" "$PR_BRANCH"
 
 ---
 
-## 循环（ROUND <= 10）
+## 循环（ROUND <= 5）
 
-### 4.2 启动 Opus 修复
+### 4.2 创建修复占位评论
 
 ```bash
-OPUS_SESSION=$($S/duo-get.sh $PR_NUMBER s1:opus:session)
-ROUND=$($S/duo-get.sh $PR_NUMBER s4:round)
+TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
 
-$S/opus-resume.sh $OPUS_SESSION "
+OPUS_FIX_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-opus-fix -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 修复中
+> 🕐 $TIMESTAMP
+
+<img src='https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f' width='18' /> {随机ing词}...")
+
+$S/duo-set.sh $PR_NUMBER s4:opus:comment_id $OPUS_FIX_COMMENT
+```
+
+**{随机 ing 词}**: 自己想一个 -ing 结尾的词或短语。
+
+### 4.3 启动 Opus 修复
+
+```bash
+ROUND=$($S/duo-get.sh $PR_NUMBER s4:round)
+OPUS_FIX_COMMENT=$($S/duo-get.sh $PR_NUMBER s4:opus:comment_id)
+
+$S/fifo-send.sh opus $PR_NUMBER "
 ## 任务
 读取 PR 评论中双方都认可（✅）的问题，进行修复。
 
@@ -53,17 +68,19 @@ $S/opus-resume.sh $OPUS_SESSION "
 - commit message: fix(duo): 简要描述
 
 ## 完成后
-git add -A
-git commit -m 'fix(duo): ...'
-~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:opus:commit \$(git rev-parse HEAD)
-~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:opus:status done
+1. git add -A && git commit -m 'fix(duo): ...'
+2. 更新占位评论（用 edit-comment.sh）:
+   echo '\$COMMENT_CONTENT' | \$S/edit-comment.sh $OPUS_FIX_COMMENT
+3. 发回结果给 Orchestrator:
+   \$S/fifo-send.sh orchestrator $PR_NUMBER '<OPUS>\$COMMENT_CONTENT</OPUS>'
 
-## 发布评论
-~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+### 评论格式（必须严格遵循）
 
-### 评论格式
-<!-- duo-fix-opus -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 修复 | PR #$PR_NUMBER
+先获取时间戳：TIMESTAMP=\$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
+
+<!-- duo-opus-fix -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' /> Opus 修复完成
+> 🕐 \$TIMESTAMP
 
 ### 修复内容
 **Commit**: [\`<short_hash>\`](https://github.com/$REPO/commit/<full_hash>)
@@ -75,12 +92,6 @@ git commit -m 'fix(duo): ...'
 "
 ```
 
-### 4.3 等待 Opus 修复
-
-```bash
-$S/duo-wait.sh $PR_NUMBER s4:opus:status done
-```
-
 ### 4.4 推送修复
 
 ```bash
@@ -88,12 +99,28 @@ BRANCH=$($S/duo-get.sh $PR_NUMBER s4:branch)
 git push origin "$BRANCH" --force
 ```
 
-### 4.5 启动 Codex 验证
+### 4.5 创建验证占位评论
 
 ```bash
-CODEX_SESSION=$($S/duo-get.sh $PR_NUMBER s1:codex:session)
+TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
 
-$S/codex-resume.sh $CODEX_SESSION "
+CODEX_VERIFY_COMMENT=$($S/post-comment.sh $PR_NUMBER $REPO "<!-- duo-codex-verify -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 验证中
+> 🕐 $TIMESTAMP
+
+<img src='https://media.tenor.com/y98Q1SkqLCAAAAAM/chat-gpt.gif' width='18' /> {随机ing词}...")
+
+$S/duo-set.sh $PR_NUMBER s4:codex:comment_id $CODEX_VERIFY_COMMENT
+```
+
+**{随机 ing 词}**: 自己想一个 -ing 结尾的词或短语。
+
+### 4.6 启动 Codex 验证
+
+```bash
+CODEX_VERIFY_COMMENT=$($S/duo-get.sh $PR_NUMBER s4:codex:comment_id)
+
+$S/fifo-send.sh codex $PR_NUMBER "
 ## 任务
 验证 Opus 的修复是否正确。
 
@@ -106,26 +133,22 @@ git diff origin/$PR_BRANCH..HEAD
 3. 代码质量是否符合规范
 
 ## 完成后
-- 验证通过: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:verified 1
-- 验证失败: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:verified 0
-然后: ~/.factory/skills/duoduo/scripts/duo-set.sh $PR_NUMBER s4:codex:status done
+1. 更新占位评论（用 edit-comment.sh）:
+   echo '\$COMMENT_CONTENT' | \$S/edit-comment.sh $CODEX_VERIFY_COMMENT
+2. 发回结果给 Orchestrator:
+   \$S/fifo-send.sh orchestrator $PR_NUMBER '<CODEX>\$COMMENT_CONTENT</CODEX>'
 
-## 发布评论
-~/.factory/skills/duoduo/scripts/post-comment.sh $PR_NUMBER $REPO \"评论内容\"
+### 评论格式（必须严格遵循）
 
-### 评论格式
-<!-- duo-verify-codex -->
-## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 验证 | PR #$PR_NUMBER
+先获取时间戳：TIMESTAMP=\$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
+
+<!-- duo-codex-verify -->
+## <img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' /> Codex 验证完成
+> 🕐 \$TIMESTAMP
 
 ### 验证结果
 (✅ 通过 / ❌ 失败 + 原因)
 "
-```
-
-### 4.6 等待 Codex 验证
-
-```bash
-$S/duo-wait.sh $PR_NUMBER s4:codex:status done
 ```
 
 ### 4.7 判断结果
@@ -138,7 +161,7 @@ if [ "$VERIFIED" = "1" ]; then
   # 验证通过 → 阶段 5
   echo "修复验证通过"
   
-elif [ "$ROUND" -ge 10 ]; then
+elif [ "$ROUND" -ge 5 ]; then
   # 达到最大轮数 → 阶段 5
   echo "达到最大轮数"
   

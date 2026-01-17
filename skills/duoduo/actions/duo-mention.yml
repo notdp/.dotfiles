@@ -1,0 +1,65 @@
+name: Duo Mention
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  reply:
+    # 触发条件：PR comment 且 @ 了 bot
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@ordoduo')
+    runs-on: [self-hosted, macos, arm64]
+    
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DUO_APP_ID }}
+          private-key: ${{ secrets.DUO_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+
+      - name: Parse mention and get session info
+        id: parse
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # 解析 comment 内容，提取消息
+          # 格式: @ordoduo <message>
+          MESSAGE=$(echo "$COMMENT_BODY" | sed 's/@ordoduo[[:space:]]*//')
+          
+          # 从 Redis 获取信息
+          SESSION=$(redis-cli HGET "duo:$PR_NUMBER" "orchestrator:session")
+          RUNNER=$(redis-cli HGET "duo:$PR_NUMBER" "runner")
+          
+          echo "session=$SESSION" >> $GITHUB_OUTPUT
+          echo "runner=$RUNNER" >> $GITHUB_OUTPUT
+          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Post acknowledgment
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr comment ${{ github.event.issue.number }} \
+            --body "<!-- duo-reply-ack -->
+          收到指令，正在恢复 orchestrator session...
+          
+          - Session: \`${{ steps.parse.outputs.session }}\`
+          - Runner: \`${{ steps.parse.outputs.runner }}\`"
+
+      - name: Resume session and send message
+        run: |
+          S=~/.dotfiles/skills/duoduo/scripts
+          $S/session-resume.py orchestrator ${{ steps.parse.outputs.pr_number }} "${{ steps.parse.outputs.message }}"
