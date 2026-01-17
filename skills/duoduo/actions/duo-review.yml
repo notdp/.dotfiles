@@ -17,9 +17,11 @@ on:
         type: string
     secrets:
       DUO_APP_ID:
-        required: true
+        required: false
       DUO_APP_PRIVATE_KEY:
-        required: true
+        required: false
+      GH_TOKEN:
+        required: false
 
 jobs:
   check-branch:
@@ -42,6 +44,7 @@ jobs:
     steps:
       - name: Generate App Token
         id: app-token
+        if: ${{ secrets.DUO_APP_ID != '' }}
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.DUO_APP_ID }}
@@ -59,7 +62,7 @@ jobs:
         env:
           RUNNER: ${{ runner.name }}
           PR_BRANCH: ${{ inputs.pr_branch }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
         run: |
           ~/.dotfiles/skills/duoduo/scripts/duo-run.sh \
             ${{ inputs.pr_number }} \
