@@ -54,6 +54,9 @@ jobs:
         run: |
           cd ~/.dotfiles && git fetch origin && git reset --hard origin/main
 
+      - name: Install/upgrade duo-cli
+        run: pipx upgrade duo-cli 2>/dev/null || pipx install git+https://github.com/notdp/duo-cli.git
+
       - name: Duo Mention
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
