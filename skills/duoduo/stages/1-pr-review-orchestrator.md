@@ -24,7 +24,6 @@ duo-cli set stage 1
 # 启动 Opus
 duo-cli spawn opus
 duo-cli send opus --stdin <<EOF
-<MESSAGE from="orchestrator" to="opus">
 <system-instruction>
 你是 Opus (Claude Opus 4.5)，duoduo review 审查者。
 ⛔ FIRST STEP: load skill: duoduo
@@ -34,13 +33,11 @@ duo-cli send opus --stdin <<EOF
 
 **立即执行**：读取 ~/.factory/skills/duoduo/stages/1-pr-review-opus.md 并严格按步骤执行。
 注意：先创建占位评论！
-</MESSAGE>
 EOF
 
 # 启动 Codex
 duo-cli spawn codex
 duo-cli send codex --stdin <<EOF
-<MESSAGE from="orchestrator" to="codex">
 <system-instruction>
 你是 Codex (GPT-5.2)，duoduo review 审查者。
 ⛔ FIRST STEP: load skill: duoduo
@@ -50,7 +47,6 @@ duo-cli send codex --stdin <<EOF
 
 **立即执行**：读取 ~/.factory/skills/duoduo/stages/1-pr-review-codex.md 并严格按步骤执行。
 注意：先创建占位评论！
-</MESSAGE>
 EOF
 ```
 

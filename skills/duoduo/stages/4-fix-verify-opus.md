@@ -92,10 +92,8 @@ duo-cli comment edit $COMMENT_ID "$FIX_CONTENT"
 
 ```bash
 duo-cli send codex --stdin <<EOF
-<MESSAGE from="opus" to="codex">
 修复完成，分支: $BRANCH
 
 请验证修复是否正确。阅读 ~/.factory/skills/duoduo/stages/4-fix-verify-codex.md 执行。
-</MESSAGE>
 EOF
 ```

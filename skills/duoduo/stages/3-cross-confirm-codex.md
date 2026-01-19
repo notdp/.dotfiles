@@ -20,13 +20,11 @@ flowchart TD
 
 ```bash
 duo-cli send opus --stdin <<EOF
-<MESSAGE from="codex" to="opus">
 | 问题 | 我的判断 | 说明                 |
 | ---- | -------- | -------------------- |
 | O1   | 🔧 Fix    | 同意，确实有风险     |
 | O2   | ⏭️ Skip   | 风格问题，不影响功能 |
 | C1   | ⏭️ Skip   | 重新看了，确实不重要 |
-</MESSAGE>
 EOF
 
 # 同时发布评论（给人看）
@@ -62,7 +60,6 @@ EOF
 
 ```bash
 duo-cli send orchestrator --stdin <<EOF
-<MESSAGE from="codex" to="orchestrator">
 ## 交叉确认完成
 
 | 问题                   | 状态   | 说明          |
@@ -70,7 +67,6 @@ duo-cli send orchestrator --stdin <<EOF
 | O1 [P1] 空指针检查缺失 | 🔧 Fix  | 双方确认      |
 | O2 日志格式不一致      | ⏭️ Skip | style only    |
 | C1 变量命名不规范      | ⏭️ Skip | not important |
-</MESSAGE>
 EOF
 ```
 
@@ -78,13 +74,11 @@ EOF
 
 ```bash
 duo-cli send orchestrator --stdin <<EOF
-<MESSAGE from="codex" to="orchestrator">
 ## 交叉确认结束（僵局）
 
 | 问题 | 状态       | 说明                         |
 | ---- | ---------- | ---------------------------- |
 | O1   | 🔧 Fix      | 双方确认                     |
 | O2   | ⚠️ Deadlock | Opus: 需修复 / Codex: 不需要 |
-</MESSAGE>
 EOF
 ```

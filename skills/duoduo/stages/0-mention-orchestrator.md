@@ -60,8 +60,8 @@ Agent 可能已退出，先检查再恢复：
 # 检查 + 恢复
 duo-cli alive opus || duo-cli resume opus
 
-# 发送消息
-duo-cli send opus "<MESSAGE from=\"orchestrator\">...</MESSAGE>"
+# 发送消息（duo-cli send 自动包裹 <MESSAGE> 标签）
+duo-cli send opus "你的消息内容..."
 
 # 等待 FIFO 响应
 ```

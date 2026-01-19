@@ -26,7 +26,6 @@ flowchart TD
 duo-cli set stage 3
 
 duo-cli send opus --stdin <<EOF
-<MESSAGE from="orchestrator" to="opus">
 ## 交叉确认任务
 
 你需要和 Codex 直接对话，确认以下问题：
@@ -38,7 +37,6 @@ $OPUS_FINDINGS
 $CODEX_FINDINGS
 
 阅读 ~/.factory/skills/duoduo/stages/3-cross-confirm-opus.md 执行。
-</MESSAGE>
 EOF
 ```
 

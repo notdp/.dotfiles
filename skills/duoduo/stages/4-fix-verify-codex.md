@@ -76,5 +76,5 @@ duo-cli comment edit $COMMENT_ID "$VERIFY_CONTENT"
 ## 5. 通知 Orchestrator
 
 ```bash
-duo-cli send orchestrator "<MESSAGE from=\"codex\" to=\"orchestrator\">验证通过/失败: 原因</MESSAGE>"
+duo-cli send orchestrator "验证通过/失败: 原因"
 ```

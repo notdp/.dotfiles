@@ -116,7 +116,7 @@ duo-cli comment edit $COMMENT_ID "$REVIEW_CONTENT"
 ## 6. 通知 Orchestrator
 
 ```bash
-duo-cli send orchestrator "<MESSAGE from=\"opus\" to=\"orchestrator\">$REVIEW_CONTENT</MESSAGE>"
+duo-cli send orchestrator "$REVIEW_CONTENT"
 ```
 
 然后等待 Orchestrator 的后续指令。

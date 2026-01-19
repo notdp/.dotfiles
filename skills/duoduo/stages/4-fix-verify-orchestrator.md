@@ -28,14 +28,12 @@ duo-cli set s4:round 1
 
 # 通知 Opus 修复
 duo-cli send opus --stdin <<EOF
-<MESSAGE from="orchestrator" to="opus">
 阶段 4 任务：修复问题。Round $(duo-cli get s4:round)。
 
 需修复的问题：
 $FIX_ISSUES
 
 阅读 ~/.factory/skills/duoduo/stages/4-fix-verify-opus.md 执行。
-</MESSAGE>
 EOF
 ```
 

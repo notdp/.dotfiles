@@ -110,20 +110,30 @@ flowchart TB
 
 ### 消息格式
 
-**Agent 间消息**（FIFO 传输）：
+**Agent 间消息**（`duo-cli send` 自动包裹 `<MESSAGE>` 标签）：
 
-```xml
-<MESSAGE from="opus" to="orchestrator">
-消息内容...
-</MESSAGE>
+```bash
+# 发送时只需写消息内容
+duo-cli send orchestrator "审查完成，无问题"
+
+# duo-cli 会自动包裹为：
+# <MESSAGE from="opus" to="orchestrator">
+# 审查完成，无问题
+# </MESSAGE>
 ```
 
-**用户 @Mention**（由 workflow 注入）：
+**用户 @Mention**（由 workflow 注入，不包裹）：
 
 ```xml
 <USER_MENTION repo="owner/repo" pr="123" author="username">
 用户评论内容...
 </USER_MENTION>
+```
+
+**回复用户**（通过 PR 评论，不是 FIFO）：
+
+```bash
+duo-cli comment post "回复内容"
 ```
 
 **PR 评论**（给人看，必须包含 HTML 注释标识）：

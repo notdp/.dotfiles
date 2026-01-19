@@ -20,13 +20,11 @@ flowchart TD
 
 ```bash
 duo-cli send codex --stdin <<EOF
-<MESSAGE from="opus" to="codex">
 我发现了 2 个问题，你发现了 1 个。让我们逐个确认：
 
 O1. [P1] 空指针检查缺失 - 我认为需要修复
 O2. [P2] 日志格式不一致 - 建议修复
 C1. [P3] 变量命名不规范 - 你怎么看？
-</MESSAGE>
 EOF
 
 # 同时发布评论（给人看）
@@ -62,7 +60,6 @@ EOF
 
 ```bash
 duo-cli send orchestrator --stdin <<EOF
-<MESSAGE from="opus" to="orchestrator">
 ## 交叉确认完成
 
 | 问题                   | 状态   | 说明          |
@@ -70,7 +67,6 @@ duo-cli send orchestrator --stdin <<EOF
 | O1 [P1] 空指针检查缺失 | 🔧 Fix  | 双方确认      |
 | O2 日志格式不一致      | ⏭️ Skip | style only    |
 | C1 变量命名不规范      | ⏭️ Skip | not important |
-</MESSAGE>
 EOF
 ```
 
@@ -78,13 +74,11 @@ EOF
 
 ```bash
 duo-cli send orchestrator --stdin <<EOF
-<MESSAGE from="opus" to="orchestrator">
 ## 交叉确认结束（僵局）
 
 | 问题 | 状态       | 说明                         |
 | ---- | ---------- | ---------------------------- |
 | O1   | 🔧 Fix      | 双方确认                     |
 | O2   | ⚠️ Deadlock | Opus: 需修复 / Codex: 不需要 |
-</MESSAGE>
 EOF
 ```
