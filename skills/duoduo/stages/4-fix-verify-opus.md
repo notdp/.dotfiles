@@ -37,7 +37,8 @@ EOF
 ## 2. 创建修复分支
 
 ```bash
-BRANCH="duo/pr$DROID_PR_NUMBER-fix"
+ROUND=$(duo-cli get s4:round)
+BRANCH="duo/pr$DROID_PR_NUMBER-fix-r$ROUND"
 git checkout -b "$BRANCH"
 duo-cli set s4:branch "$BRANCH"
 ```
@@ -88,9 +89,11 @@ duo-cli comment edit $COMMENT_ID "$FIX_CONTENT"
 
 ---
 
-## 6. 通知 Codex 验证
+## 6. 切回 PR 分支并通知 Codex
 
 ```bash
+git checkout $DROID_BRANCH
+
 duo-cli send codex --stdin <<EOF
 修复完成，分支: $BRANCH
 
