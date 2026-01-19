@@ -36,9 +36,11 @@ EOF
 
 ## 2. 创建修复分支
 
+根据修复内容命名，格式：`duo/pr{NUMBER}-{desc}`
+
 ```bash
-ROUND=$(duo-cli get s4:round)
-BRANCH="duo/pr$DROID_PR_NUMBER-fix-r$ROUND"
+# 示例：duo/pr77-add-tenant-id, duo/pr77-fix-null-check
+BRANCH="duo/pr$DROID_PR_NUMBER-{简要语义化描述}"
 git checkout -b "$BRANCH"
 duo-cli set s4:branch "$BRANCH"
 ```
