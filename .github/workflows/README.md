@@ -166,3 +166,45 @@ jobs:
   - `gh` CLI（已认证）
   - `pipx`（用于安装 duo-cli）
   - `sqlite3`（用于状态存储）
+
+## Self-hosted Runner 配置
+
+### 注册 Runner
+
+```bash
+mkdir ~/actions-runner && cd ~/actions-runner
+curl -o actions-runner-osx-arm64-2.331.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.331.0/actions-runner-osx-arm64-2.331.0.tar.gz
+tar xzf ./actions-runner-osx-arm64-2.331.0.tar.gz
+./config.sh --url https://github.com/{owner}/{repo} --token {TOKEN} --name {runner-name} --labels self-hosted,macos,arm64 --unattended
+```
+
+### 配置环境变量（重要！）
+
+Runner 需要 `.env` 文件配置环境变量，否则找不到 `droid`、`pipx` 等命令：
+
+```bash
+cat > ~/actions-runner/.env << 'EOF'
+LANG=en_US.UTF-8
+PATH=/opt/homebrew/bin:/Users/{username}/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
+FACTORY_API_KEY={your-factory-api-key}
+EOF
+```
+
+**必需的环境变量**：
+- `PATH`：包含 `/opt/homebrew/bin`（homebrew）和 `~/.local/bin`（pipx）
+- `FACTORY_API_KEY`：Factory API Key，用于 droid CLI
+
+### 启动服务
+
+```bash
+./svc.sh install
+./svc.sh start
+```
+
+### 多仓库共享 Runner
+
+如果要在多个仓库使用同一台机器：
+
+1. 每个仓库需要单独注册一个 runner（放在不同目录）
+2. 复制 `.env` 配置到新 runner 目录
+3. 重启新 runner 服务
