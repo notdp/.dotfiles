@@ -12,7 +12,7 @@ on:
     types: [opened, synchronize]
 
 concurrency:
-  group: duoduo-${{ github.event.pull_request.number }}
+  group: duo-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
       repo: ${{ github.repository }}
     secrets:
       # 选择以下任一方式
-      # 方式 A: GitHub App
+      # 方式 A: GitHub App（推荐）
       DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
       DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}
       # 方式 B: GitHub Actions Bot
@@ -46,7 +46,7 @@ jobs:
 **配置步骤**：
 
 1. 创建 GitHub App，配置权限：
-   - `Contents`: Read-only
+   - `Contents`: Read and write
    - `Pull requests`: Read and write
    - `Issues`: Read and write
 2. 安装到目标仓库
@@ -71,7 +71,7 @@ secrets:
 
 ## @Mention 触发
 
-在 PR 评论中 @mention bot 与已有审查交互，创建 `.github/workflows/duo-mention.yml`：
+在 PR 评论中 @mention bot 与审查交互，创建 `.github/workflows/duo-mention.yml`：
 
 ```yaml
 name: Duo Mention
@@ -83,13 +83,20 @@ on:
 concurrency:
   group: duo-mention-${{ github.event.issue.number }}
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
-  get-info:
+  get-runner:
     if: |
       github.event.issue.pull_request &&
       (contains(github.event.comment.body, '@your-bot-name') ||
        (startsWith(github.event.comment.body, '>') &&
-        contains(github.event.comment.body, 'Duo Review Summary')))
+        (contains(github.event.comment.body, 'Opus') ||
+         contains(github.event.comment.body, 'Codex') ||
+         contains(github.event.comment.body, 'Orchestrator'))))
     runs-on: [self-hosted, macos, arm64]
     outputs:
       runner: ${{ steps.get.outputs.runner }}
@@ -101,56 +108,61 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          PR_NUMBER=${{ github.event.issue.number }}
+          REPO=${{ github.repository }}
+          
           # 获取 PR 信息
-          PR_INFO=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json baseRefName,headRefName)
+          PR_INFO=$(gh pr view $PR_NUMBER --repo $REPO --json baseRefName,headRefName)
           echo "pr_branch=$(echo $PR_INFO | jq -r .headRefName)" >> $GITHUB_OUTPUT
           echo "base_branch=$(echo $PR_INFO | jq -r .baseRefName)" >> $GITHUB_OUTPUT
           
-          # 先尝试 Redis
-          RUNNER=$(redis-cli HGET "duo:${{ github.event.issue.number }}" runner 2>/dev/null || echo "")
-          
-          # Redis 没有则从 summary 评论解析
-          if [ -z "$RUNNER" ]; then
-            RUNNER=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json comments -q '
-              .comments[] | select(.body | contains("<!-- duoduo-summary -->")) | .body
-            ' | grep -oE 'Runner: `[^`]+' | head -1 | sed 's/Runner: `//')
+          # 从 SQLite 获取 runner
+          SAFE_REPO=$(echo $REPO | tr '/' '-')
+          DB_PATH="/tmp/duo-${SAFE_REPO}-${PR_NUMBER}.db"
+          RUNNER=""
+          if [ -f "$DB_PATH" ]; then
+            RUNNER=$(sqlite3 "$DB_PATH" "SELECT value FROM state WHERE key='runner'" 2>/dev/null || echo "")
           fi
           
           echo "runner=$RUNNER" >> $GITHUB_OUTPUT
 
   duoduo:
-    needs: get-info
-    if: needs.get-info.outputs.runner != ''
+    needs: get-runner
+    if: needs.get-runner.outputs.runner != ''
     uses: notdp/.dotfiles/.github/workflows/duo-mention.yml@main
     with:
       pr_number: ${{ github.event.issue.number }}
       repo: ${{ github.repository }}
-      pr_branch: ${{ needs.get-info.outputs.pr_branch }}
-      base_branch: ${{ needs.get-info.outputs.base_branch }}
+      pr_branch: ${{ needs.get-runner.outputs.pr_branch }}
+      base_branch: ${{ needs.get-runner.outputs.base_branch }}
       comment_body: ${{ github.event.comment.body }}
       comment_author: ${{ github.event.comment.user.login }}
-      runner: ${{ needs.get-info.outputs.runner }}
+      runner: ${{ needs.get-runner.outputs.runner }}
       bot_name: your-bot-name
     secrets:
       DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
       DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}
 ```
 
-将 `@your-bot-name` 替换为你的 GitHub App bot 用户名（如 `@duoduo-bot`）。
+将 `@your-bot-name` 替换为你的 GitHub App bot 用户名（如 `@duo-bot`）。
 
 **触发方式**：
-- `@your-bot-name` 直接 @ bot
-- Quote reply Summary 评论
 
-**用途**：审查完成后，通过 @mention 与 Orchestrator 对话，可以：
-- 重新发起审查
-- 纠正审查结果
+- `@your-bot-name` 直接 @ bot
+- Quote reply 任何包含 Opus/Codex/Orchestrator 的评论
+
+**用途**：
+
+- 发起审查（即使之前没有审查记录）
+- 重新审查
 - 询问问题
+- 请求操作（删除评论、合并等）
 
 ## 前置要求
 
 - **Self-hosted runner**（macOS arm64）
 - Runner 上需安装：
   - `droid` CLI（[Factory](https://factory.ai)）
-  - `redis-server`
   - `gh` CLI（已认证）
+  - `pipx`（用于安装 duo-cli）
+  - `sqlite3`（用于状态存储）

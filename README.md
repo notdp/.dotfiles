@@ -40,7 +40,7 @@ Edit once, apply everywhere.
 
 | Skill                     | Description                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| **[duoduo](./DUODUO.md)** | Cross-review PRs with Opus + Codex. Works locally or via GitHub Actions          |
+| **[duoduo](./DUODUO.md)** | Cross-review PRs with Opus + Codex. Works via GitHub Actions or locally with [duo-cli](https://github.com/notdp/duo-cli) |
 | **agent-browser**         | Automates browser interactions for web testing, screenshots, and data extraction |
 | **react-best-practices**  | React/Next.js performance optimization guidelines from Vercel Engineering        |
 | **web-design-guidelines** | Review UI code for Web Interface Guidelines compliance                           |
