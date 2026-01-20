@@ -121,11 +121,14 @@ git diff origin/$DROID_BASE...HEAD
 </details>
 ```
 
-### 3.2 生成 inline comments（如有确认的 findings）
+### 3.2 生成 inline comments（仅已修复的 findings）
 
-针对交叉确认后的所有 findings，生成 JSON 数组：
-- **已修复**：说明问题和修复方式
-- **跳过**：说明为什么是误报、跳过原因
+**仅针对已修复的 findings** 生成 inline comments，在代码位置清晰阐述：
+- 问题是什么
+- 影响是什么
+- 如何修复的
+
+**跳过的 findings 不生成 inline comment**（误报无需在代码里标注，已在 summary 表格详细说明跳过原因）。
 
 **JSON 格式：**
 
@@ -176,7 +179,7 @@ Useful? React with 👍 / 👎.
 
 ## 4. 发布
 
-### 有 findings：用 Review + inline comments
+### 有已修复的 findings：用 Review + inline comments
 
 ```bash
 duo-cli review post --body "$SUMMARY_CONTENT" --stdin <<'EOF'
@@ -186,10 +189,11 @@ EOF
 duo-cli set stage done
 ```
 
-### 无 findings：用 Comment
+### 无已修复的 findings：用 Comment
 
 以下情况使用 comment（无 inline）：
 - both_ok（双方都未发现问题）
+- 所有 findings 均为跳过（误报）
 
 ```bash
 duo-cli comment post --stdin <<EOF
