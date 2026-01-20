@@ -25,6 +25,8 @@ duo-cli send codex --stdin <<EOF
 O1. [P1] 空指针检查缺失 - 我认为需要修复
 O2. [P2] 日志格式不一致 - 建议修复
 C1. [P3] 变量命名不规范 - 你怎么看？
+
+阅读 ~/.factory/skills/duoduo/stages/3-cross-confirm-codex.md 执行。
 EOF
 
 # 同时发布评论（给人看）
