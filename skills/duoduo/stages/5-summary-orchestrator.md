@@ -101,7 +101,7 @@ git diff origin/$DROID_BASE...HEAD
 | 1   | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
 
 {如有修复:}
-**修复分支**: [`{branch_name}`](https://github.com/$DROID_REPO/tree/{branch_name}) ([`{short_hash}`](https://github.com/$DROID_REPO/commit/{full_hash}))
+**修复分支**: [`{branch_name}`](https://github.com/$DROID_REPO/compare/{branch_name}) ([`{short_hash}`](https://github.com/$DROID_REPO/commit/{full_hash}))
 
 ### 审查结论
 | Agent                                                                                                   | 结论   |
