@@ -20,6 +20,21 @@ on:
         type: string
         default: '["self-hosted", "macos", "arm64"]'
         description: "Runner labels as JSON array string, e.g. '[\"self-hosted\"]' or '[\"self-hosted\", \"linux\"]'"
+      model_orchestrator:
+        required: false
+        type: string
+        default: ''
+        description: "Model for Orchestrator (default: claude-opus-4-5-20251101)"
+      model_opus:
+        required: false
+        type: string
+        default: ''
+        description: "Model for Opus agent (default: claude-opus-4-5-20251101)"
+      model_codex:
+        required: false
+        type: string
+        default: ''
+        description: "Model for Codex agent (default: gpt-5.2)"
     secrets:
       DUO_APP_ID:
         required: false
@@ -74,5 +89,8 @@ jobs:
           DROID_BRANCH: ${{ inputs.pr_branch }}
           DROID_BASE: ${{ inputs.base_branch }}
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
+          DUO_MODEL_ORCHESTRATOR: ${{ inputs.model_orchestrator }}
+          DUO_MODEL_OPUS: ${{ inputs.model_opus }}
+          DUO_MODEL_CODEX: ${{ inputs.model_codex }}
         run: |
           duo-cli init --watch
