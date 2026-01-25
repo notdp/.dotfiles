@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    Start([开始]) --> Init[启动交叉确认]
+    Start([开始]) --> Init[启动 Opus]
     Init --> Dialog[Opus ←→ Codex 直接对话]
     Dialog --> Result{结果}
     Result -->|达成共识| Next
@@ -16,11 +16,9 @@ flowchart TD
     Next -->|否| S5([阶段 5])
 ```
 
-## 任务
-
-启动交叉确认，让 Opus 和 Codex 直接对话。
-
 ## 执行
+
+只启动 Opus。Codex 由 Opus 消息触发。
 
 ```bash
 duo-cli set stage 3
@@ -33,7 +31,7 @@ duo-cli send opus --stdin <<EOF
 ### Opus 发现
 $OPUS_FINDINGS
 
-### Codex 发现  
+### Codex 发现
 $CODEX_FINDINGS
 
 阅读 ~/.factory/skills/duoduo/stages/3-cross-confirm-opus.md 执行。
