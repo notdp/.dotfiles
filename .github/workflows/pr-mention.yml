@@ -69,9 +69,9 @@ jobs:
       comment_author: ${{ github.event.comment.user.login }}
       runner: ${{ needs.get-runner.outputs.runner }}
       bot_name: ordoduo
-      model_orchestrator: "custom:Claude-Opus-4.5-(Thinking)-0"
-      model_opus: "custom:Claude-Opus-4.5-(Thinking)-0"
-      model_codex: "custom:GPT-5.2-xhigh-1"
+      model_orchestrator: "custom:Claude-Opus-4.5-(Local)-0"
+      model_opus: "custom:Claude-Opus-4.5-(Local)-0"
+      model_codex: "custom:GPT-5.2-xhigh-(Local)-1"
     secrets:
       DUO_APP_ID: ${{ secrets.DUO_APP_ID }}
       DUO_APP_PRIVATE_KEY: ${{ secrets.DUO_APP_PRIVATE_KEY }}
