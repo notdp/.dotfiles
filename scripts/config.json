@@ -15,5 +15,8 @@
     "~/.claude/CLAUDE.md",
     "~/.factory/AGENTS.md",
     "~/.codex/AGENTS.md"
+  ],
+  "droids": [
+    "~/.factory/droids"
   ]
 }

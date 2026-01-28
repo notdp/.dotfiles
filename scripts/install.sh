@@ -18,6 +18,7 @@ else
 fi
 COMMANDS_DIR="$DOTFILES_DIR/commands"
 SKILLS_DIR="$DOTFILES_DIR/skills"
+DROIDS_DIR="$DOTFILES_DIR/droids"
 AGENTS_FILE="$DOTFILES_DIR/agents/AGENTS.md"
 
 CONFIG_URL="${CONFIG_URL:-https://raw.githubusercontent.com/notdp/.dotfiles/main/scripts/config.json}"
@@ -41,10 +42,15 @@ DEFAULT_AGENT_TARGETS=(
     "~/.codex/AGENTS.md"
 )
 
+DEFAULT_DROID_TARGETS=(
+    "~/.factory/droids"
+)
+
 log() { echo "[info] $*"; }
 warn() { echo "[warn] $*" >&2; }
 LINK_TARGETS=()
 SKILL_TARGETS=()
+DROID_TARGETS=()
 AGENT_TARGETS=()
 
 ensure_description() {
@@ -91,6 +97,9 @@ if command -v curl >/dev/null 2>&1; then
             while IFS= read -r line; do
                 [ -n "$line" ] && AGENT_TARGETS+=("$line")
             done < <(echo "$REMOTE_CONFIG" | jq -r '.agents[]' 2>/dev/null)
+            while IFS= read -r line; do
+                [ -n "$line" ] && DROID_TARGETS+=("$line")
+            done < <(echo "$REMOTE_CONFIG" | jq -r '.droids[]' 2>/dev/null)
             if [ "${#LINK_TARGETS[@]}" -eq 0 ]; then
                 warn "远端配置缺少 commands 或为空，使用默认链接目标"
             fi
@@ -116,7 +125,11 @@ if [ "${#AGENT_TARGETS[@]}" -eq 0 ]; then
     AGENT_TARGETS=("${DEFAULT_AGENT_TARGETS[@]}")
 fi
 
-mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR" "$(dirname "$AGENTS_FILE")"
+if [ "${#DROID_TARGETS[@]}" -eq 0 ]; then
+    DROID_TARGETS=("${DEFAULT_DROID_TARGETS[@]}")
+fi
+
+mkdir -p "$DOTFILES_DIR" "$COMMANDS_DIR" "$SKILLS_DIR" "$DROIDS_DIR" "$(dirname "$AGENTS_FILE")"
 
 # 如果源文件不存在，合并所有现有 agents 文件内容
 if [ ! -f "$AGENTS_FILE" ]; then
@@ -194,6 +207,38 @@ for raw_dir in "${SKILL_TARGETS[@]}"; do
 
     ln -s "$SKILLS_DIR" "$dir"
     log "创建软链: $dir -> $SKILLS_DIR"
+done
+
+# 处理 droids 目录软链接
+for raw_dir in "${DROID_TARGETS[@]}"; do
+    dir="$(expand_path "$raw_dir")"
+
+    if [ -L "$dir" ]; then
+        target="$(readlink "$dir")"
+        if [ "$target" = "$DROIDS_DIR" ]; then
+            log "已存在软链: $dir -> $target"
+            continue
+        fi
+        rm "$dir"
+    elif [ -f "$dir" ]; then
+        warn "跳过：$dir 是普通文件"
+        continue
+    elif [ -d "$dir" ]; then
+        backup="${dir}.bak-$(date +%Y%m%d%H%M%S)"
+        mv "$dir" "$backup"
+        log "备份原目录 -> $backup"
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a --ignore-existing "$backup"/ "$DROIDS_DIR"/ || warn "复制 $backup 时出错"
+        else
+            warn "未找到 rsync，使用 cp -an 复制，可能覆盖同名文件"
+            cp -an "$backup"/. "$DROIDS_DIR"/ || warn "复制 $backup 时出错"
+        fi
+    fi
+
+    mkdir -p "$(dirname "$dir")"
+
+    ln -s "$DROIDS_DIR" "$dir"
+    log "创建软链: $dir -> $DROIDS_DIR"
 done
 
 # 处理 agents 文件软链接（文件级别，非目录）
