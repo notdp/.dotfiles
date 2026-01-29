@@ -65,6 +65,11 @@ jobs:
           app-id: ${{ secrets.DUO_APP_ID }}
           private-key: ${{ secrets.DUO_APP_PRIVATE_KEY }}
 
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.pr_branch }}
+          fetch-depth: 0
+
       - name: Pull latest skills
         run: |
           cd ~/.dotfiles && git fetch origin && git reset --hard origin/main
