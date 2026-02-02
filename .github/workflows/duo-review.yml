@@ -15,6 +15,10 @@ on:
       repo:
         required: true
         type: string
+      pr_node_id:
+        required: false
+        type: string
+        description: "PR GraphQL node ID (github.event.pull_request.node_id)"
       runner:
         required: false
         type: string
@@ -89,6 +93,7 @@ jobs:
           DROID_REPO: ${{ inputs.repo }}
           DROID_BRANCH: ${{ inputs.pr_branch }}
           DROID_BASE: ${{ inputs.base_branch }}
+          DROID_PR_NODE_ID: ${{ inputs.pr_node_id }}
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_TOKEN }}
           DUO_MODEL_ORCHESTRATOR: ${{ inputs.model_orchestrator }}
           DUO_MODEL_OPUS: ${{ inputs.model_opus }}
