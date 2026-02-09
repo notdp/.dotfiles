@@ -49,10 +49,11 @@ mod2: 命令超 50 字符截断 → 超 99 字符才截断
 mod3: 命令输出截断行数 4 行 → 99 行
 mod4: Edit diff 截断行数 20 行 → 99 行
 mod5: 输出区 "output truncated. press Ctrl+O" 提示 >4 行 → >99 行
+mod6: Ctrl+N 只在 custom model 间切换 (/model 菜单不受影响)
 
 注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
 
-select: 1,2,3,4,5 / all / restore
+select: 1,2,3,4,5,6 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -167,11 +168,51 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 2   | 命令阈值     | `length>50`  | `length>99`    | 0    | 命令超 99 字符才截断                      |
 | 3+5 | 输出行数     | `aGR=4`      | `aGR=99`       | +1   | 输出显示 99 行，超过才显示提示            |
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
+| 6   | model cycle  | cycleModel 入口 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
 | 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
 **注**：
 - mod1: 命令框提示（command truncated）
 - mod3+5: 输出区行数和提示（output truncated）由同一变量控制
+- mod6: 修改 cycleModel 和 cycleSpecModeModel 两个函数
+
+### 修改 6: Ctrl+N 只在 custom model 间切换
+
+**位置**: `cycleModel` 和 `cycleSpecModeModel` 方法
+
+**原始代码**:
+
+```javascript
+cycleModel(H){
+  if(H.length===0)return this.getModel();
+  // H 来自 qZ()，只包含 factory model ID
+  ...
+  if(!this.validateModelAccess(D).allowed)continue;
+  ...
+}
+```
+
+**修改**:
+1. 函数入口覆盖参数: `H=this.customModels.map(m=>m.id)` (+N bytes)
+2. 移除 `validateModelAccess` 检查，替换为等长注释 (-N bytes)
+
+```javascript
+cycleModel(H){
+  H=this.customModels.map(m=>m.id);  // 覆盖为 custom model ID 列表
+  if(H.length===0)return this.getModel();
+  ...
+  /*            */  // 注释填充，长度动态计算
+  ...
+}
+```
+
+**效果**: Ctrl+N 只在 settings.json 中配置的 custom model 间切换，`/model` 菜单不受影响
+
+**稳定锚点**（不受混淆影响）:
+- `cycleModel` / `cycleSpecModeModel` — 方法名
+- `this.getModel()` / `this.getSpecModeModel()` — 方法调用
+- `this.validateModelAccess` / `.allowed` — 方法和属性名
+- `this.customModels` — 属性名
 
 ## 修改脚本
 
@@ -185,6 +226,7 @@ mods/mod2_command_length.py      # 命令阈值 50→99 (0 bytes)
 mods/mod3_output_lines.py        # 输出行数 aGR=4→99 (+1 byte, 同时解决 mod5)
 mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
 mods/mod5_exec_hint.py           # 由 mod3 自动处理
+mods/mod6_custom_model_cycle.py  # Ctrl+N 只切换 custom model (0 bytes)
 ```
 
 mod3 产生 +1 byte，需要用补偿脚本平衡。
