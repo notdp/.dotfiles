@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage() {
-  cat <<'USAGE'
-Usage: cr-status.sh
-
-Show cross-review status: workspace state, agent sessions, results.
-
-Environment (required):
-  CR_WORKSPACE    Workspace path
-  CR_SOCKET       tmux socket path (or reads from $CR_WORKSPACE/socket.path)
-USAGE
-}
-
 if [[ -z "${CR_WORKSPACE:-}" ]]; then
   echo "Error: CR_WORKSPACE not set" >&2
   exit 1
@@ -33,12 +21,15 @@ for f in "$CR_WORKSPACE/state/"*; do
 done
 echo ""
 
-# Sessions
-echo "--- Agent Sessions ---"
-if tmux -S "$CR_SOCKET" list-sessions -F '#{session_name} #{session_attached} #{session_created_string}' 2>/dev/null; then
-  :
+# Pane layout
+echo "--- Agent Panes ---"
+if tmux -S "$CR_SOCKET" has-session -t cr 2>/dev/null; then
+  tmux -S "$CR_SOCKET" list-panes -t cr:0 \
+    -F '  pane #{pane_index}: #{pane_width}x#{pane_height} pid=#{pane_pid} dead=#{pane_dead}' 2>/dev/null || true
+  echo ""
+  echo "  Attach: tmux -S \"$CR_SOCKET\" attach -t cr"
 else
-  echo "  (no tmux server running)"
+  echo "  (no tmux session running)"
 fi
 echo ""
 

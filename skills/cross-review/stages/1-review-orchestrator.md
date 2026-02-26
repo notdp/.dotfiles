@@ -2,11 +2,13 @@
 
 ## 前置条件
 
-- Orchestrator 已调用 `cr-init.sh` 初始化 workspace
+- 调用方已执行 `cr-init.sh` 初始化 workspace
+- 调用方已执行 `cr-spawn.sh orchestrator` 启动你（你在 tmux pane 0 中运行）
 - `$CR_WORKSPACE` 和 `$CR_SOCKET` 环境变量已设置
 
 ## 禁止操作
 
+- 不要执行 `cr-init.sh`（调用方已完成）
 - 不要执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
 
 ## 概述
@@ -65,9 +67,10 @@ Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review
 2. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
 EOF
 
-  # Send to agent (NOTE: -l and Enter must be separate send-keys calls)
-  tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
-  tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 Enter
+  # Read pane target and send to agent (-l and Enter must be separate calls)
+  PANE=$(cat "$CR_WORKSPACE/state/pane-${AGENT}")
+  tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
+  tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
 done
 ```
 

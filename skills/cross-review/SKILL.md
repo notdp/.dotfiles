@@ -11,15 +11,26 @@ Orchestrator 通过 tmux send-keys 发送任务、通过文件系统交换结果
 
 ## 1. 启动
 
-Orchestrator 调用 `cr-init.sh` 初始化 workspace，然后调用 `cr-spawn.sh` 启动 Agent。
+调用方初始化 workspace，然后依次 spawn orchestrator、claude、gpt 三个 droid：
 
 ```bash
 # 初始化
-$HOME/.factory/skills/cross-review/scripts/cr-init.sh <repo> <pr_number> <base> <branch> <pr_node_id>
+SKILL_DIR="$HOME/.factory/skills/cross-review"
+"$SKILL_DIR/scripts/cr-init.sh" <repo> <pr_number> <base> <branch> <pr_node_id>
 
-# 设置环境变量
 export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
 export CR_SOCKET="$(cat "$CR_WORKSPACE/socket.path")"
+
+# 启动 orchestrator（创建 session，pane 0）
+"$SKILL_DIR/scripts/cr-spawn.sh" orchestrator <orchestrator_model>
+
+# 向 orchestrator 发送初始 prompt（它会 spawn claude 和 gpt）
+PANE=$(cat "$CR_WORKSPACE/state/pane-orchestrator")
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Load skill: cross-review. ..."
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
+
+# 用户观察
+tmux -S "$CR_SOCKET" attach -t cr
 ```
 
 ---
@@ -67,11 +78,28 @@ export CR_SOCKET="$(cat "$CR_WORKSPACE/socket.path")"
 
 ```
 tmux socket: $CR_SOCKET
-├── session: orchestrator  ← 交互式 droid (Orchestrator)
-├── session: claude         ← 交互式 droid (Model A)
-└── session: gpt          ← 交互式 droid (Model B)
+└── session: cr
+    └── window 0 (main-vertical layout)
+        ├── pane 0: orchestrator (编排 droid)
+        ├── pane 1: claude       (审查 droid)
+        └── pane 2: gpt          (审查 droid)
 
-Orchestrator 在 tmux orchestrator session 中运行，通过 tmux 命令控制 claude/gpt session。
+┌──────────────┬──────────────┐
+│              │    claude    │
+│ orchestrator ├──────────────┤
+│              │     gpt      │
+└──────────────┴──────────────┘
+
+用户观察: tmux -S "$CR_SOCKET" attach -t cr
+```
+
+每个 agent 的 pane target 存储在 `$CR_WORKSPACE/state/pane-{agent}`，
+Orchestrator 通过读取该文件寻址：
+
+```bash
+PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "..."
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
 ```
 
 ### 文件系统 workspace
@@ -112,9 +140,10 @@ cat > "$CR_WORKSPACE/tasks/claude-review.md" << 'EOF'
 当完成后，执行: touch $CR_WORKSPACE/results/claude-r1.done
 EOF
 
-# 2. 发送给 Agent（注意：-l 和 Enter 必须分开两次调用）
-tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-review.md"
-tmux -S "$CR_SOCKET" send-keys -t claude:0.0 Enter
+# 2. 读取 pane target，发送给 Agent（-l 和 Enter 必须分开两次调用）
+PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/claude-review.md"
+tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
 ```
 
 **等待完成**：轮询 sentinel 文件
@@ -133,19 +162,17 @@ cat "$CR_WORKSPACE/results/claude-r1.md"
 
 ## 5. Agent 启动
 
-Orchestrator 使用 `cr-spawn.sh` 启动 Claude 和 GPT（不要启动 orchestrator 自身）：
+Orchestrator 使用 `cr-spawn.sh` 在同一 session 中添加 pane 启动 Claude 和 GPT：
 
 ```bash
 $HOME/.factory/skills/cross-review/scripts/cr-spawn.sh claude "$MODEL_CLAUDE"
 $HOME/.factory/skills/cross-review/scripts/cr-spawn.sh gpt "$MODEL_GPT"
 ```
 
-启动后打印监控命令：
+三个 droid 在同一 session 的三个 pane 中运行，用户可直接观察：
 
-```
-To monitor claude:
-  tmux -S "$CR_SOCKET" attach -t claude
-  tmux -S "$CR_SOCKET" capture-pane -p -J -t claude:0.0 -S -200
+```bash
+tmux -S "$CR_SOCKET" attach -t cr
 ```
 
 ---
@@ -160,6 +187,7 @@ To monitor claude:
 
 **禁止：**
 
+- 执行 `cr-init.sh`（调用方已完成）
 - 执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
 - 直接读取 PR diff 或代码（阶段 5 除外）
 - 自己审查代码
@@ -167,8 +195,7 @@ To monitor claude:
 
 **必须：**
 
-- 在流程开始时调用 `cr-init.sh` 初始化 workspace
-- 通过 `cr-spawn.sh` 启动 Claude/GPT Agent
+- 通过 `cr-spawn.sh` 启动 Claude/GPT Agent（它们会出现在你旁边的 pane 中）
 - 通过文件系统交换任务/结果
 - 等待 sentinel 文件确认 Agent 完成
 - 在阶段 5 完成后调用 `cr-cleanup.sh` 清理
