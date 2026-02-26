@@ -2,7 +2,6 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`、`cr-cleanup.sh`、`kill-server`
 - 不要执行 `cr-spawn.sh orchestrator`
 
 ## 概述
@@ -53,7 +52,6 @@ for ROUND in $(seq 1 $MAX_ROUNDS); do
 # Cross-Check Task
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：先创建或更新交叉确认的 PR 评论！
 
 TASK
 
@@ -85,7 +83,6 @@ TASK_FOOTER
 # Cross-Check Response
 
 Read ~/.factory/skills/cross-review/stages/3-crosscheck-agent.md for guidelines.
-注意：更新交叉确认的 PR 评论，追加你的分析！
 
 Claude's analysis:
 TASK

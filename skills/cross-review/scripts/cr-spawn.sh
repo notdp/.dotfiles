@@ -106,10 +106,6 @@ tmux -S "$CR_SOCKET" send-keys -t "$AGENT":0.0 \
   "cd \"${WORK_DIR}\" && droid" Enter
 
 # Wait for droid to initialize
-# NOTE: In CI (detached tmux), droid TUI doesn't fully render its status bar
-# in capture-pane output. We use two strategies:
-# 1. Try to detect TUI indicators (works in interactive terminals)
-# 2. Fall back to checking if droid process is alive + fixed wait
 echo "Waiting for droid to initialize in session '$AGENT'..."
 READY=false
 for i in $(seq 1 60); do

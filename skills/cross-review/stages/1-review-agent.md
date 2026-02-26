@@ -1,50 +1,17 @@
 # 阶段 1: PR 审查 - Agent
 
-审查 PR，写入结果文件，发布 PR 评论。
+审查 PR，写入结果文件。
 
 ## 步骤
 
-1. 创建占位 PR 评论
-2. 读取项目 REVIEW.md（如有）
-3. 获取 diff
-4. 审查代码
-5. 更新 PR 评论
-6. 写入结果文件 + sentinel
+1. 读取项目 REVIEW.md（如有）
+2. 获取 diff
+3. 审查代码
+4. 写入结果文件 + sentinel
 
 ---
 
-## 1. 创建占位评论
-
-```bash
-TIMESTAMP=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')
-REPO=$(cat "$CR_WORKSPACE/state/repo")
-PR_NUMBER=$(cat "$CR_WORKSPACE/state/pr-number")
-```
-
-### Agent icon
-
-| Agent | Icon |
-|-------|------|
-| claude | `<img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg' width='18' />` |
-| gpt | `<img src='https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg' width='18' />` |
-
-### 占位评论格式
-
-```markdown
-<!-- cr-{AGENT}-r1 -->
-## {ICON} {AGENT} 审查中
-> 🕐 {TIMESTAMP}
-
-{RANDOM_ING_WORD}...
-```
-
-**{RANDOM_ING_WORD}**: 自己想一个有趣的！例如 Thinking, Vibing, Cooking something up, Brewing ideas, Pondering deeply, Dissecting code, Spelunking through diffs...
-
-用 `cr-comment.sh post` 发布，将返回的 comment node ID 保存到 `$CR_WORKSPACE/comments/cr-${AGENT}-r1.id`
-
----
-
-## 2. 获取 diff
+## 1. 获取 diff
 
 ```bash
 BASE=$(cat "$CR_WORKSPACE/state/base")
@@ -53,7 +20,7 @@ git diff "origin/$BASE...HEAD"
 
 ---
 
-## 3. 审查代码
+## 2. 审查代码
 
 ### 发现多少问题
 
@@ -90,14 +57,14 @@ git diff "origin/$BASE...HEAD"
 
 ---
 
-## 4. 更新 PR 评论
+## 3. 写入结果文件
 
-用 `cr-comment.sh edit <NODE_ID>` 更新占位评论为完整审查结果。
+将审查结果写入 `$CR_WORKSPACE/results/{AGENT}-r1.md`。
+
+格式：
 
 ```markdown
-<!-- cr-{AGENT}-r1 -->
-## {ICON} {AGENT} Review
-> 🕐 {TIMESTAMP}
+## {AGENT} Review
 
 ### Findings
 (列出问题 或 "No issues found")
@@ -105,12 +72,6 @@ git diff "origin/$BASE...HEAD"
 ### Conclusion
 (✅ No issues found 或 🔴/🟠/🟡/🟢 + 最高优先级)
 ```
-
----
-
-## 5. 写入结果文件
-
-将审查结果写入 `$CR_WORKSPACE/results/{AGENT}-r1.md`（与评论内容一致）。
 
 **最后一步**：创建 sentinel 文件
 

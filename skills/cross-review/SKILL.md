@@ -9,16 +9,17 @@ metadata: {"cross-review-bot":{"emoji":"🔀","os":["darwin","linux"],"requires"
 基于 tmux 的多 Agent PR 审查系统。每个 Agent 是一个运行在 tmux session 中的交互式 `droid`，
 Orchestrator 通过 tmux send-keys 发送任务、通过文件系统交换结果。
 
-## 1. 启动（CI-only）
+## 1. 启动
 
-> **此步骤由 CI workflow 自动完成，Orchestrator 禁止执行。**
+Orchestrator 调用 `cr-init.sh` 初始化 workspace，然后调用 `cr-spawn.sh` 启动 Agent。
 
-CI workflow 调用 `cr-init.sh` 初始化 workspace，然后调用 `cr-spawn.sh orchestrator` 启动 Orchestrator droid。
-Orchestrator 启动时 workspace 已就绪，环境变量已设置：
+```bash
+# 初始化
+$HOME/.factory/skills/cross-review/scripts/cr-init.sh <repo> <pr_number> <base> <branch> <pr_node_id>
 
-```
-$CR_WORKSPACE  — workspace 根目录（state/tasks/results 子目录已创建）
-$CR_SOCKET     — tmux socket 路径
+# 设置环境变量
+export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
+export CR_SOCKET="$(cat "$CR_WORKSPACE/socket.path")"
 ```
 
 ---
@@ -97,7 +98,7 @@ $CR_WORKSPACE/
 │   ├── {agent}-verify.md         # 验证结果
 │   └── {agent}-{stage}.done      # 完成标记 (sentinel)
 └── comments/
-    └── {marker}.id               # PR 评论 node ID 缓存
+    └── cr-summary.id             # 最终总结评论 node ID
 ```
 
 ### 通信流程
@@ -159,18 +160,18 @@ To monitor claude:
 
 **禁止：**
 
-- 执行 `cr-init.sh`（workspace 由 CI 预创建）
 - 执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
-- 执行 `cr-cleanup.sh`、`kill-server`、`kill-session`（CI 负责清理）
-- 删除 `$CR_WORKSPACE` 或 tmux socket
 - 直接读取 PR diff 或代码（阶段 5 除外）
 - 自己审查代码
+- 在阶段 1-4 发布 PR 评论（中间过程留在 workspace，仅阶段 5 发最终结论）
 
 **必须：**
 
+- 在流程开始时调用 `cr-init.sh` 初始化 workspace
 - 通过 `cr-spawn.sh` 启动 Claude/GPT Agent
 - 通过文件系统交换任务/结果
 - 等待 sentinel 文件确认 Agent 完成
+- 在阶段 5 完成后调用 `cr-cleanup.sh` 清理
 
 ---
 
@@ -181,9 +182,9 @@ To monitor claude:
 | `cr-spawn.sh` | 启动交互式 droid | Orchestrator | `cr-spawn.sh claude custom:claude-opus-4-6` |
 | `cr-wait.sh` | 等待 sentinel 文件 | Orchestrator | `cr-wait.sh claude r1 600` |
 | `cr-status.sh` | 查看所有 agent 状态 | Orchestrator | `cr-status.sh` |
-| `cr-comment.sh` | GitHub 评论操作 | Orchestrator | `cr-comment.sh post "body"` |
-| `cr-init.sh` | 初始化 workspace + socket | CI-only | `cr-init.sh owner/repo 123 main feat/x PR_xxx` |
-| `cr-cleanup.sh` | 清理 sessions + 文件 | CI-only | `cr-cleanup.sh` |
+| `cr-comment.sh` | GitHub 评论操作（仅阶段 5） | Orchestrator | `cr-comment.sh post "body"` |
+| `cr-init.sh` | 初始化 workspace + socket | Orchestrator | `cr-init.sh owner/repo 123 main feat/x PR_xxx` |
+| `cr-cleanup.sh` | 清理 sessions + 文件 | Orchestrator | `cr-cleanup.sh` |
 
 ---
 
@@ -202,8 +203,6 @@ STAGE=$(cat "$CR_WORKSPACE/state/stage")
 
 ---
 
-## 9. Cleanup（CI-only）
+## 9. Cleanup
 
-> **此步骤由 CI workflow 自动完成，Orchestrator 禁止执行。**
-
-CI workflow 在所有阶段完成后自动调用 `cr-cleanup.sh` 清理 tmux sessions 和 workspace。
+Orchestrator 在阶段 5 完成后调用 `cr-cleanup.sh` 清理 tmux sessions 和 workspace。

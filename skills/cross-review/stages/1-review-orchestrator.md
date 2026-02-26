@@ -1,16 +1,13 @@
 # 阶段 1: 并行 PR 审查 - Orchestrator
 
-## 前置条件（CI 已完成）
+## 前置条件
 
-- Workspace `$CR_WORKSPACE` 已创建，state 文件已写入
-- tmux socket `$CR_SOCKET` 已就绪
-- 你在 tmux orchestrator session 中运行
+- Orchestrator 已调用 `cr-init.sh` 初始化 workspace
+- `$CR_WORKSPACE` 和 `$CR_SOCKET` 环境变量已设置
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`（workspace 已就绪）
 - 不要执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
-- 不要执行 `cr-cleanup.sh` 或 `kill-server`（CI 负责清理）
 
 ## 概述
 
@@ -53,7 +50,6 @@ You are reviewing PR #$PR_NUMBER in $REPO ($BRANCH → $BASE).
 ## Instructions
 
 Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review guidelines.
-注意：先创建占位评论！
 
 ## Context
 
@@ -65,9 +61,8 @@ Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review
 
 ## Required Output
 
-1. Post a PR comment (placeholder first, then update with findings)
-2. Write review findings to: $CR_WORKSPACE/results/${AGENT}-r1.md
-3. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
+1. Write review findings to: $CR_WORKSPACE/results/${AGENT}-r1.md
+2. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
 EOF
 
   # Send to agent (NOTE: -l and Enter must be separate send-keys calls)

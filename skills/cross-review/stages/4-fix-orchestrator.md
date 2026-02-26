@@ -2,7 +2,6 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`、`cr-cleanup.sh`、`kill-server`
 - 不要执行 `cr-spawn.sh orchestrator`
 
 ## 概述
@@ -40,7 +39,6 @@ cat > "$CR_WORKSPACE/tasks/claude-fix.md" << 'TASK'
 # Fix Task
 
 Read ~/.factory/skills/cross-review/stages/4-fix-agent.md for guidelines.
-注意：先创建占位评论！
 
 ## Issues to Fix
 TASK
@@ -57,10 +55,9 @@ cat >> "$CR_WORKSPACE/tasks/claude-fix.md" << TASK_FOOTER
 - Your agent name: claude
 
 ## Required Output
-1. Post PR comment (placeholder first, then update)
-2. Create fix branch, make changes, commit, push
-3. Write fix summary to: $CR_WORKSPACE/results/claude-fix.md
-4. When done: touch $CR_WORKSPACE/results/claude-fix.done
+1. Create fix branch, make changes, commit, push
+2. Write fix summary to: $CR_WORKSPACE/results/claude-fix.md
+3. When done: touch $CR_WORKSPACE/results/claude-fix.done
 TASK_FOOTER
 
 tmux -S "$CR_SOCKET" send-keys -t claude:0.0 -l "Read and execute $CR_WORKSPACE/tasks/claude-fix.md"
@@ -83,7 +80,6 @@ cat > "$CR_WORKSPACE/tasks/gpt-verify.md" << 'TASK'
 # Verify Task
 
 Read ~/.factory/skills/cross-review/stages/4-verify-agent.md for guidelines.
-注意：先创建占位评论！
 
 ## Fix Details
 TASK
@@ -100,10 +96,9 @@ cat >> "$CR_WORKSPACE/tasks/gpt-verify.md" << TASK_FOOTER
 - Your agent name: gpt
 
 ## Required Output
-1. Post PR comment (placeholder first, then update)
-2. Review the fix diff
-3. Write result to: $CR_WORKSPACE/results/gpt-verify.md
-4. When done: touch $CR_WORKSPACE/results/gpt-verify.done
+1. Review the fix diff
+2. Write result to: $CR_WORKSPACE/results/gpt-verify.md
+3. When done: touch $CR_WORKSPACE/results/gpt-verify.done
 TASK_FOOTER
 
 tmux -S "$CR_SOCKET" send-keys -t gpt:0.0 -l "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md"

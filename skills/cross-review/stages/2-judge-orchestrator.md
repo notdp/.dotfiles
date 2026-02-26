@@ -2,7 +2,6 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`、`cr-cleanup.sh`、`kill-server`
 - 不要执行 `cr-spawn.sh orchestrator`
 
 ## 概述
