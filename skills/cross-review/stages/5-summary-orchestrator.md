@@ -4,7 +4,7 @@
 
 - 不要执行 `cr-spawn.sh orchestrator`
 
-生成最终汇总，发布唯一一条 PR 评论，然后清理。
+生成最终汇总，仅在此阶段发布 PR 评论（summary comment；如有 inline comments，再额外发布 PR review），然后清理。
 
 ## 执行
 
@@ -125,7 +125,7 @@ Useful? React with 👍 / 👎.
 
 ### 3. 发布 PR 评论
 
-这是整个 pipeline 中**唯一一次**发布 PR 评论。
+仅在阶段 5 发布最终评论。Summary comment 必定发布；如有已修复的 findings，再额外发布带 inline comments 的 PR review。
 
 ```bash
 REPO=$(cat "$CR_WORKSPACE/state/repo")
