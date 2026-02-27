@@ -5,14 +5,13 @@ usage() {
   cat <<'USAGE'
 Usage: cr-cleanup.sh [--keep-workspace]
 
-Kill all agent tmux sessions and optionally remove workspace.
+Kill agent panes and optionally remove workspace.
 
 Options:
   --keep-workspace    Don't remove workspace directory
 
 Environment (required):
   CR_WORKSPACE    Workspace path
-  CR_SOCKET       tmux socket path (or reads from $CR_WORKSPACE/socket.path)
 USAGE
 }
 
@@ -31,21 +30,21 @@ if [[ -z "${CR_WORKSPACE:-}" ]]; then
   exit 1
 fi
 
-CR_SOCKET="${CR_SOCKET:-$(cat "$CR_WORKSPACE/socket.path" 2>/dev/null || echo "")}"
-
-# Kill tmux server
-if [[ -n "$CR_SOCKET" ]] && [[ -S "$CR_SOCKET" ]]; then
-  echo "Killing tmux server on $CR_SOCKET..."
-  tmux -S "$CR_SOCKET" kill-server 2>/dev/null || true
-  rm -f "$CR_SOCKET"
-  echo "  Done"
-fi
+# Kill agent panes (stored as pane IDs in state/)
+for f in "$CR_WORKSPACE"/state/pane-*; do
+  [[ -f "$f" ]] || continue
+  AGENT=$(basename "$f" | sed 's/^pane-//')
+  PANE_ID=$(cat "$f")
+  if tmux has-session 2>/dev/null && tmux list-panes -a -F '#{pane_id}' | grep -q "^${PANE_ID}$"; then
+    echo "Killing $AGENT pane ($PANE_ID)..."
+    tmux kill-pane -t "$PANE_ID" 2>/dev/null || true
+  fi
+done
 
 # Remove workspace
 if [[ "$KEEP_WORKSPACE" == "false" ]]; then
   echo "Removing workspace: $CR_WORKSPACE"
   rm -rf "$CR_WORKSPACE"
-  echo "  Done"
 else
   echo "Workspace preserved: $CR_WORKSPACE"
 fi

@@ -1,47 +1,37 @@
 ---
 name: cross-review
-description: 基于 tmux 的双 Agent 交叉 PR 审查。在 tmux session 中启动交互式 droid，通过 send-keys/capture-pane 通信，文件系统传递任务和结果。
+description: 基于 tmux 的双 Agent 交叉 PR 审查。在当前 tmux window 中 split pane 启动交互式 droid，文件系统传递任务和结果。
 metadata: {"cross-review-bot":{"emoji":"🔀","os":["darwin","linux"],"requires":{"bins":["tmux","droid","gh","python3"]}}}
 ---
 
 # Cross Review - 双 Agent 交叉审查
 
-基于 tmux 的多 Agent PR 审查系统。每个 Agent 是一个运行在 tmux session 中的交互式 `droid`，
-Orchestrator 通过 tmux send-keys 发送任务、通过文件系统交换结果。
+在当前 tmux window 中 split 出 pane 运行审查 Agent。
+Orchestrator 就是当前 droid，Claude 和 GPT 出现在旁边的 pane 中，用户直接可见。
 
 ## 1. 启动
 
-调用方初始化 workspace，然后依次 spawn orchestrator、claude、gpt 三个 droid：
+Orchestrator（当前 droid）初始化 workspace，然后 spawn agent：
 
 ```bash
-# 初始化
 SKILL_DIR="$HOME/.factory/skills/cross-review"
+
+# 初始化 workspace
 "$SKILL_DIR/scripts/cr-init.sh" <repo> <pr_number> <base> <branch> <pr_node_id>
-
 export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
-export CR_SOCKET="$(cat "$CR_WORKSPACE/socket.path")"
-
-# 启动 orchestrator（创建 session，pane 0）
-"$SKILL_DIR/scripts/cr-spawn.sh" orchestrator <orchestrator_model>
-
-# 向 orchestrator 发送初始 prompt（它会 spawn claude 和 gpt）
-PANE=$(cat "$CR_WORKSPACE/state/pane-orchestrator")
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Load skill: cross-review. ..."
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
-
-# 用户观察
-tmux -S "$CR_SOCKET" attach -t cr
 ```
+
+然后在阶段 1 中通过 `cr-spawn.sh` 启动 Claude 和 GPT。
 
 ---
 
 ## 2. 角色
 
-| 角色             | 默认模型          | 职责                           |
+| 角色             | 位置              | 职责                           |
 | ---------------- | ----------------- | ------------------------------ |
-| **Orchestrator** | 执行 skill 的 droid | 编排流程、判断共识、决定下一步 |
-| **Claude**        | custom:claude-opus-4-6 | PR 审查、交叉确认、执行修复    |
-| **GPT**         | custom:gpt-5.3-codex   | PR 审查、交叉确认、验证修复    |
+| **Orchestrator** | 当前 pane（你）   | 编排流程、判断共识、决定下一步 |
+| **Claude**       | split pane        | PR 审查、交叉确认、执行修复    |
+| **GPT**          | split pane        | PR 审查、交叉确认、验证修复    |
 
 模型可通过环境变量覆盖：`CR_MODEL_CLAUDE`, `CR_MODEL_GPT`
 
@@ -74,44 +64,37 @@ tmux -S "$CR_SOCKET" attach -t cr
 
 ## 4. 通信架构
 
-### tmux 拓扑
+### tmux 布局
 
 ```
-tmux socket: $CR_SOCKET
-└── session: cr
-    └── window 0 (main-vertical layout)
-        ├── pane 0: orchestrator (编排 droid)
-        ├── pane 1: claude       (审查 droid)
-        └── pane 2: gpt          (审查 droid)
-
+当前 tmux window (main-vertical layout):
 ┌──────────────┬──────────────┐
 │              │    claude    │
 │ orchestrator ├──────────────┤
-│              │     gpt      │
+│   (你)       │     gpt      │
 └──────────────┴──────────────┘
-
-用户观察: tmux -S "$CR_SOCKET" attach -t cr
 ```
 
-每个 agent 的 pane target 存储在 `$CR_WORKSPACE/state/pane-{agent}`，
+每个 agent 的 pane ID 存储在 `$CR_WORKSPACE/state/pane-{agent}`，
 Orchestrator 通过读取该文件寻址：
 
 ```bash
 PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "..."
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
+tmux send-keys -t "$PANE" -l "..."
+tmux send-keys -t "$PANE" Enter
 ```
 
 ### 文件系统 workspace
 
 ```
 $CR_WORKSPACE/
-├── socket.path                   # tmux socket 路径
 ├── state/
 │   ├── stage                     # 当前阶段 (1-5/done)
 │   ├── s2-result                 # both_ok / same_issues / divergent
 │   ├── s4-branch                 # 修复分支名
 │   ├── s4-round                  # 当前修复轮次
+│   ├── pane-claude               # claude pane ID
+│   ├── pane-gpt                  # gpt pane ID
 │   ├── pr-node-id                # PR GraphQL node ID
 │   ├── repo                      # owner/repo
 │   ├── pr-number                 # PR 编号
@@ -136,14 +119,13 @@ $CR_WORKSPACE/
 ```bash
 # 1. 写任务文件
 cat > "$CR_WORKSPACE/tasks/claude-review.md" << 'EOF'
-... 任务内容 ...
-当完成后，执行: touch $CR_WORKSPACE/results/claude-r1.done
+...
 EOF
 
-# 2. 读取 pane target，发送给 Agent（-l 和 Enter 必须分开两次调用）
+# 2. 发送给 Agent（-l 和 Enter 必须分开两次调用）
 PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/claude-review.md"
-tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
+tmux send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/claude-review.md"
+tmux send-keys -t "$PANE" Enter
 ```
 
 **等待完成**：轮询 sentinel 文件
@@ -152,50 +134,33 @@ tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
 $HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude r1 600
 ```
 
-**读取结果**：直接读文件
-
-```bash
-cat "$CR_WORKSPACE/results/claude-r1.md"
-```
-
 ---
 
 ## 5. Agent 启动
 
-Orchestrator 使用 `cr-spawn.sh` 在同一 session 中添加 pane 启动 Claude 和 GPT：
+Orchestrator 在当前 tmux window 中 split 出 pane：
 
 ```bash
 $HOME/.factory/skills/cross-review/scripts/cr-spawn.sh claude "$MODEL_CLAUDE"
 $HOME/.factory/skills/cross-review/scripts/cr-spawn.sh gpt "$MODEL_GPT"
 ```
 
-三个 droid 在同一 session 的三个 pane 中运行，用户可直接观察：
-
-```bash
-tmux -S "$CR_SOCKET" attach -t cr
-```
+Agent pane 自动出现在 orchestrator 旁边。
 
 ---
 
 ## 6. Orchestrator 行为规范
 
-**角色：监督者 + 仲裁者**
-
-- 启动 Claude/GPT，分配任务
-- 读取 Agent 结果，判断共识
-- 在僵局时介入仲裁
-
 **禁止：**
 
-- 执行 `cr-init.sh`（调用方已完成）
 - 执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
 - 直接读取 PR diff 或代码（阶段 5 除外）
 - 自己审查代码
-- 在阶段 1-4 发布 PR 评论（中间过程留在 workspace，仅阶段 5 发最终结论）
+- 在阶段 1-4 发布 PR 评论（仅阶段 5 发最终结论）
 
 **必须：**
 
-- 通过 `cr-spawn.sh` 启动 Claude/GPT Agent（它们会出现在你旁边的 pane 中）
+- 通过 `cr-spawn.sh` 启动 Claude/GPT Agent
 - 通过文件系统交换任务/结果
 - 等待 sentinel 文件确认 Agent 完成
 - 在阶段 5 完成后调用 `cr-cleanup.sh` 清理
@@ -204,27 +169,21 @@ tmux -S "$CR_SOCKET" attach -t cr
 
 ## 7. 脚本清单
 
-| 脚本 | 用途 | 调用方 | 示例 |
-|------|------|--------|------|
-| `cr-spawn.sh` | 启动交互式 droid | Orchestrator | `cr-spawn.sh claude custom:claude-opus-4-6` |
-| `cr-wait.sh` | 等待 sentinel 文件 | Orchestrator | `cr-wait.sh claude r1 600` |
-| `cr-status.sh` | 查看所有 agent 状态 | Orchestrator | `cr-status.sh` |
-| `cr-comment.sh` | GitHub 评论操作（仅阶段 5） | Orchestrator | `cr-comment.sh post "body"` |
-| `cr-init.sh` | 初始化 workspace + socket | Orchestrator | `cr-init.sh owner/repo 123 main feat/x PR_xxx` |
-| `cr-cleanup.sh` | 清理 sessions + 文件 | Orchestrator | `cr-cleanup.sh` |
+| 脚本 | 用途 | 示例 |
+|------|------|------|
+| `cr-init.sh` | 初始化 workspace | `cr-init.sh owner/repo 123 main feat/x PR_xxx` |
+| `cr-spawn.sh` | split pane 启动 droid | `cr-spawn.sh claude custom:claude-opus-4-6` |
+| `cr-wait.sh` | 等待 sentinel 文件 | `cr-wait.sh claude r1 600` |
+| `cr-status.sh` | 查看状态 | `cr-status.sh` |
+| `cr-comment.sh` | GitHub 评论（仅阶段 5） | `cr-comment.sh post "body"` |
+| `cr-cleanup.sh` | kill agent pane + 删 workspace | `cr-cleanup.sh` |
 
 ---
 
 ## 8. 状态管理
 
-文件系统替代 SQLite，读写直接用 shell：
-
 ```bash
-# 写入
 echo "2" > "$CR_WORKSPACE/state/stage"
-echo "divergent" > "$CR_WORKSPACE/state/s2-result"
-
-# 读取
 STAGE=$(cat "$CR_WORKSPACE/state/stage")
 ```
 
@@ -232,4 +191,4 @@ STAGE=$(cat "$CR_WORKSPACE/state/stage")
 
 ## 9. Cleanup
 
-Orchestrator 在阶段 5 完成后调用 `cr-cleanup.sh` 清理 tmux sessions 和 workspace。
+Orchestrator 在阶段 5 完成后调用 `cr-cleanup.sh`，仅 kill agent pane 并删除 workspace，不影响当前 tmux session。

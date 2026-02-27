@@ -67,8 +67,8 @@ When done: touch $CR_WORKSPACE/results/claude-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
   PANE_CLAUDE=$(cat "$CR_WORKSPACE/state/pane-claude")
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE_CLAUDE" -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE_CLAUDE" Enter
+  tmux send-keys -t "$PANE_CLAUDE" -l "Read and execute $CR_WORKSPACE/tasks/claude-crosscheck-round${ROUND}.md"
+  tmux send-keys -t "$PANE_CLAUDE" Enter
 
   $HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude "crosscheck-round${ROUND}" 300
 
@@ -99,8 +99,8 @@ When done: touch $CR_WORKSPACE/results/gpt-crosscheck-round${ROUND}.done
 TASK_FOOTER
 
   PANE_GPT=$(cat "$CR_WORKSPACE/state/pane-gpt")
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE_GPT" -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE_GPT" Enter
+  tmux send-keys -t "$PANE_GPT" -l "Read and execute $CR_WORKSPACE/tasks/gpt-crosscheck-round${ROUND}.md"
+  tmux send-keys -t "$PANE_GPT" Enter
 
   $HOME/.factory/skills/cross-review/scripts/cr-wait.sh gpt "crosscheck-round${ROUND}" 300
 

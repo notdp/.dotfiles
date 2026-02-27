@@ -4,7 +4,7 @@
 
 - 调用方已执行 `cr-init.sh` 初始化 workspace
 - 调用方已执行 `cr-spawn.sh orchestrator` 启动你（你在 tmux pane 0 中运行）
-- `$CR_WORKSPACE` 和 `$CR_SOCKET` 环境变量已设置
+- `$CR_WORKSPACE` 环境变量已设置
 
 ## 禁止操作
 
@@ -69,8 +69,8 @@ EOF
 
   # Read pane target and send to agent (-l and Enter must be separate calls)
   PANE=$(cat "$CR_WORKSPACE/state/pane-${AGENT}")
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
-  tmux -S "$CR_SOCKET" send-keys -t "$PANE" Enter
+  tmux send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
+  tmux send-keys -t "$PANE" Enter
 done
 ```
 

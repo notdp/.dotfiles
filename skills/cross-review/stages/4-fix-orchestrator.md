@@ -61,8 +61,8 @@ cat >> "$CR_WORKSPACE/tasks/claude-fix.md" << TASK_FOOTER
 TASK_FOOTER
 
 PANE_CLAUDE=$(cat "$CR_WORKSPACE/state/pane-claude")
-tmux -S "$CR_SOCKET" send-keys -t "$PANE_CLAUDE" -l "Read and execute $CR_WORKSPACE/tasks/claude-fix.md"
-tmux -S "$CR_SOCKET" send-keys -t "$PANE_CLAUDE" Enter
+tmux send-keys -t "$PANE_CLAUDE" -l "Read and execute $CR_WORKSPACE/tasks/claude-fix.md"
+tmux send-keys -t "$PANE_CLAUDE" Enter
 ```
 
 ### 等待修复 → 通知 GPT 验证
@@ -103,8 +103,8 @@ cat >> "$CR_WORKSPACE/tasks/gpt-verify.md" << TASK_FOOTER
 TASK_FOOTER
 
 PANE_GPT=$(cat "$CR_WORKSPACE/state/pane-gpt")
-tmux -S "$CR_SOCKET" send-keys -t "$PANE_GPT" -l "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md"
-tmux -S "$CR_SOCKET" send-keys -t "$PANE_GPT" Enter
+tmux send-keys -t "$PANE_GPT" -l "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md"
+tmux send-keys -t "$PANE_GPT" Enter
 ```
 
 ### 处理验证结果
