@@ -71,8 +71,13 @@ git diff "origin/$BASE...origin/$BRANCH" -- path/to/relevant-file.py
 <details>
 <summary>Session Info</summary>
 
-- Claude model: `$CR_MODEL_CLAUDE`
-- GPT model: `$CR_MODEL_GPT`
+从 `mission status -t "$CR_TEAM"` 获取 agent session ID：
+
+- Orchestrator: `$DROID_SESSION_ID`（当前 droid 自身的 session）
+- Claude: `{sessionId from status}` (model: `$CR_MODEL_CLAUDE`)
+- GPT: `{sessionId from status}` (model: `$CR_MODEL_GPT`)
+- Team: `$CR_TEAM`
+- Workspace: `$CR_WORKSPACE`
 </details>
 ```
 
