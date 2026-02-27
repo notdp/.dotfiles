@@ -24,8 +24,8 @@ MODEL_CLAUDE="${CR_MODEL_CLAUDE:-custom:claude-opus-4-6}"
 MODEL_GPT="${CR_MODEL_GPT:-custom:gpt-5.3-codex}"
 
 # 启动两个 Agent
-mission spawn claude -m "$MODEL_CLAUDE" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
-mission spawn gpt -m "$MODEL_GPT" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
+mission spawn claude -t "$CR_TEAM" -m "$MODEL_CLAUDE" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
+mission spawn gpt -t "$CR_TEAM" -m "$MODEL_GPT" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
 ```
 
 ## 发送任务
@@ -67,7 +67,7 @@ Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review
 2. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
 EOF
 
-  mission type "$AGENT" "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
+  mission type "$AGENT" "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md" -t "$CR_TEAM"
 done
 ```
 
