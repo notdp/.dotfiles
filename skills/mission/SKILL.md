@@ -5,106 +5,41 @@ description: Coordinate multiple droid agents working in parallel via tmux panes
 
 # Mission — Multi-Agent Collaboration
 
-> All operations use the `mission` CLI. Do not create droid config files or manually operate tmux.
+> All operations use the `mission` CLI. Do not operate tmux directly.
 
-Environment variables `MISSION_TEAM_NAME` and `MISSION_AGENT_NAME` are auto-detected. When set, `-t` and `--from` can be omitted.
+Environment variables `MISSION_TEAM_NAME` and `MISSION_AGENT_NAME` are auto-detected. When set, `-t` can be omitted.
 
-## Role Detection
-
-Run `echo $MISSION_AGENT_NAME`:
-- **Has output** → You are a **teammate**, skip to Teammate section
-- **No output** → You are the **team lead**
-
----
-
-## Team Lead
-
-When a user describes a task that benefits from parallel work, autonomously:
-1. Create a team with a descriptive name based on the task
-2. Break the work into tasks
-3. Spawn teammates with clear, self-contained prompts
-4. Monitor progress and synthesize results
-5. Clean up when done
-
-### Commands
+## Commands
 
 ```bash
-# TeamCreate — create a team
+# Lifecycle
 mission create <team-name> -d "description"
+mission spawn <agent> -m <model> --skill <skill> -e KEY=VALUE -p "prompt"
+mission delete <team-name>
 
-# Spawn — start a teammate (prompt delivered via inbox)
-mission spawn <agent-name> -t <team> -p "Detailed task instructions. Include all context the agent needs — they don't share your conversation history."
-
-# SendMessage — communicate
-mission send <to> "content" -s "summary"                    # direct message
-mission send all "content" --type broadcast                  # broadcast (use sparingly)
-mission send <agent> "done" --type shutdown_request          # request shutdown
-
-# Read — check inbox
-mission read
-
-# Task management
-mission task create "subject" -d "description"               # create task
-mission task create "integration test" -b "1,2"              # with dependencies
-mission task list                                             # list all
-mission task get <id>                                         # get details
-mission task update <id> -o <agent> -s in_progress           # assign & start
+# Communication
+mission type <agent> "prompt text"     # send prompt to agent session
 
 # Observe
-mission status                  # team status
-mission capture <agent>         # view agent pane output
-mission interrupt <agent>       # interrupt agent (Escape)
-
-# TeamDelete — cleanup (shut down teammates first)
-mission delete <team-name>
+mission status                         # agent health (JSON)
+mission capture <agent>                # view agent pane output
+mission interrupt <agent>              # press Escape in agent
 ```
 
-### Guidelines
+### `spawn` options
 
-- Give each teammate a **self-contained prompt** with all needed context
-- Size tasks so teammates can work **independently** without editing the same files
-- Use `mission read` to check for teammate reports
-- Use `mission capture` to observe teammate progress
-- Shut down teammates before deleting the team
+| Flag | Description |
+|------|-------------|
+| `-m` | Model ID (temporarily sets in settings.json, restores after) |
+| `--skill` | Skill to load on startup (default: `mission`, use `none` to skip) |
+| `-e` | Extra env var `KEY=VALUE` (repeatable) |
+| `-p` | Initial prompt (typed into TUI after skill loads) |
+| `--cwd` | Working directory for the agent |
 
----
+## Guidelines
 
-## Teammate
-
-When `MISSION_AGENT_NAME` is set. All `-t` and `--from` flags auto-detected.
-
-### On startup
-
-```bash
-mission read                    # get your initial task from inbox
-```
-
-### Work loop
-
-1. Read task → execute → report results:
-   ```bash
-   mission send team-lead "results" -s "summary"
-   ```
-2. Check for more work:
-   ```bash
-   mission task list
-   mission task update <id> -o me -s in_progress    # claim a task
-   mission task update <id> -s completed             # mark done
-   ```
-3. Periodically check inbox:
-   ```bash
-   mission read
-   ```
-
-### Respond to shutdown
-
-```bash
-mission send team-lead "done" --type shutdown_response --approve
-mission send team-lead "still working" --type shutdown_response --reject
-```
-
-### Rules
-
-- Communicate only via `mission send` — text responses are not visible to teammates
-- Always respond to shutdown requests
-- Do not spawn other droids or modify mission configuration
+- Give each agent a **self-contained prompt** with all needed context
+- Size tasks so agents can work **independently** without editing the same files
+- Use `mission capture` to observe progress
+- Use `mission type` to send follow-up instructions
+- Shut down agents before deleting the team

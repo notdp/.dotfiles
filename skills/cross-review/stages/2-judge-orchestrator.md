@@ -2,7 +2,7 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-spawn.sh orchestrator`
+- 不要直接操作 tmux
 
 ## 概述
 

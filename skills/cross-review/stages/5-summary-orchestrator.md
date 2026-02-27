@@ -2,7 +2,7 @@
 
 ## 禁止操作
 
-- 不要执行 `cr-spawn.sh orchestrator`
+- 不要直接操作 tmux
 
 生成最终汇总，发布唯一一条 PR 评论，然后清理。
 
@@ -135,18 +135,16 @@ PR_NUMBER=$(cat "$CR_WORKSPACE/state/pr-number")
 #### 有已修复的 findings → summary comment + PR review with inline comments
 
 ```bash
-# 发布 summary comment
-SUMMARY_NODE_ID=$($HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$SUMMARY_BODY")
+SUMMARY_NODE_ID=$(mission comment post "$SUMMARY_BODY" --workspace "$CR_WORKSPACE")
 echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
 
-# 发布 PR review + inline comments
-$HOME/.factory/skills/cross-review/scripts/cr-comment.sh review-post "See summary comment above." "$INLINE_COMMENTS_JSON"
+mission comment review-post "See summary comment above." "$INLINE_COMMENTS_JSON" --workspace "$CR_WORKSPACE"
 ```
 
 #### 无 findings 或全部 Skip → 仅 summary comment
 
 ```bash
-SUMMARY_NODE_ID=$($HOME/.factory/skills/cross-review/scripts/cr-comment.sh post "$SUMMARY_BODY")
+SUMMARY_NODE_ID=$(mission comment post "$SUMMARY_BODY" --workspace "$CR_WORKSPACE")
 echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
 ```
 
@@ -155,6 +153,5 @@ echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
 ```bash
 echo "done" > "$CR_WORKSPACE/state/stage"
 
-# Orchestrator 负责清理
-$HOME/.factory/skills/cross-review/scripts/cr-cleanup.sh
+mission delete "$CR_TEAM"
 ```

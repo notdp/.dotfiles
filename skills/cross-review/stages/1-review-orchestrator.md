@@ -2,14 +2,14 @@
 
 ## 前置条件
 
-- 调用方已执行 `cr-init.sh` 初始化 workspace
-- 调用方已执行 `cr-spawn.sh orchestrator` 启动你（你在 tmux pane 0 中运行）
-- `$CR_WORKSPACE` 环境变量已设置
+- 调用方已通过 `mission create --workspace ... --state ...` 初始化 workspace
+- `$CR_WORKSPACE` 和 `$CR_TEAM` 环境变量已设置
+- mission team 已创建（`mission create "$CR_TEAM" ...`）
 
 ## 禁止操作
 
-- 不要执行 `cr-init.sh`（调用方已完成）
-- 不要执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
+- 不要重新执行 `mission create`（调用方已完成）
+- 不要直接操作 tmux
 
 ## 概述
 
@@ -23,9 +23,9 @@ echo "1" > "$CR_WORKSPACE/state/stage"
 MODEL_CLAUDE="${CR_MODEL_CLAUDE:-custom:claude-opus-4-6}"
 MODEL_GPT="${CR_MODEL_GPT:-custom:gpt-5.3-codex}"
 
-# 启动两个 Agent（仅 claude 和 gpt，不要 spawn orchestrator）
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh claude "$MODEL_CLAUDE"
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh gpt "$MODEL_GPT"
+# 启动两个 Agent
+mission spawn claude -m "$MODEL_CLAUDE" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
+mission spawn gpt -m "$MODEL_GPT" --skill cross-review -e "CR_WORKSPACE=$CR_WORKSPACE"
 ```
 
 ## 发送任务
@@ -67,18 +67,15 @@ Read ~/.factory/skills/cross-review/stages/1-review-agent.md for detailed review
 2. When FULLY complete, run: touch $CR_WORKSPACE/results/${AGENT}-r1.done
 EOF
 
-  # Read pane target and send to agent (-l and Enter must be separate calls)
-  PANE=$(cat "$CR_WORKSPACE/state/pane-${AGENT}")
-  tmux send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
-  tmux send-keys -t "$PANE" Enter
+  mission type "$AGENT" "Read and execute $CR_WORKSPACE/tasks/${AGENT}-review.md"
 done
 ```
 
 ## 等待
 
 ```bash
-$HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude r1 600 &
-$HOME/.factory/skills/cross-review/scripts/cr-wait.sh gpt r1 600 &
+mission wait claude r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600 &
+mission wait gpt r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600 &
 wait
 ```
 

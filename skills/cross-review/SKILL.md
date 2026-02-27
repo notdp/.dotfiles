@@ -1,27 +1,34 @@
 ---
 name: cross-review
-description: 基于 tmux 的双 Agent 交叉 PR 审查。在当前 tmux window 中 split pane 启动交互式 droid，文件系统传递任务和结果。
-metadata: {"cross-review-bot":{"emoji":"🔀","os":["darwin","linux"],"requires":{"bins":["tmux","droid","gh","python3"]}}}
+description: 基于 Mission 的双 Agent 交叉 PR 审查。通过 mission CLI 启动 Agent，文件系统传递任务和结果。
+metadata: {"cross-review-bot":{"emoji":"🔀","os":["darwin","linux"],"requires":{"bins":["tmux","droid","gh","python3","mission"]}}}
 ---
 
 # Cross Review - 双 Agent 交叉审查
 
-在当前 tmux window 中 split 出 pane 运行审查 Agent。
-Orchestrator 就是当前 droid，Claude 和 GPT 出现在旁边的 pane 中，用户直接可见。
+通过 `mission` CLI 在当前 tmux window 中启动审查 Agent。
+Orchestrator 就是当前 droid，Claude 和 GPT 出现在旁边的 pane 中。
 
 ## 1. 启动
 
-Orchestrator（当前 droid）初始化 workspace，然后 spawn agent：
+Orchestrator（当前 droid）通过 `mission create` 初始化 workspace 和 team，然后 spawn agent：
 
 ```bash
-SKILL_DIR="$HOME/.factory/skills/cross-review"
-
-# 初始化 workspace
-"$SKILL_DIR/scripts/cr-init.sh" <repo> <pr_number> <base> <branch> <pr_node_id>
 export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
+export CR_TEAM="cr-<safe_repo>-<pr_number>"
+
+mission create "$CR_TEAM" -d "Cross review PR #<pr_number>" \
+  --workspace "$CR_WORKSPACE" \
+  --reset-workspace \
+  --state "repo=<repo>" \
+  --state "pr-number=<pr_number>" \
+  --state "base=<base>" \
+  --state "branch=<branch>" \
+  --state "pr-node-id=<pr_node_id>" \
+  --state "stage=1"
 ```
 
-然后在阶段 1 中通过 `cr-spawn.sh` 启动 Claude 和 GPT。
+然后在阶段 1 中通过 `mission spawn` 启动 Claude 和 GPT。
 
 ---
 
@@ -64,10 +71,10 @@ export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
 
 ## 4. 通信架构
 
-### tmux 布局
+### 布局
 
 ```
-当前 tmux window (main-vertical layout):
+当前 tmux window (由 mission 管理):
 ┌──────────────┬──────────────┐
 │              │    claude    │
 │ orchestrator ├──────────────┤
@@ -75,13 +82,24 @@ export CR_WORKSPACE="/tmp/cr-<safe_repo>-<pr_number>"
 └──────────────┴──────────────┘
 ```
 
-每个 agent 的 pane ID 存储在 `$CR_WORKSPACE/state/pane-{agent}`，
-Orchestrator 通过读取该文件寻址：
+### 发送任务给 Agent
 
 ```bash
-PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
-tmux send-keys -t "$PANE" -l "..."
-tmux send-keys -t "$PANE" Enter
+# 1. 写任务文件
+cat > "$CR_WORKSPACE/tasks/claude-review.md" << 'EOF'
+...
+EOF
+
+# 2. 通过 mission type 发送给 Agent
+mission type claude "Read and execute $CR_WORKSPACE/tasks/claude-review.md" -t "$CR_TEAM"
+```
+
+### 等待完成
+
+轮询 sentinel 文件：
+
+```bash
+mission wait claude r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600
 ```
 
 ### 文件系统 workspace
@@ -93,8 +111,6 @@ $CR_WORKSPACE/
 │   ├── s2-result                 # both_ok / same_issues / divergent
 │   ├── s4-branch                 # 修复分支名
 │   ├── s4-round                  # 当前修复轮次
-│   ├── pane-claude               # claude pane ID
-│   ├── pane-gpt                  # gpt pane ID
 │   ├── pr-node-id                # PR GraphQL node ID
 │   ├── repo                      # owner/repo
 │   ├── pr-number                 # PR 编号
@@ -112,40 +128,21 @@ $CR_WORKSPACE/
     └── cr-summary.id             # 最终总结评论 node ID
 ```
 
-### 通信流程
-
-**发送任务**：Orchestrator 写任务文件 → `tmux send-keys` 告诉 Agent 读取并执行
-
-```bash
-# 1. 写任务文件
-cat > "$CR_WORKSPACE/tasks/claude-review.md" << 'EOF'
-...
-EOF
-
-# 2. 发送给 Agent（-l 和 Enter 必须分开两次调用）
-PANE=$(cat "$CR_WORKSPACE/state/pane-claude")
-tmux send-keys -t "$PANE" -l "Read and execute $CR_WORKSPACE/tasks/claude-review.md"
-tmux send-keys -t "$PANE" Enter
-```
-
-**等待完成**：轮询 sentinel 文件
-
-```bash
-$HOME/.factory/skills/cross-review/scripts/cr-wait.sh claude r1 600
-```
-
 ---
 
 ## 5. Agent 启动
 
-Orchestrator 在当前 tmux window 中 split 出 pane：
+Orchestrator 通过 mission spawn 启动 Agent：
 
 ```bash
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh claude "$MODEL_CLAUDE"
-$HOME/.factory/skills/cross-review/scripts/cr-spawn.sh gpt "$MODEL_GPT"
-```
+MODEL_CLAUDE="${CR_MODEL_CLAUDE:-custom:claude-opus-4-6}"
+MODEL_GPT="${CR_MODEL_GPT:-custom:gpt-5.3-codex}"
 
-Agent pane 自动出现在 orchestrator 旁边。
+mission spawn claude -t "$CR_TEAM" -m "$MODEL_CLAUDE" --skill cross-review \
+  -e "CR_WORKSPACE=$CR_WORKSPACE"
+mission spawn gpt -t "$CR_TEAM" -m "$MODEL_GPT" --skill cross-review \
+  -e "CR_WORKSPACE=$CR_WORKSPACE"
+```
 
 ---
 
@@ -153,30 +150,33 @@ Agent pane 自动出现在 orchestrator 旁边。
 
 **禁止：**
 
-- 执行 `cr-spawn.sh orchestrator`（你就是 orchestrator）
+- 直接操作 tmux（通过 mission 命令交互）
 - 直接读取 PR diff 或代码（阶段 5 除外）
 - 自己审查代码
 - 在阶段 1-4 发布 PR 评论（仅阶段 5 发最终结论）
 
 **必须：**
 
-- 通过 `cr-spawn.sh` 启动 Claude/GPT Agent
+- 通过 `mission spawn` 启动 Claude/GPT Agent
+- 通过 `mission type` 发送任务指令
 - 通过文件系统交换任务/结果
 - 等待 sentinel 文件确认 Agent 完成
-- 在阶段 5 完成后调用 `cr-cleanup.sh` 清理
+- 在阶段 5 完成后调用 `mission delete` 清理
 
 ---
 
-## 7. 脚本清单
+## 7. 工具清单
 
-| 脚本 | 用途 | 示例 |
+| 命令 | 用途 | 示例 |
 |------|------|------|
-| `cr-init.sh` | 初始化 workspace | `cr-init.sh owner/repo 123 main feat/x PR_xxx` |
-| `cr-spawn.sh` | split pane 启动 droid | `cr-spawn.sh claude custom:claude-opus-4-6` |
-| `cr-wait.sh` | 等待 sentinel 文件 | `cr-wait.sh claude r1 600` |
-| `cr-status.sh` | 查看状态 | `cr-status.sh` |
-| `cr-comment.sh` | GitHub 评论（仅阶段 5） | `cr-comment.sh post "body"` |
-| `cr-cleanup.sh` | kill agent pane + 删 workspace | `cr-cleanup.sh` |
+| `mission create` | 创建 team + 初始化 workspace | `mission create "$CR_TEAM" -d "..." --workspace "$CR_WORKSPACE" --state "repo=..." ...` |
+| `mission spawn` | 启动 Agent | `mission spawn claude -t "$CR_TEAM" -m model --skill cross-review -e "CR_WORKSPACE=..."` |
+| `mission type` | 发送任务给 Agent | `mission type claude "Read and execute ..." -t "$CR_TEAM"` |
+| `mission status` | 查看 Agent 状态 | `mission status -t "$CR_TEAM"` |
+| `mission capture` | 查看 Agent 输出 | `mission capture claude -t "$CR_TEAM"` |
+| `mission wait` | 等待 sentinel 文件 | `mission wait claude r1 -t "$CR_TEAM" --workspace "$CR_WORKSPACE" --timeout 600` |
+| `mission comment` | GitHub 评论（仅阶段 5） | `mission comment post "body" --workspace "$CR_WORKSPACE"` |
+| `mission delete` | 删 team + workspace | `mission delete "$CR_TEAM"` |
 
 ---
 
@@ -191,4 +191,4 @@ STAGE=$(cat "$CR_WORKSPACE/state/stage")
 
 ## 9. Cleanup
 
-Orchestrator 在阶段 5 完成后调用 `cr-cleanup.sh`，仅 kill agent pane 并删除 workspace，不影响当前 tmux session。
+Orchestrator 在阶段 5 完成后调用 `mission delete "$CR_TEAM"`，删除 mission team 并清理 workspace。
