@@ -58,7 +58,7 @@ cat >> "$CR_WORKSPACE/tasks/claude-fix.md" << TASK_FOOTER
 3. When done: touch $CR_WORKSPACE/results/claude-fix.done
 TASK_FOOTER
 
-mission type claude "Read and execute $CR_WORKSPACE/tasks/claude-fix.md"
+mission type claude "Read and execute $CR_WORKSPACE/tasks/claude-fix.md" -t "$CR_TEAM"
 ```
 
 ### 等待修复 → 通知 GPT 验证
@@ -97,7 +97,7 @@ cat >> "$CR_WORKSPACE/tasks/gpt-verify.md" << TASK_FOOTER
 3. When done: touch $CR_WORKSPACE/results/gpt-verify.done
 TASK_FOOTER
 
-mission type gpt "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md"
+mission type gpt "Read and execute $CR_WORKSPACE/tasks/gpt-verify.md" -t "$CR_TEAM"
 ```
 
 ### 处理验证结果
