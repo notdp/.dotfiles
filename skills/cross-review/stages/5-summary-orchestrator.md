@@ -132,16 +132,13 @@ REPO=$(cat "$CR_WORKSPACE/state/repo")
 PR_NUMBER=$(cat "$CR_WORKSPACE/state/pr-number")
 ```
 
-#### 有已修复的 findings → summary comment + PR review with inline comments
+#### 有已修复的 findings → 一条 PR review（summary + inline comments）
 
 ```bash
-SUMMARY_NODE_ID=$(mission comment post "$SUMMARY_BODY" --workspace "$CR_WORKSPACE")
-echo "$SUMMARY_NODE_ID" > "$CR_WORKSPACE/comments/cr-summary.id"
-
-mission comment review-post "See summary comment above." "$INLINE_COMMENTS_JSON" --workspace "$CR_WORKSPACE"
+mission comment review-post "$SUMMARY_BODY" "$INLINE_COMMENTS_JSON" --workspace "$CR_WORKSPACE"
 ```
 
-#### 无 findings 或全部 Skip → 仅 summary comment
+#### 无 findings 或全部 Skip → 一条普通评论
 
 ```bash
 SUMMARY_NODE_ID=$(mission comment post "$SUMMARY_BODY" --workspace "$CR_WORKSPACE")
