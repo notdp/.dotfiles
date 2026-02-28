@@ -1,6 +1,6 @@
 ---
 name: droid-bin-mod
-description: 修改 droid 二进制以禁用截断。当用户提到：修改/恢复/测试 droid、press Ctrl+O、output truncated、显示完整命令或输出时触发。
+description: 修改 droid 二进制以禁用截断和解锁功能。当用户提到：修改/恢复/测试 droid、press Ctrl+O、output truncated、显示完整命令或输出、mission 门控时触发。
 ---
 
 # Droid Binary Modifier
@@ -50,10 +50,13 @@ mod3: 命令输出截断行数 4 行 → 99 行
 mod4: Edit diff 截断行数 20 行 → 99 行
 mod5: 输出区 "output truncated. press Ctrl+O" 提示 >4 行 → >99 行
 mod6: Ctrl+N 只在 custom model 间切换 (/model 菜单不受影响)
+mod7: Mission 门控破解 → /enter-mission 可用 (BYOK)
+mod8: Mission 模型不强切 → Orchestrator 保持 custom model
 
 注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
+注：mod7+mod8 配合 settings.json 中 missionModelSettings 设置 Worker/Validator 模型
 
-select: 1,2,3,4,5,6 / all / restore
+select: 1,2,3,4,5,6,7,8 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -169,6 +172,8 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 | 3+5 | 输出行数     | `aGR=4`      | `aGR=99`       | +1   | 输出显示 99 行，超过才显示提示            |
 | 4   | diff 行数    | `LD=20`      | `LD=99`        | 0    | Edit diff 显示 99 行                      |
 | 6   | model cycle  | peek/cycle 函数 | 覆盖H+移除检查  | 0    | Ctrl+N 只切换 custom model                |
+| 7   | mission 门控 | `enable_extra_mode`,`!1` | `enable_extra_mod0`,`!0` | 0 | /enter-mission 可用 |
+| 8   | mission 模型 | `Y9H=[...]` | `Y9H={includes:()=>!0}` | 0  | 白名单恒通过，不强切+不警告           |
 | 补偿 | substring   | `substring`  | `xxxxxxx`      | ±N   | 被 mod1 短路，可任意调整长度              |
 
 **注**：
@@ -176,6 +181,66 @@ function JZ9(A, R=80, T=3) {       // R=宽度限制80字符, T=行数限制3行
 - mod3+5: 输出区行数和提示（output truncated）由同一变量控制
 - mod6: 修改 `peekNextCycleModel`, `peekNextCycleSpecModeModel`, `cycleSpecModeModel` 三个函数
   （`cycleModel` 是委托函数，无需修改）
+- mod7: 改 `EnableAGIMode` 定义处的 statsigName + defaultValue
+- mod8: 改 enter-mission 内的 `.setModel(VCA,...)` 为当前模型变量
+
+### 修改 7: Mission 门控破解
+
+**位置**: `EnableAGIMode` 定义处
+
+**原始代码**:
+```javascript
+EnableAGIMode:{displayName:"Enable Extra Mode",statsigName:"enable_extra_mode",defaultValue:!1}
+```
+
+**修改**:
+1. `statsigName:"enable_extra_mode"` → `"enable_extra_mod0"` (末尾 `e`→`0`)
+2. `defaultValue:!1` → `defaultValue:!0`
+
+**原理**: Statsig 查不到 `"enable_extra_mod0"` → 返回 `undefined` → `??` fallback 到 `!0`(true) → 门控通过。
+一处定义影响所有引用: `/enter-mission`、`/mission`、`/missions`、UI filter。
+
+**稳定锚点**: `EnableAGIMode`, `statsigName:"enable_extra_mode"`, `defaultValue:!1` — 均为字符串常量。
+
+### 修改 8: Mission 模型白名单恒通过
+
+**位置**: Y9H 数组定义处
+
+**原始代码**:
+```javascript
+Y9H=["gpt-5.2","gpt-5.3-codex","claude-opus-4-6","claude-opus-4-6-fast"]
+```
+
+**修改**: 替换为 `{includes:()=>!0}` (空格填充至等长)
+
+**原理**: `{includes:()=>!0}.includes(任何值)` 恒返回 `true`。一处改动同时解决:
+1. enter-mission 不强切模型 — `if(Y9H.includes(I))` 恒 true → else 分支永不执行
+2. 模型切换警告不触发 — `!(true && h9H.includes(bR))` → 只在 reasoning effort 不对时警告
+
+Y9H 只被 `.includes()` 调用（无 `.length`/遍历/索引），替换为对象完全安全。
+
+**配合 mod7**: 应用 mod7+mod8 后，读取 `~/.factory/settings.json` 中的 `customModels` 列表，
+让用户选择 Worker 和 Validator 模型，然后写入 `missionModelSettings`。
+
+**交互流程**:
+1. 读取 settings.json 的 `customModels` 和已有的 `missionModelSettings`
+2. 列出可选模型，显示当前配置，让用户选择:
+```
+当前 missionModelSettings:
+  Worker:    Claude Opus 4.6 [custom:Claude-Opus-4.6-0] (high)
+  Validator: GPT-5.3 Codex [custom:GPT-5.3-Codex-1] (high)
+
+可选模型:
+  0: Claude Opus 4.6  (custom:Claude-Opus-4.6-0)
+  1: GPT-5.3 Codex    (custom:GPT-5.3-Codex-1)
+
+选择 Worker 模型 [0]:
+选择 Validator 模型 [1]:
+```
+3. 默认推荐: Worker 用 `sessionDefaultSettings.model`，Validator 用第二个 custom model（如有）
+4. 写入 settings.json 顶层 `missionModelSettings` 字段
+
+**稳定锚点**: `Y9H=["gpt-` — 数组内容是硬编码的模型 ID 字符串，版本间稳定。
 
 ### 修改 6: Ctrl+N 只在 custom model 间切换
 
@@ -228,6 +293,8 @@ mods/mod3_output_lines.py        # 输出行数 aGR=4→99 (+1 byte, 同时解�
 mods/mod4_diff_lines.py          # diff行数 20→99 (0 bytes)
 mods/mod5_exec_hint.py           # 由 mod3 自动处理
 mods/mod6_custom_model_cycle.py  # Ctrl+N 只切换 custom model (0 bytes)
+mods/mod7_mission_gate.py        # Mission 门控破解 (0 bytes)
+mods/mod8_mission_model.py       # Mission 模型不强切 (0 bytes)
 ```
 
 mod3 产生 +1 byte，需要用补偿脚本平衡。
@@ -252,6 +319,8 @@ python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod1_truncate_condition.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod2_command_length.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod3_output_lines.py  # +1 byte, 同时解决 mod5
 python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod4_diff_lines.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod7_mission_gate.py
+python3 ~/.factory/skills/droid-bin-mod/scripts/mods/mod8_mission_model.py
 python3 ~/.factory/skills/droid-bin-mod/scripts/compensations/comp_substring.py -1  # 补偿 -1 byte
 
 # 3. macOS: 重新签名

@@ -66,8 +66,24 @@ def _mod6_detect():
 
 results['mod6'] = _mod6_detect()
 
+# mod7: mission 门控
+if b'statsigName:"enable_extra_mod0",defaultValue:!0' in data:
+    results['mod7'] = 'modified'
+elif b'statsigName:"enable_extra_mode",defaultValue:!1' in data:
+    results['mod7'] = 'original'
+else:
+    results['mod7'] = 'unknown'
+
+# mod8: mission 模型白名单
+if b'Y9H={includes:()=>!0}' in data:
+    results['mod8'] = 'modified'
+elif b'Y9H=["gpt-' in data:
+    results['mod8'] = 'original'
+else:
+    results['mod8'] = 'unknown'
+
 # 输出
-total = 6
+total = 8
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
