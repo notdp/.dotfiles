@@ -49,24 +49,37 @@ git diff "origin/$BASE...origin/$BRANCH" -- path/to/relevant-file.py
 ## {✅|⚠️} Cross Review Summary
 > 🕐 {TIMESTAMP}
 
-{如有 findings:}
-### Findings
+### 审查时间线
 
-| # | Issue | Priority | Status |
-|---|-------|----------|--------|
-| 1 | ... | 🔴 P0 | ✅ Fixed / ⏭️ Skipped / ⚠️ Unfixed |
+| 时间 (UTC) | 事件 |
+|------------|------|
+| MM-DD HH:MM | Round 1 启动 - Claude & GPT 并行审查 {branch} |
+| MM-DD HH:MM | Claude 发现 [P0] ... / Claude 未发现问题 |
+| MM-DD HH:MM | GPT 发现 [P0] ... / GPT 未发现问题 |
+| MM-DD HH:MM | 交叉验认 - {双方问题均已确认 / 存在分歧} |
+| MM-DD HH:MM | 共识: {结论} |
+| MM-DD HH:MM | Claude 修复: {描述} |
+| MM-DD HH:MM | GPT 验证通过 / 验证失败 |
+| MM-DD HH:MM | ✅ 审查完成 |
+
+{如有 findings:}
+### 审查发现
+
+| # | 问题 | 状态 |
+|---|------|------|
+| 1 | 🔴 [P0] ... | ✅ 已修复 / ⏭️ 跳过 |
 
 {如有修复:}
-**Fix branch**: [`{branch}`](https://github.com/{REPO}/compare/{BRANCH}...{fix_branch}) ([`{short_hash}`](https://github.com/{REPO}/commit/{full_hash}))
+**修复分支**: [`{branch}`](https://github.com/{REPO}/compare/{BRANCH}...{fix_branch}) ([`{short_hash}`](https://github.com/{REPO}/commit/{full_hash}))
 
-### Conclusion
+### 审查结论
 
-| Agent | Model | Verdict |
-|-------|-------|---------|
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Claude | {model} | {结论} |
-| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> GPT | {model} | {结论} |
+| Agent | 结论 |
+|-------|------|
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/claude-color.svg" width="16" /> Claude | {结论} |
+| <img src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg" width="16" /> GPT | {结论} |
 
-**Result**: {一句话总结}
+**结论**: {一句话总结}
 
 <details>
 <summary>Session Info</summary>
