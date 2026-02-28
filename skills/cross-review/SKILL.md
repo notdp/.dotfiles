@@ -110,6 +110,7 @@ $CR_WORKSPACE/
 │   ├── stage                     # 当前阶段 (1-5/done)
 │   ├── s2-result                 # both_ok / same_issues / divergent
 │   ├── s4-branch                 # 修复分支名
+│   ├── orch-session               # Orchestrator 的 session ID
 │   ├── s4-round                  # 当前修复轮次
 │   ├── pr-node-id                # PR GraphQL node ID
 │   ├── repo                      # owner/repo

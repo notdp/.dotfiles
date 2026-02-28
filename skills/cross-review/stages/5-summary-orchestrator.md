@@ -84,9 +84,9 @@ git diff "origin/$BASE...origin/$BRANCH" -- path/to/relevant-file.py
 <details>
 <summary>Session Info</summary>
 
-从 `mission status -t "$CR_TEAM"` 获取 agent session ID：
+从 `mission status -t "$CR_TEAM"` 获取 agent session ID，从 state 文件获取 orchestrator session：
 
-- Orchestrator: `$DROID_SESSION_ID`（当前 droid 自身的 session）
+- Orchestrator: `$(cat "$CR_WORKSPACE/state/orch-session")`
 - Claude: `{sessionId from status}` (model: `$CR_MODEL_CLAUDE`)
 - GPT: `{sessionId from status}` (model: `$CR_MODEL_GPT`)
 - Team: `$CR_TEAM`

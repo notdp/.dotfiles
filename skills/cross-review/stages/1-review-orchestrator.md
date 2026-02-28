@@ -20,6 +20,16 @@
 ```bash
 echo "1" > "$CR_WORKSPACE/state/stage"
 
+# 检测 orchestrator 自身的 session ID（必须在 spawn 前执行，此时最新 session 就是自己）
+ORCH_SESSION=$(python3 -c "
+import os, pathlib
+cwd = os.getcwd()
+d = pathlib.Path.home() / '.factory' / 'sessions' / ('-' + cwd.lstrip('/').replace('/', '-'))
+f = max(d.glob('*.settings.json'), key=lambda p: p.stat().st_birthtime)
+print(f.name.removesuffix('.settings.json'))
+")
+echo "$ORCH_SESSION" > "$CR_WORKSPACE/state/orch-session"
+
 MODEL_CLAUDE="${CR_MODEL_CLAUDE:-custom:claude-opus-4-6}"
 MODEL_GPT="${CR_MODEL_GPT:-custom:gpt-5.3-codex}"
 
