@@ -182,18 +182,16 @@ else:
                     if not effort:
                         issues.append('缺少 reasoningEffort (建议 "high")')
                     reasoning = extra.get('reasoning', {})
-                    if reasoning.get('effort'):
+                    if reasoning:
                         keep_parts = []
-                        if reasoning.get('summary'):
-                            keep_parts.append('reasoning.summary')
                         if extra.get('text', {}).get('verbosity'):
                             keep_parts.append('text.verbosity')
                         keep_note = '，' + '、'.join(keep_parts) + ' 可保留' if keep_parts else ''
                         issues.append(
-                            f'extraArgs 中的 reasoning.effort 已不需要'
-                            '（Droid 内置 reasoningEffort 已接管'
-                            + (f'，mod9 已解锁 xhigh' if has_mod9 else '') + '）。'
-                            f'不删后果: Tab 切到 none 时 extraArgs 会接管，推理不会真正关闭'
+                            f'extraArgs 中的整个 reasoning 对象必须移除（包括 summary）'
+                            '（responses.create 中 extraArgs 浅展开会覆盖 requestParams.reasoning，'
+                            '导致 effort 字段丢失，Tab 切换 Thinking Level 完全无效'
+                            + (f'；mod9 已解锁 xhigh' if has_mod9 else '') + '）'
                             + keep_note)
 
                 icon = '✓' if not issues else '⚠'
