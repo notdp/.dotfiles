@@ -109,13 +109,28 @@ elif b'supportedReasoningEfforts:L?["off","low","medium","high"]:["none"]' in da
 else:
     results['mod9'] = 'unknown'
 
-# mod10: mission API key 认证
-if b'||process.env.FACTORY_API_KEY;if(!$)throw' in data:
-    results['mod10'] = 'modified'
-elif b'?.access_token?.trim();if(!$)throw new vH("No access token available")' in data:
-    results['mod10'] = 'original'
-else:
-    results['mod10'] = 'unknown'
+# mod10: mission API key 认证 (双点检测)
+def _mod10_detect():
+    # Patch A: access_token fallback to FACTORY_API_KEY
+    _a_mod = b'||process.env.FACTORY_API_KEY;' in data and b'No access token available' in data
+    _a_orig = bool(re.search(
+        rb'\?\.access_token\?\.trim\(\);if\(!' + V + rb'\)throw.*?No access token available', data
+    )) and not _a_mod
+    # Patch B: (VAR||VAR)?.startsWith → API key 路由
+    _b_mod = bool(re.search(
+        rb'\(' + V + rb'\|\|' + V + rb'\)\?\.startsWith\(' + V + rb'\)\)return ' + V + rb'\(', data))
+    _b_orig = bool(re.search(
+        V + rb'\?\.startsWith\(' + V + rb'\)\)return ' + V + rb'\(' + V + rb','
+        + V + rb'\);if\(' + V + rb'\)return', data)) and not _b_mod
+    if _a_mod and _b_mod:
+        return 'modified'
+    elif _a_orig and _b_orig:
+        return 'original'
+    elif _a_mod or _b_mod:
+        return 'partial'
+    return 'unknown'
+
+results['mod10'] = _mod10_detect()
 
 # 输出
 total = 10
@@ -124,8 +139,8 @@ orig_count = sum(1 for v in results.values() if v == 'original')
 
 print(f"droid 状态:\n")
 for name, status in results.items():
-    icon = '✓' if status == 'modified' else '○' if status == 'original' else '?'
-    label = {'modified': '已修改', 'original': '原版', 'unknown': '未知'}[status]
+    icon = '✓' if status == 'modified' else '○' if status == 'original' else '△' if status == 'partial' else '?'
+    label = {'modified': '已修改', 'original': '原版', 'partial': '部分', 'unknown': '未知'}[status]
     note = ' (由 mod3 控制)' if name == 'mod5' else ''
     print(f"  {icon} {name}: {label}{note}")
 
