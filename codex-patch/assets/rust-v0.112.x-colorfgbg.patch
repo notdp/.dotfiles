@@ -1,0 +1,109 @@
+diff --git a/codex-rs/Cargo.toml b/codex-rs/Cargo.toml
+index eb01ea4b3..f6c3a51b1 100644
+--- a/codex-rs/Cargo.toml
++++ b/codex-rs/Cargo.toml
+@@ -359,14 +359,14 @@ ignored = [
+ ]
+ 
+ [profile.release]
+-lto = "fat"
++lto = "thin"
+ split-debuginfo = "off"
+ # Because we bundle some of these executables with the TypeScript CLI, we
+ # remove everything to make the binary as small as possible.
+ strip = "symbols"
+ 
+ # See https://github.com/openai/codex/issues/1411 for details.
+-codegen-units = 1
++codegen-units = 16
+ 
+ [profile.ci-test]
+ debug = 1         # Reduce debug symbol size
+diff --git a/codex-rs/tui/src/terminal_palette.rs b/codex-rs/tui/src/terminal_palette.rs
+index 304b8df08..d5ef5ad07 100644
+--- a/codex-rs/tui/src/terminal_palette.rs
++++ b/codex-rs/tui/src/terminal_palette.rs
+@@ -77,6 +77,20 @@ pub fn default_bg() -> Option<(u8, u8, u8)> {
+     default_colors().map(|c| c.bg)
+ }
+ 
++fn colorfgbg_default_colors() -> Option<DefaultColors> {
++    let value = std::env::var("COLORFGBG").ok()?;
++    parse_colorfgbg_default_colors(&value)
++}
++
++fn parse_colorfgbg_default_colors(value: &str) -> Option<DefaultColors> {
++    let mut parts = value.split(';').filter_map(|part| part.parse::<usize>().ok());
++    let fg = parts.next()?;
++    let bg = parts.next_back().unwrap_or(fg);
++    let fg = *XTERM_COLORS.get(fg)?;
++    let bg = *XTERM_COLORS.get(bg)?;
++    Some(DefaultColors { fg, bg })
++}
++
+ /// Returns a monotonic counter that increments whenever `requery_default_colors()` runs
+ /// successfully so cached renderers can know when their styling assumptions (e.g.
+ /// background colors baked into cached transcript rows) are stale and need invalidation.
+@@ -91,6 +105,7 @@ mod imp {
+     use crossterm::style::Color as CrosstermColor;
+     use crossterm::style::query_background_color;
+     use crossterm::style::query_foreground_color;
++    use std::process::Command;
+     use std::sync::Mutex;
+     use std::sync::OnceLock;
+ 
+@@ -146,9 +161,29 @@ mod imp {
+     }
+ 
+     fn query_default_colors() -> std::io::Result<Option<DefaultColors>> {
+-        let fg = query_foreground_color()?.and_then(color_to_tuple);
+-        let bg = query_background_color()?.and_then(color_to_tuple);
+-        Ok(fg.zip(bg).map(|(fg, bg)| DefaultColors { fg, bg }))
++        // tmux control mode can report OSC colors that reflect tmux's palette instead of the
++        // underlying terminal profile. In that mode, COLORFGBG is a more stable light/dark hint.
++        if tmux_control_mode() && let Some(colors) = super::colorfgbg_default_colors() {
++            return Ok(Some(colors));
++        }
++
++        match (query_foreground_color(), query_background_color()) {
++            (Ok(fg), Ok(bg)) => {
++                let fg = fg.and_then(color_to_tuple);
++                let bg = bg.and_then(color_to_tuple);
++                Ok(fg
++                    .zip(bg)
++                    .map(|(fg, bg)| DefaultColors { fg, bg })
++                    .or_else(super::colorfgbg_default_colors))
++            }
++            (Err(err), _) | (_, Err(err)) => {
++                if let Some(colors) = super::colorfgbg_default_colors() {
++                    Ok(Some(colors))
++                } else {
++                    Err(err)
++                }
++            }
++        }
+     }
+ 
+     fn color_to_tuple(color: CrosstermColor) -> Option<(u8, u8, u8)> {
+@@ -157,6 +192,21 @@ mod imp {
+             _ => None,
+         }
+     }
++
++    fn tmux_control_mode() -> bool {
++        if std::env::var_os("TMUX").is_none() {
++            return false;
++        }
++
++        Command::new("tmux")
++            .args(["display-message", "-p", "#{client_control_mode}"])
++            .output()
++            .ok()
++            .filter(|output| output.status.success())
++            .and_then(|output| String::from_utf8(output.stdout).ok())
++            .map(|value| value.trim() == "1")
++            .unwrap_or(false)
++    }
+ }
+ 
+ #[cfg(not(all(unix, not(test))))]
