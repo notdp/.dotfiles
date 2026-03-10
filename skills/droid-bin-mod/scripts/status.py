@@ -69,13 +69,7 @@ def _mod6_detect():
 
 results['mod6'] = _mod6_detect()
 
-# mod7: mission 门控
-if b'statsigName:"enable_extra_mod0",defaultValue:!0' in data:
-    results['mod7'] = 'modified'
-elif b'statsigName:"enable_extra_mode",defaultValue:!1' in data:
-    results['mod7'] = 'original'
-else:
-    results['mod7'] = 'unknown'
+# mod7: 已移除 (v0.71.0 起 mission 门控默认开放)
 
 # mod8: mission 模型白名单
 def _mod8_detect():
@@ -102,7 +96,7 @@ else:
     results['mod9'] = 'unknown'
 
 # 输出
-total = 9
+total = 8  # mod7 已移除
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
@@ -207,8 +201,8 @@ else:
                 ve = mission.get('validationWorkerReasoningEffort', '')
                 print(f"    Worker:    {wm} ({we})" + (" ⚠ 不在 customModels 中" if wm and wm not in model_ids else ""))
                 print(f"    Validator: {vm} ({ve})" + (" ⚠ 不在 customModels 中" if vm and vm not in model_ids else ""))
-            elif results.get('mod7') == 'modified' or results.get('mod8') == 'modified':
-                print(f"\n  ⚠ mod7/mod8 已启用但缺少 missionModelSettings")
+            elif results.get('mod8') == 'modified':
+                print(f"\n  ⚠ mod8 已启用但缺少 missionModelSettings")
                 print(f"    → 建议配置 workerModel / validationWorkerModel 指向 custom model")
 
             if not warnings:
