@@ -31,21 +31,21 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3+mod5: 输出行数 (VAR=4/99,VAR2=5,VAR3=200)
-if re.search(V + rb'=99,' + V + rb'=5,' + V + rb'=200', data):
+# mod3+mod5: 输出行数 (VAR=VAR?8:4 / VAR=99||4)
+if re.search(V + rb'=99\|\|4', data):
     results['mod3'] = 'modified'
     results['mod5'] = 'modified'
-elif re.search(V + rb'=4,' + V + rb'=5,' + V + rb'=200', data):
+elif re.search(V + rb'=' + V + rb'\?8:4', data):
     results['mod3'] = 'original'
     results['mod5'] = 'original'
 else:
     results['mod3'] = 'unknown'
     results['mod5'] = 'unknown'
 
-# mod4: diff行数
-if re.search(rb'var ' + V + rb'=99,' + V + rb',', data):
+# mod4: diff行数 (var VAR=20/99,VAR)
+if re.search(rb'var ' + V + rb'=99,' + V, data):
     results['mod4'] = 'modified'
-elif re.search(rb'var ' + V + rb'=20,' + V + rb',', data):
+elif re.search(rb'var ' + V + rb'=20,' + V, data):
     results['mod4'] = 'original'
 else:
     results['mod4'] = 'unknown'
