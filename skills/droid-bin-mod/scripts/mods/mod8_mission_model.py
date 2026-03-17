@@ -23,22 +23,21 @@ applied = 0
 # --- 修改点 1: enter-mission 的 Y9H.includes(X) ---
 # 上下文: getReasoningEffort();if(Y9H.includes(X)){if(!h9H
 pat1 = rb'(' + V + rb')\.includes\((' + V + rb')\)\)\{if\(!' + V
-m1 = re.search(pat1, data)
+m1 = None
+for candidate in re.finditer(pat1, data):
+    ctx = data[max(0, candidate.start()-120):candidate.start()+100]
+    if b'getReasoningEffort' in ctx:
+        m1 = candidate
+        break
 
 if m1:
     var_name = m1.group(1)  # e.g. Y9H
     arg_name = m1.group(2)  # e.g. I
     target1 = var_name + b'.includes(' + arg_name + b')'
     replace1 = b'!0' + b' ' * (len(target1) - 2)
-    # 验证上下文
-    ctx = data[max(0, m1.start()-100):m1.start()+100]
-    if b'getReasoningEffort' in ctx:
-        data = data[:m1.start()] + replace1 + data[m1.start()+len(target1):]
-        print(f"mod8a enter-mission: {target1.decode()} → !0 (0 bytes)")
-        applied += 1
-    else:
-        print("mod8 警告: 修改点1 上下文不匹配，跳过")
-        sys.exit(1)
+    data = data[:m1.start()] + replace1 + data[m1.start()+len(target1):]
+    print(f"mod8a enter-mission: {target1.decode()} → !0 (0 bytes)")
+    applied += 1
 else:
     # 检测是否已应用: !0 + 空格 + ){if(!h9H
     if re.search(rb'!0\s+\)\{if\(!' + V, data):
