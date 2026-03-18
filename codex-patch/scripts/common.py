@@ -11,26 +11,14 @@ from datetime import datetime
 from pathlib import Path
 
 DEFAULT_REPO = Path.home() / "Developer" / "codex"
-DEFAULT_OFFICIAL_BIN = Path("/opt/homebrew/bin/codex")
 VERSION_PATTERN = re.compile(r"codex-cli\s+([^\s]+)")
+RELEASE_TAG_PREFIX = "rust-v"
+RELEASE_TAG_PATTERN = re.compile(r"^rust-v(\d+\.\d+\.\d+)$")
 PATCH_ASSETS = [
-    ("0.112.", "rust-v0.112.x-colorfgbg.patch"),
     ("0.0.0", "tmux-cc-colorfgbg.patch"),
+    ("0.", "release-colorfgbg.patch"),
 ]
 TARGET_MARKERS = [
-    (
-        "0.112.",
-        {
-            "codex-rs/tui/src/terminal_palette.rs": [
-                "colorfgbg_default_colors",
-                "tmux_control_mode()",
-            ],
-            "codex-rs/Cargo.toml": [
-                'lto = "thin"',
-                "codegen-units = 16",
-            ],
-        },
-    ),
     (
         "0.0.0",
         {
@@ -44,20 +32,33 @@ TARGET_MARKERS = [
             ],
         },
     ),
+    (
+        "0.",
+        {
+            "codex-rs/tui/src/terminal_palette.rs": [
+                "colorfgbg_default_colors",
+                "tmux_control_mode()",
+            ],
+            "codex-rs/Cargo.toml": [
+                'lto = "thin"',
+                "codegen-units = 16",
+            ],
+        },
+    ),
 ]
 TARGET_SETS = [
-    (
-        "0.112.",
-        [
-            "codex-rs/tui/src/terminal_palette.rs",
-            "codex-rs/Cargo.toml",
-        ],
-    ),
     (
         "0.0.0",
         [
             "codex-rs/tui/src/terminal_palette.rs",
             "codex-rs/tui2/src/terminal_palette.rs",
+        ],
+    ),
+    (
+        "0.",
+        [
+            "codex-rs/tui/src/terminal_palette.rs",
+            "codex-rs/Cargo.toml",
         ],
     ),
 ]
@@ -215,18 +216,6 @@ def repo_targets(repo: Path) -> list[str]:
     return targets_for_version(repo_workspace_version(repo))
 
 
-def official_bin_path() -> Path | None:
-    override = os.environ.get("CODEX_OFFICIAL_BIN")
-    candidates: list[Path] = []
-    if override:
-        candidates.append(Path(override).expanduser())
-    candidates.append(DEFAULT_OFFICIAL_BIN)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return None
-
-
 def codex_version(binary: Path) -> str | None:
     proc = subprocess.run(
         [str(binary), "--version"],
@@ -243,11 +232,21 @@ def codex_version(binary: Path) -> str | None:
     return match.group(1)
 
 
-def official_version() -> tuple[Path | None, str | None]:
-    binary = official_bin_path()
-    if binary is None:
-        return None, None
-    return binary, codex_version(binary)
+def latest_git_release_tag(repo: Path) -> str | None:
+    proc = run(
+        ["git", "tag", "-l", f"{RELEASE_TAG_PREFIX}*", "--sort=-v:refname"],
+        cwd=repo,
+        check=True,
+    )
+    for line in proc.stdout.splitlines():
+        tag = line.strip()
+        if tag and RELEASE_TAG_PATTERN.match(tag):
+            return tag
+    return None
+
+
+def version_from_tag(tag: str) -> str:
+    return tag.removeprefix(RELEASE_TAG_PREFIX)
 
 
 def load_manifest() -> dict[str, object] | None:
@@ -267,15 +266,11 @@ def build_manifest(
     source_ref: str,
     patch_path: Path,
     binary: Path,
-    official_binary: Path | None,
-    official_version_value: str | None,
 ) -> dict[str, object]:
     return {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "built_binary": str(binary),
         "built_binary_version": codex_version(binary),
-        "official_binary": str(official_binary) if official_binary else None,
-        "official_version": official_version_value,
         "patch_asset": str(patch_path),
         "repo_path": str(repo),
         "repo_workspace_version": repo_workspace_version(repo),
@@ -290,19 +285,6 @@ def manifest_update_reason(repo: Path) -> str | None:
     if manifest is None:
         return "manifest 不存在"
 
-    official_binary, official_version_value = official_version()
-    if official_version_value is None:
-        return "无法读取官方 codex 版本"
-
-    if manifest.get("official_version") != official_version_value:
-        return (
-            f"官方 codex 已从 {manifest.get('official_version')} 升级到 {official_version_value}"
-        )
-
-    if manifest.get("official_binary") and official_binary:
-        if Path(str(manifest["official_binary"])).resolve() != official_binary:
-            return "官方 codex 路径变化"
-
     binary_value = manifest.get("built_binary")
     if not binary_value:
         return "manifest 缺少 built_binary"
@@ -315,11 +297,40 @@ def manifest_update_reason(repo: Path) -> str | None:
     if manifest.get("built_binary_version") != binary_version:
         return "patched binary 版本与 manifest 不一致"
 
-    repo_version = repo_workspace_version(repo)
-    if manifest.get("repo_workspace_version") != repo_version:
-        return "仓库源码版本与 manifest 不一致"
-
     if Path(str(manifest.get("repo_path", ""))) != repo:
         return "manifest 记录的仓库路径与当前不一致"
 
     return None
+
+
+def build_state_path() -> Path:
+    return state_dir() / "build.json"
+
+
+def save_build_state(data: dict[str, object]) -> None:
+    build_state_path().write_text(json.dumps(data, indent=2) + "\n")
+
+
+def load_build_state() -> dict[str, object] | None:
+    path = build_state_path()
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def clear_build_state() -> None:
+    build_state_path().unlink(missing_ok=True)
+
+
+def is_build_running() -> bool:
+    state = load_build_state()
+    if state is None:
+        return False
+    pid = state.get("pid")
+    if pid is None:
+        return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError):
+        return False
