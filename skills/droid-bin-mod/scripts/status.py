@@ -102,8 +102,22 @@ elif mod9_pa_count >= 1:
 else:
     results['mod9'] = 'unknown'
 
+# mod10: custom model /fast 支持
+mod10_has_session_fast = b'sessionSettings.fast===FH' in data
+mod10_has_command = b'L.sessionSettings.fast=C?D:""' in data
+mod10_old_command = b'Invalid argument "${H[0]}". Usage: /fast, /fast on, or /fast off' in data
+
+if mod10_has_session_fast and mod10_has_command:
+    results['mod10'] = 'modified'
+elif not mod10_has_session_fast and mod10_old_command:
+    results['mod10'] = 'original'
+elif mod10_has_session_fast or mod10_has_command:
+    results['mod10'] = 'partial'
+else:
+    results['mod10'] = 'unknown'
+
 # 输出
-total = 8  # mod7 已移除
+total = 9  # mod7 已移除，包含 mod10
 mod_count = sum(1 for v in results.values() if v == 'modified')
 orig_count = sum(1 for v in results.values() if v == 'original')
 
