@@ -12,7 +12,7 @@
      用底层 base model 的 fast variant 配置生成请求参数
      - anthropic: speed="fast" + fast beta
      - openai: service_tier="priority"
-  3. bI9/iWR 做等价缩写，命令描述字符串做补偿，整体 0 bytes
+  3. 针对旧版/0.80.0 两套二进制结构分别补丁，并通过描述字符串补偿回 0 bytes
 """
 import re
 import sys
@@ -37,6 +37,10 @@ def replace_exact(blob, old, new, name):
     return blob, diff
 
 
+def has_regex(blob, pattern):
+    return re.search(pattern, blob) is not None
+
+
 def replace_regex(blob, pattern, replacer, name):
     m = re.search(pattern, blob)
     if not m:
@@ -51,32 +55,7 @@ def replace_regex(blob, pattern, replacer, name):
 
 total_diff = 0
 
-# bI9: helper 名和 Map 变量在版本间会变（G2_/J2_ 等）
-pat_bi9 = rb'function bI9\(H\)\{let T=zi\(H\);return T\?(' + V + rb')\.get\(T\):void 0\}'
-
-
-def repl_bi9(m):
-    mapping = m.group(1)
-    return b'function bI9(H){return ' + mapping + b'.get(zi(H))}'
-
-
-data, diff = replace_regex(data, pat_bi9, repl_bi9, 'bI9 等价缩写')
-total_diff += diff
-
-# baseVariant helper：0.77 是 iWR，0.79 变成 bWR
-pat_base = rb'function (' + V + rb')\(H\)\{let T=zi\(H\);return T\?aG\[T\]\?\.baseVariant:void 0\}'
-
-
-def repl_base(m):
-    fn = m.group(1)
-    return b'function ' + fn + b'(H){return aG[zi(H)]?.baseVariant}'
-
-
-data, diff = replace_regex(data, pat_base, repl_base, 'baseVariant helper 等价缩写')
-total_diff += diff
-
-# j(): custom model 请求元信息注入 fast flag
-pat_j = (
+legacy_pat_j = (
     rb'EH=zK\(FH,KH\)\?\?null,wH=EH\?EH\.model:FH,LH=yB\(FH\)\.modelProvider,'
     rb'vH,(' + V + rb')=EH\?(' + V + rb')\(EH\.model\):FH;'
     rb'if\(\1\)try\{vH=kz\(\{modelId:\1\}\)\}catch\{\}'
@@ -84,7 +63,7 @@ pat_j = (
 )
 
 
-def repl_j(m):
+def repl_legacy_j(m):
     resolved_var = m.group(1)
     base_helper = m.group(2)
     return (
@@ -95,11 +74,7 @@ def repl_j(m):
     )
 
 
-data, diff = replace_regex(data, pat_j, repl_j, 'j() custom fast 请求注入')
-total_diff += diff
-
-# /fast: notifier helper 和 baseVariant helper 在版本间会变（AgH/RgH, iWR/bWR）
-pat_fast = (
+legacy_pat_fast = (
     rb'execute:\(H,T\)=>\{let\{addMessage:R\}=T,A=H\[0\]\?\.toLowerCase\(\);'
     rb'if\(A&&A!=="on"&&A!=="off"\)return (' + V + rb')\(R,`Invalid argument "\$\{H\[0\]\}"\. Usage: /fast, /fast on, or /fast off`\),\{handled:!0\};'
     rb'let L=iT\(\),D=L.getModel\(\),C=!A\|\|A==="on",h=!!(' + V + rb')\(D\);'
@@ -112,7 +87,7 @@ pat_fast = (
 )
 
 
-def repl_fast(m):
+def repl_legacy_fast(m):
     notify = m.group(1)
     base_helper = m.group(2)
     return (
@@ -127,10 +102,81 @@ def repl_fast(m):
     )
 
 
-data, diff = replace_regex(data, pat_fast, repl_fast, '/fast 命令改为支持 custom model')
-total_diff += diff
+def apply_replacements(items):
+    global data, total_diff
+    for old, new, name in items:
+        data, diff = replace_exact(data, old, new, name)
+        total_diff += diff
 
-for old, new, name in [
+
+if has_regex(data, legacy_pat_j) and has_regex(data, legacy_pat_fast):
+    pat_bi9 = rb'function bI9\(H\)\{let T=zi\(H\);return T\?(' + V + rb')\.get\(T\):void 0\}'
+    pat_base = rb'function (' + V + rb')\(H\)\{let T=zi\(H\);return T\?aG\[T\]\?\.baseVariant:void 0\}'
+
+    def repl_bi9(m):
+        mapping = m.group(1)
+        return b'function bI9(H){return ' + mapping + b'.get(zi(H))}'
+
+    def repl_base(m):
+        fn = m.group(1)
+        return b'function ' + fn + b'(H){return aG[zi(H)]?.baseVariant}'
+
+    data, diff = replace_regex(data, pat_bi9, repl_bi9, 'bI9 等价缩写')
+    total_diff += diff
+    data, diff = replace_regex(data, pat_base, repl_base, 'baseVariant helper 等价缩写')
+    total_diff += diff
+    data, diff = replace_regex(data, legacy_pat_j, repl_legacy_j, 'j() custom fast 请求注入')
+    total_diff += diff
+    data, diff = replace_regex(data, legacy_pat_fast, repl_legacy_fast, '/fast 命令改为支持 custom model')
+    total_diff += diff
+else:
+    current_j_old = (
+        b'let FH=NH?.isSpecMode??H.isSpecMode(),_H=NH?.modelId??(FH?H.getSpecModeModel():H.getModel()),'
+        b'KH=NH?.reasoningEffort??(FH?H.getSpecModeReasoningEffort():H.getReasoningEffort()),EH=mR().getCustomModels(),'
+        b'wH=SK(_H,EH)??null,LH=wH?wH.model:_H,jH=yB(_H).modelProvider,VH,PH=wH?AJH(wH.model):_H;'
+        b'if(PH)try{VH=DY({modelId:PH})}catch{}return{model:LH,provider:jH,apiModelProvider:VH?.apiModelProvider,config:VH,customModel:wH,isSpecMode:FH,reasoningEffort:KH}'
+    )
+    current_j_new = (
+        b'let _H=NH?.isSpecMode??H.isSpecMode(),FH=NH?.modelId??(_H?H.getSpecModeModel():H.getModel()),'
+        b'KH=NH?.reasoningEffort??(_H?H.getSpecModeReasoningEffort():H.getReasoningEffort()),EH=mR().getCustomModels(),'
+        b'QH=iT().sessionSettings.fast===FH,wH=SK(FH,EH)??null,LH=wH?wH.model:FH,jH=yB(FH).modelProvider,VH,'
+        b'PH=wH?(QH?H$9(wH.model)??AJH(wH.model):AJH(wH.model)):FH;if(PH)try{VH=DY({modelId:PH})}catch{}'
+        b'return{model:LH,provider:jH,apiModelProvider:VH?.apiModelProvider,config:VH,customModel:wH,isSpecMode:_H,reasoningEffort:KH}'
+    )
+    current_fast_old = (
+        b'execute:(H,T)=>{let{addMessage:R}=T,A=H[0]?.toLowerCase();if(A&&A!=="on"&&A!=="off")return '
+        b'qgH(R,`Invalid argument "${H[0]}". Usage: /fast, /fast on, or /fast off`),{handled:!0};'
+        b'let L=iT(),D=L.getModel(),C=!A||A==="on",h=!!oWR(D);if(C&&h){let Q=yB(D);return '
+        b'qgH(R,`Already in fast mode (${Q.shortDisplayName||D})`),{handled:!0}}'
+        b'if(!C&&!h){let Q=yB(D);return qgH(R,`Already using base model (${Q.shortDisplayName||D})`),{handled:!0}}'
+        b'let $=C?H$9(D):oWR(D);if(!$){let E=`No fast mode available for ${yB(D).shortDisplayName||D}`;'
+        b'return qgH(R,E),{handled:!0}}try{L.setModel($)}catch(Q){let E=Q instanceof Error?Q.message:"Failed to switch model";'
+        b'return qgH(R,E),{handled:!0}}let W=yB($);return qgH(R,`Switched to ${W.shortDisplayName||$}`),{handled:!0}}'
+    )
+    current_fast_new = (
+        b'execute:(H,T)=>{let{addMessage:R}=T,A=H[0]?.toLowerCase();if(A&&A!=="on"&&A!=="off")return '
+        b'qgH(R,`Bad arg "${H[0]}". Use /fast [on|off]`),{handled:!0};'
+        b'let L=iT(),D=L.getModel(),C=!A||A==="on",B=D[6]===":",Q=yB(D),h=B?L.sessionSettings.fast===D:!!oWR(D),'
+        b'$=B?D:C?H$9(D):oWR(D);if(C&&h)return qgH(R,`Already fast (${Q.shortDisplayName||D})`),{handled:!0};'
+        b'if(!C&&!h)return qgH(R,`Already base (${Q.shortDisplayName||D})`),{handled:!0};'
+        b'if(B){if(C&&!H$9(Q.id))$=void 0;else L.sessionSettings.fast=C?D:"",'
+        b'L.currentSessionId&&L.saveSessionSettings({async:!0,shouldSyncToCloud:!0})}'
+        b'if(!$)return qgH(R,`No fast for ${Q.shortDisplayName||D}`),{handled:!0};'
+        b'try{B||L.setModel($)}catch(h){return qgH(R,h instanceof Error?h.message:"Switch failed"),{handled:!0}}'
+        b'return qgH(R,B?`Fast ${C?"on":"off"} (${Q.shortDisplayName||D})`:`Switched to ${yB($).shortDisplayName||$}`),{handled:!0}}'
+    )
+
+    data, diff = replace_exact(data, current_j_old, current_j_new, 'j() custom fast 请求注入')
+    total_diff += diff
+    data, diff = replace_exact(data, current_fast_old, current_fast_new, '/fast 命令改为支持 custom model')
+    total_diff += diff
+    apply_replacements([
+        (b'Show settings configuration errors', b'Show config issue', 'status 描述补偿'),
+        (b'Manage plugins and marketplaces', b'Manage plugins', 'plugins 描述补偿'),
+    ])
+
+
+apply_replacements([
     (
         b'Enable fast mode for the current model (/fast off to disable)',
         b'Toggle fast mode now',
@@ -156,9 +202,7 @@ for old, new, name in [
         b'Install and set up Git AI',
         'git-ai 描述补偿',
     ),
-]:
-    data, diff = replace_exact(data, old, new, name)
-    total_diff += diff
+])
 
 assert total_diff == 0, f'mod10 总字节变化异常: {total_diff:+d}'
 assert len(data) == original_size, f'mod10 大小变化 {len(data) - original_size:+d} bytes'

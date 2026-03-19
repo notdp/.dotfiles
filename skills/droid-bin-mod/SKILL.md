@@ -53,12 +53,13 @@ mod6: Ctrl+N 只在 custom model 间切换 (/model 菜单不受影响)
 mod7: (已移除，v0.71.0 起 mission 门控已默认开放)
 mod8: Mission 模型不强切 → Orchestrator 保持 custom model
 mod9: Custom model 支持完整 effort 级别 (anthropic: max, openai: xhigh)
+mod10: Custom model 支持 /fast on/off，且不切回内置模型
 
 注：mod1 影响命令框提示，mod5 影响输出区提示，两者位置不同
 注：mod8 配合 settings.json 中 missionModelSettings 设置 Worker/Validator 模型
 注：mod9 修复 custom model Tab 切换只有 off/low/medium/high 的限制
 
-select: 1,2,3,4,5,6,7,8,9 / all / restore
+select: 1,2,3,4,5,6,7,8,9,10 / all / restore
 ```
 
 用户选择后，执行对应修改。
@@ -359,6 +360,7 @@ mods/mod5_exec_hint.py           # 由 mod3 自动处理
 mods/mod6_custom_model_cycle.py  # Ctrl+N 只切换 custom model (0 bytes)
 mods/mod8_mission_model.py       # Mission 模型不强切 (0 bytes)
 mods/mod9_custom_effort_levels.py # custom model effort 级别 (+72 bytes: KOH+66, $A+6)
+mods/mod10_custom_fast_mode.py   # custom model 支持 /fast on/off (0 bytes)
 ```
 
 mod9 产生 +72 bytes (KOH+66, $A+6)，由 `comp_universal.py 72` 统一补偿。
