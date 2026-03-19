@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-03-18T07:56:47.308Z",
+  "generatedAt": "2026-03-19T00:13:06.097Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -8,7 +8,7 @@
       "ref": "main",
       "source": "skills/agent-browser",
       "target": "skills/agent-browser",
-      "commit": "8cfba1752d794e67856dfca67cd424a7a776b0d3"
+      "commit": "757626f27c65603e4f837390408fe59a5fdc4bde"
     },
     {
       "name": "pua",
@@ -16,7 +16,7 @@
       "ref": "main",
       "source": "skills/pua",
       "target": "skills/pua",
-      "commit": "0fa31c5951e4f1e7d3ae70b723bc21565322e3fb"
+      "commit": "5f433294a098aac4bdc96a1e098f0e33c9661242"
     },
     {
       "name": "find-skills",
@@ -40,7 +40,7 @@
       "ref": "main",
       "source": "skills/react-best-practices",
       "target": "skills/react-best-practices",
-      "commit": "5847a7c7e79bab3e400cf47800b83449d7aea2d4"
+      "commit": "9aec8ee6aaf702e49312a071e672f1c1b7b7e948"
     },
     {
       "name": "react-doctor",
