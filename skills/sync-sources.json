@@ -8,13 +8,6 @@
       "target": "skills/agent-browser"
     },
     {
-      "name": "pua",
-      "repo": "tanweai/pua",
-      "ref": "main",
-      "source": "skills/pua",
-      "target": "skills/pua"
-    },
-    {
       "name": "find-skills",
       "repo": "vercel-labs/skills",
       "ref": "main",

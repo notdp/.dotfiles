@@ -11,14 +11,6 @@
       "commit": "2b3c5c26cdc26a6faea6767a59ade869815e241f"
     },
     {
-      "name": "pua",
-      "repo": "tanweai/pua",
-      "ref": "main",
-      "source": "skills/pua",
-      "target": "skills/pua",
-      "commit": "4f3945c6bd18d2cc5a891da3254d7a35ca71a3e6"
-    },
-    {
       "name": "find-skills",
       "repo": "vercel-labs/skills",
       "ref": "main",
