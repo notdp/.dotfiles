@@ -22,7 +22,7 @@ pipx install git+https://github.com/notdp/hive.git
 
 1. 独立使用 Hive 基础能力
 2. 先确定上下文，再执行消息/协作命令
-3. 必要时再加载更高层 workflow skill（例如 `cross-review`）
+3. 必要时再加载更高层 workflow skill（例如 `code-review`）
 
 ## 先确定上下文
 
@@ -77,7 +77,7 @@ hive teams                            # 列出已知 team
 
 Hive 是基础 skill。更高层流程应在 Hive 之上加载，例如：
 
-- 由 orchestrator 执行 `hive workflow load <agent> cross-review`
-- 或在 spawn 时使用 `hive spawn <agent> --workflow cross-review`
+- 由 orchestrator 执行 `hive workflow load <agent> code-review`
+- 或在 spawn 时使用 `hive spawn <agent> --workflow code-review`
 
 当 workflow skill 被加载后，继续使用 Hive 命令作为通信与状态底座。
