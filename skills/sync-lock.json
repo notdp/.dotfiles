@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-02T00:13:29.039Z",
+  "generatedAt": "2026-04-03T00:19:51.697Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -8,7 +8,7 @@
       "ref": "main",
       "source": "skills/agent-browser",
       "target": "skills/agent-browser",
-      "commit": "89595836c6b7108fc9398495a734b546887889c9"
+      "commit": "8561a755ef9417fb367487e70e398e2a63a77454"
     },
     {
       "name": "find-skills",
@@ -32,7 +32,7 @@
       "ref": "main",
       "source": "skills/react-best-practices",
       "target": "skills/react-best-practices",
-      "commit": "d8d9f624bc54beaf7af9a5033d41d90aa49d7f5a"
+      "commit": "73140fc5b3a214ad3222bcf557b397b3c02d11c1"
     },
     {
       "name": "react-doctor",
