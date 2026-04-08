@@ -98,6 +98,10 @@ mod8_generic_patched = bool(re.search(
     rb'\}\)\)\.output_text;if\(' + V + rb'&&\(' +
     V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{',
     data))
+mod8_generic_patched_compressed = bool(re.search(
+    rb'provider==="openai"&&!1\)return null;/\*.{0,120}\*/if\(' + V + rb'&&\(' +
+    V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{',
+    data))
 mod8_generic_original = bool(re.search(
     rb'provider==="openai"\)return\(await new ' + V + rb'\(\{apiKey:' + V +
     rb'\.apiKey,baseURL:' + V + rb'\.baseUrl,organization:null,project:null,defaultHeaders:' +
@@ -120,11 +124,11 @@ mod8_direct_original = bool(re.search(
     rb'\}\)\)\.output_text\|\|"";let ' + V +
     rb'=\(await ' + V + rb'\.chat\.completions\.create\(',
     data))
-if mod8_generic_patched and mod8_direct_patched:
+if (mod8_generic_patched or mod8_generic_patched_compressed) and mod8_direct_patched:
     results['mod8'] = 'modified'
 elif mod8_generic_original and mod8_direct_original:
     results['mod8'] = 'original'
-elif any([mod8_generic_patched, mod8_generic_original, mod8_direct_patched, mod8_direct_original]):
+elif any([mod8_generic_patched, mod8_generic_patched_compressed, mod8_generic_original, mod8_direct_patched, mod8_direct_original]):
     results['mod8'] = 'partial'
 else:
     results['mod8'] = 'unknown'
@@ -138,9 +142,35 @@ elif b'async checkForUpdates(){' in data:
 else:
     results['mod9'] = 'unknown'
 
+# mod11: unicode escape fix (YcM/NcM parser)
+DESCRIPTIONS['mod11'] = 'unicode escape fix'
+mod11_patched_count = len(re.findall(
+    rb'default:[A-Z]=="u"\?\(A\+=String\.fromCharCode\(parseInt\(H\.slice\([A-Z]\+1,[A-Z]\+5\),16\)\),[A-Z]\+=4\):A\+=[A-Z];break\}\}else A\+=H\[',
+    data))
+mod11_original_count = len(re.findall(
+    rb'default:A\+=[A-Z];break\}\}else A\+=H\[[A-Z]\];[A-Z]\+\+',
+    data))
+if mod11_patched_count >= 2:
+    results['mod11'] = 'modified'
+elif mod11_patched_count == 0 and mod11_original_count >= 2:
+    results['mod11'] = 'original'
+elif mod11_patched_count >= 1:
+    results['mod11'] = 'partial'
+else:
+    results['mod11'] = 'unknown'
+
+# mod12: unicode proxy fix (wU$ preprocess)
+DESCRIPTIONS['mod12'] = 'unicode proxy fix'
+if b'H=H.replace(/(?<!\\\\)u([0-9a-fA-F]{4})/g,' in data:
+    results['mod12'] = 'modified'
+elif re.search(rb'function ' + V + rb'\(H\)\{if\(!H\.trim\(\)\)return\{data:\{\},isComplete:!1\};', data) and b'H=H.replace(/(?<!\\\\)u([0-9a-fA-F]{4})/g,' not in data:
+    results['mod12'] = 'original'
+else:
+    results['mod12'] = 'unknown'
+
 # 输出
 REQUIRED = ['mod1', 'mod2', 'mod3', 'mod4', 'mod5', 'mod6', 'mod7', 'mod8']
-OPTIONAL = ['mod9']
+OPTIONAL = ['mod9', 'mod11', 'mod12']
 total = len(REQUIRED)
 mod_count = sum(1 for k in REQUIRED if results.get(k) == 'modified')
 

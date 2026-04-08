@@ -32,8 +32,15 @@ def apply_generic_branch_patch(data):
         rb'\}\)\)\.output_text;if\(' + V + rb'&&\(' +
         V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{'
     )
+    patched_compressed = (
+        rb'provider==="openai"&&!1\)return null;/\*.{0,120}\*/if\(' + V + rb'&&\(' +
+        V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{'
+    )
     if re.search(patched, data):
         print("mod8 路径1 已应用，跳过")
+        return data, 0
+    if re.search(patched_compressed, data):
+        print("mod8 路径1 已应用（压缩形态），跳过")
         return data, 0
 
     pattern = (

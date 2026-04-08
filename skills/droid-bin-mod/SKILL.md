@@ -60,7 +60,9 @@ select: 1-9 / all / restore
 | 7   | effort 级别  | `["off","low","medium","high"]` | 按 provider 区分 | +132 | 两处: 各+66 |
 | 8   | summarizer   | Responses API    | Chat Completions | +32  | 两条 OpenAI compress 路径都改走正确 API |
 | 9   | 禁用更新     | `let H,{remoteConfig:$}=...` | `return null;/*..*/` | 0 | checkForUpdates() 直接返回 null (可选) |
-| 补偿 | 死代码+字符串 | 多处            | 注释/缩短填充    | -162 | 统一补偿 mod5+7+8                       |
+| 11  | unicode escape | `default:A+=M` | `M=="u"?fromCharCode:A+=M` | +120 | YcM/NcM parser 修复 \uXXXX 解析 (可选) |
+| 12  | unicode proxy  | wU$ 无预处理 | `H=H.replace(uXXXX)` | +49 | wU$ 入口补回裸 uXXXX 反斜杠 (可选) |
+| 补偿 | 死代码+字符串 | 多处            | 注释/缩短填充    | -162 | 统一补偿 mod5+7+8; mod11/12 自带补偿  |
 
 ## 修改脚本
 
@@ -78,6 +80,8 @@ mods/mod6_mission_model.py         # Mission 模型不强切 (0 bytes)
 mods/mod7_custom_effort_levels.py  # effort 级别扩展 (+132 bytes)
 mods/mod8_summarizer_openai_fix.py # summarizer/compress OpenAI fix (+32 bytes)
 mods/mod9_disable_auto_update.py   # 禁用自动更新 (0 bytes, 可选)
+mods/mod11_unicode_escape_fix.py    # YcM/NcM unicode escape fix (+120 bytes, 可选)
+mods/mod12_unicode_proxy_fix.py     # wU$ unicode proxy fix (+49 bytes, 可选)
 ```
 
 ### compensations/ - 字节补偿
@@ -109,6 +113,8 @@ python3 mods/mod6_mission_model.py
 python3 mods/mod7_custom_effort_levels.py
 python3 mods/mod8_summarizer_openai_fix.py
 python3 mods/mod9_disable_auto_update.py    # 可选
+python3 mods/mod11_unicode_escape_fix.py   # 可选: BYOK unicode fix
+python3 mods/mod12_unicode_proxy_fix.py    # 可选: proxy unicode fix
 
 # 3. 补偿 (mod7:+132 + mod8:+32 + mod5:-2 = +162)
 python3 compensations/comp_universal.py 162
