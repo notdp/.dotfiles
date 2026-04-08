@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# DROID: This command only triggers Hive's user notification flow.
+# DROID: Do not continue thinking or take follow-up actions after the notification is sent.
+set -euo pipefail
+
+exec hive notify "$@"

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# DROID: This command only forks the current session into a new split pane.
+# DROID: Do not read files, run tools, or take any other action.
+# DROID: Do not continue thinking, answer, or wait for another message after the fork completes.
+# DROID: Return control immediately.
+set -euo pipefail
+
+reply_pane="${TMUX_PANE:-}"
+
+hive fork -s h </dev/null >/dev/null 2>&1 &
+disown
+
+if [[ -n "$reply_pane" ]]; then
+  tmux run-shell -b "sleep 0.2 && tmux send-keys -t '$reply_pane' Escape"
+fi

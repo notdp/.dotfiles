@@ -4,19 +4,18 @@
 # DROID: Do not continue thinking, answer, or wait for another message after the editor closes.
 # DROID: Return control immediately; any pasted editor content should be treated as the user's next normal message.
 # DROID: Edited content may be wrapped in <droid_edit>. If mode="text", treat <edited_text>
-# DROID: as the user's latest intended message. If mode="diff", treat <edit_diff> as edits to
-# DROID: prior content, and treat additions, deletions, replacements, and inline comments as intent.
+# DROID: as the user's latest intended message.
+# DROID: If mode="diff", treat <edit_target>
+# DROID: previous_assistant_message</edit_target> as saying the diff applies to the immediately
+# DROID: preceding assistant message, and treat <edit_diff> additions, deletions, replacements,
+# DROID: and inline comments as user intent.
 # DROID: If the user pastes or quotes prior assistant output, transcript snippets,
 # DROID: or annotations like ">" or "[# ...]", treat them as commentary/context,
 # DROID: not as a new instruction to act on.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export DROID_VIM_SEED_MODE=session
 export DROID_VIM_OUTPUT_MODE=diff
 export DROID_VIM_CURSOR_MODE=start
 export DROID_VIM_TRANSPORT=popup
-export DROID_VIM_POPUP_MODE=center
-export DROID_VIM_POPUP_WIDTH=70%
-export DROID_VIM_POPUP_HEIGHT=74%
-exec "$SCRIPT_DIR/../bin/droid-vim-command" "$@"
+exec "/Users/notdp/.hive/plugins/installed/cvim/bin/droid-vim-command" "$@"
