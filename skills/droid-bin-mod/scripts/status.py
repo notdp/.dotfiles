@@ -11,11 +11,10 @@ with open(droid, 'rb') as f:
     data = f.read()
 
 results = {}
+DESCRIPTIONS = {}
 
 # mod1: 截断条件
-# 用 isTruncated 定位截断函数（不依赖混淆后的函数名）
-# 原版: if(!V&&!V)return{text:V,isTruncated:!1}
-# 修改: if(!0||!V)return{text:V,isTruncated:!1}
+DESCRIPTIONS['mod1'] = '截断条件'
 if b'if(!0||!' in data:
     results['mod1'] = 'modified'
 elif re.search(rb'if\(!' + V + rb'&&!' + V + rb'\)return\{text:' + V + rb',isTruncated:!1\}', data):
@@ -23,7 +22,8 @@ elif re.search(rb'if\(!' + V + rb'&&!' + V + rb'\)return\{text:' + V + rb',isTru
 else:
     results['mod1'] = 'unknown'
 
-# mod2: 命令阈值
+# mod2: 命令长度阈值
+DESCRIPTIONS['mod2'] = '命令长度'
 if b'command.length>99' in data:
     results['mod2'] = 'modified'
 elif b'command.length>50' in data:
@@ -31,18 +31,17 @@ elif b'command.length>50' in data:
 else:
     results['mod2'] = 'unknown'
 
-# mod3+mod5: 输出行数 (VAR=VAR?8:4 / VAR=99||4)
+# mod3: 输出行数 (含 exec hint)
+DESCRIPTIONS['mod3'] = '输出行数'
 if re.search(V + rb'=99\|\|4', data):
     results['mod3'] = 'modified'
-    results['mod5'] = 'modified'
 elif re.search(V + rb'=' + V + rb'\?8:4', data):
     results['mod3'] = 'original'
-    results['mod5'] = 'original'
 else:
     results['mod3'] = 'unknown'
-    results['mod5'] = 'unknown'
 
-# mod4: diff行数 (var VAR=20/99,VAR)
+# mod4: diff 行数
+DESCRIPTIONS['mod4'] = 'diff 行数'
 if re.search(rb'var ' + V + rb'=99,' + V, data):
     results['mod4'] = 'modified'
 elif re.search(rb'var ' + V + rb'=20,' + V, data):
@@ -50,29 +49,18 @@ elif re.search(rb'var ' + V + rb'=20,' + V, data):
 else:
     results['mod4'] = 'unknown'
 
-# mod6: custom model cycle
+# mod5: Ctrl+N custom model cycle
+DESCRIPTIONS['mod5'] = 'Ctrl+N cycle'
+if b'let RR=c8A();if(RR.length<=1)return;' in data:
+    results['mod5'] = 'modified'
+elif re.search(rb'useCallback\(\(\)=>\{if\(' + V + rb'\.length<=1\)return;let ' + V + rb'=' + V + rb'\(\)\.getModelPolicy', data):
+    results['mod5'] = 'original'
+else:
+    results['mod5'] = 'unknown'
+
+# mod6: mission 模型白名单
+DESCRIPTIONS['mod6'] = 'mission 模型'
 def _mod6_detect():
-    targets = [b'peekNextCycleModel', b'peekNextCycleSpecModeModel', b'cycleSpecModeModel']
-    modified = original = 0
-    for fn in targets:
-        for m in re.finditer(fn + rb'\(' + V + rb'\)\{', data):
-            region = data[m.start():m.start() + 600]
-            if b'=this.customModels.map(m=>m.id)' in region:
-                modified += 1
-            elif b'validateModelAccess(' in region:
-                original += 1
-    if modified > 0 and original == 0:
-        return 'modified'
-    elif original > 0 and modified == 0:
-        return 'original'
-    return 'unknown'
-
-results['mod6'] = _mod6_detect()
-
-# mod7: 已移除 (v0.71.0 起 mission 门控默认开放)
-
-# mod8: mission 模型白名单
-def _mod8_detect():
     has_orig1 = bool(re.search(V + rb'\.includes\(' + V + rb'\)\)\{if\(!' + V, data))
     has_orig2 = bool(re.search(rb'if\(!\(' + V + rb'\.includes\(' + V + rb'\)&&' + V + rb'\.includes\(', data))
     has_mod1 = bool(re.search(rb'!0\s+\)\{if\(!' + V, data))
@@ -84,55 +72,58 @@ def _mod8_detect():
     elif has_mod1 or has_mod2:
         return 'partial'
     return 'unknown'
+results['mod6'] = _mod6_detect()
 
-results['mod8'] = _mod8_detect()
+# mod7: custom model effort 级别
+DESCRIPTIONS['mod7'] = 'effort 级别'
+mod7_pa_count = len(re.findall(rb'\.provider=="openai"\?\["none","low","medium","high","xhigh"\]', data))
+mod7_orig_pat = rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high"\]:\["none"\],defaultReasoningEffort:' + V + rb'\.reasoningEffort'
+mod7_orig_count = len(re.findall(mod7_orig_pat, data))
+if mod7_pa_count >= 2:
+    results['mod7'] = 'modified'
+elif mod7_pa_count == 0 and mod7_orig_count >= 2:
+    results['mod7'] = 'original'
+elif mod7_pa_count >= 1:
+    results['mod7'] = 'partial'
+else:
+    results['mod7'] = 'unknown'
 
-# mod9: custom model effort 级别 (zsH + lB 两个函数)
-# 用 regex 检测: VAR.provider=="openai"?["none","low","medium","high","xhigh"] 出现次数
-mod9_pa_count = len(re.findall(rb'\.provider=="openai"\?\["none","low","medium","high","xhigh"\]', data))
-mod9_orig_pat = rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high"\]:\["none"\],defaultReasoningEffort:' + V + rb'\.reasoningEffort'
-mod9_orig_count = len(re.findall(mod9_orig_pat, data))
+# mod8: summarizer openai fix
+DESCRIPTIONS['mod8'] = 'summarizer fix'
+if b'provider==="openai"&&!1)return(' in data:
+    results['mod8'] = 'modified'
+elif b'provider==="openai")return(await new' in data:
+    results['mod8'] = 'original'
+else:
+    results['mod8'] = 'unknown'
 
-if mod9_pa_count >= 2:
+# mod9: 禁用自动更新 (可选)
+DESCRIPTIONS['mod9'] = '禁用自动更新'
+if b'checkForUpdates(){return null;/*' in data:
     results['mod9'] = 'modified'
-elif mod9_pa_count == 0 and mod9_orig_count >= 2:
+elif b'async checkForUpdates(){' in data:
     results['mod9'] = 'original'
-elif mod9_pa_count >= 1:
-    results['mod9'] = 'partial'
 else:
     results['mod9'] = 'unknown'
 
-# mod10: custom model /fast 支持
-mod10_has_session_fast = b'sessionSettings.fast===' in data and b'.sessionSettings.fast=C?D:""' in data
-mod10_has_command = b'.sessionSettings.fast=C?D:""' in data
-mod10_old_command = b'Invalid argument "${H[0]}". Usage: /fast, /fast on, or /fast off' in data
-
-if mod10_has_session_fast and mod10_has_command:
-    results['mod10'] = 'modified'
-elif not mod10_has_session_fast and mod10_old_command:
-    results['mod10'] = 'original'
-elif mod10_has_session_fast or mod10_has_command:
-    results['mod10'] = 'partial'
-else:
-    results['mod10'] = 'unknown'
-
 # 输出
-total = 9  # mod7 已移除，包含 mod10
-mod_count = sum(1 for v in results.values() if v == 'modified')
-orig_count = sum(1 for v in results.values() if v == 'original')
+REQUIRED = ['mod1', 'mod2', 'mod3', 'mod4', 'mod5', 'mod6', 'mod7', 'mod8']
+OPTIONAL = ['mod9']
+total = len(REQUIRED)
+mod_count = sum(1 for k in REQUIRED if results.get(k) == 'modified')
 
 print(f"droid 状态:\n")
-for name, status in results.items():
+for name in list(REQUIRED) + list(OPTIONAL):
+    status = results.get(name, 'unknown')
     icon = '✓' if status == 'modified' else '○' if status == 'original' else '△' if status == 'partial' else '?'
     label = {'modified': '已修改', 'original': '原版', 'partial': '部分', 'unknown': '未知'}[status]
-    note = ' (由 mod3 控制)' if name == 'mod5' else ''
-    print(f"  {icon} {name}: {label}{note}")
+    opt = ' (可选)' if name in OPTIONAL else ''
+    desc = DESCRIPTIONS.get(name, '')
+    print(f"  {icon} {name}: {label}  {desc}{opt}")
 
 print()
 if mod_count == total:
-    print("结论: 已修改")
-elif orig_count == total:
-    print("结论: 原版")
+    print(f"结论: 已修改 ({mod_count}/{total})")
 else:
     print(f"结论: 部分修改 ({mod_count}/{total})")
 
@@ -162,13 +153,7 @@ else:
                 extra = m.get('extraArgs', {})
 
                 issues = []
-                has_mod9 = results.get('mod9') == 'modified'
-
-                # reasoningEffort 优先级:
-                #   有值 (low/medium/high/max/xhigh) → Droid 控制，extraArgs 中的 effort 被忽略
-                #   none/off → Droid 不发送 thinking/reasoning，extraArgs 接管
-                # 后果: extraArgs 有 effort 时，Tab 切到 off/none 本想关闭思考，
-                #       但 extraArgs 会接管并重新开启
+                has_mod7 = results.get('mod7') == 'modified'
 
                 if provider == 'anthropic':
                     if not effort:
@@ -183,35 +168,25 @@ else:
                     if removable:
                         issues.append(
                             f'extraArgs 中的 {" 和 ".join(removable)} 已不需要'
-                            '（Droid 内置 reasoningEffort 已接管）。'
-                            '不删后果: Tab 切到 off 时 extraArgs 会接管，思考不会真正关闭')
+                            '（Droid 内置 reasoningEffort 已接管）')
                 elif provider == 'openai':
                     if not effort:
                         issues.append('缺少 reasoningEffort (建议 "high")')
                     reasoning = extra.get('reasoning', {})
                     if reasoning:
-                        keep_parts = []
-                        if extra.get('text', {}).get('verbosity'):
-                            keep_parts.append('text.verbosity')
-                        keep_note = '，' + '、'.join(keep_parts) + ' 可保留' if keep_parts else ''
                         issues.append(
-                            f'extraArgs 中的整个 reasoning 对象必须移除（包括 summary）'
-                            '（responses.create 中 extraArgs 浅展开会覆盖 requestParams.reasoning，'
-                            '导致 effort 字段丢失，Tab 切换 Thinking Level 完全无效'
-                            + (f'；mod9 已解锁 xhigh' if has_mod9 else '') + '）'
-                            + keep_note)
+                            'extraArgs 中的 reasoning 对象必须移除'
+                            '（会覆盖 requestParams.reasoning，导致 Tab 切换 Thinking Level 无效'
+                            + ('; mod7 已解锁 xhigh' if has_mod7 else '') + '）')
 
                 icon = '✓' if not issues else '⚠'
                 print(f"  {icon} {name} [{provider}]")
                 if effort:
                     print(f"    reasoningEffort: {effort}")
-                if extra:
-                    print(f"    extraArgs: {json.dumps(extra, ensure_ascii=False)}")
                 for issue in issues:
                     print(f"    ⚠ {issue}")
                     warnings.append((name, issue))
 
-            # missionModelSettings 检查
             mission = cfg.get('missionModelSettings', {})
             model_ids = [m.get('id', '') for m in models]
             if mission:
@@ -220,11 +195,8 @@ else:
                 vm = mission.get('validationWorkerModel', '')
                 we = mission.get('workerReasoningEffort', '')
                 ve = mission.get('validationWorkerReasoningEffort', '')
-                print(f"    Worker:    {wm} ({we})" + (" ⚠ 不在 customModels 中" if wm and wm not in model_ids else ""))
-                print(f"    Validator: {vm} ({ve})" + (" ⚠ 不在 customModels 中" if vm and vm not in model_ids else ""))
-            elif results.get('mod8') == 'modified':
-                print(f"\n  ⚠ mod8 已启用但缺少 missionModelSettings")
-                print(f"    → 建议配置 workerModel / validationWorkerModel 指向 custom model")
+                print(f"    Worker:    {wm} ({we})")
+                print(f"    Validator: {vm} ({ve})")
 
             if not warnings:
                 print("\n  配置正常 ✓")

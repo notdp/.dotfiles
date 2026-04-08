@@ -87,6 +87,28 @@ def find_regions(data):
         if 8 <= s <= 40:
             add('mod6注释', m3.start(), m3.group(0), 4, 'comment')
 
+    # 5. help text 字符串缩短
+    STRING_POOL = [
+        (b'Install and set up Git AI for tracking AI-generated code attribution',
+         b'Install and set up Git AI'),
+        (b'Enable fast mode for the current model (/fast off to disable)',
+         b'Toggle fast mode'),
+        (b'Generate a blog post style semantic diff for changes',
+         b'Generate semantic diff'),
+        (b'Favorite the current session for quick access',
+         b'Favorite session'),
+        (b'Show settings configuration errors',
+         b'Show config errors'),
+        (b'Manage plugins and marketplaces',
+         b'Manage plugins'),
+        (b'Fork the current session',
+         b'Fork session'),
+    ]
+    for old_s, new_s in STRING_POOL:
+        pos_s = data.find(old_s)
+        if pos_s >= 0:
+            add(f'helptext({new_s.decode()[:20]})', pos_s, old_s, len(new_s), 'string')
+
     return regions
 
 
@@ -132,6 +154,31 @@ def resize_region(old_bytes, target_size, rtype):
         if new_spaces < 1:
             return None
         return prefix + b' ' * new_spaces + suffix
+
+    elif rtype == 'string':
+        STRING_POOL = [
+            (b'Install and set up Git AI for tracking AI-generated code attribution',
+             b'Install and set up Git AI'),
+            (b'Enable fast mode for the current model (/fast off to disable)',
+             b'Toggle fast mode'),
+            (b'Generate a blog post style semantic diff for changes',
+             b'Generate semantic diff'),
+            (b'Favorite the current session for quick access',
+             b'Favorite session'),
+            (b'Show settings configuration errors',
+             b'Show config errors'),
+            (b'Manage plugins and marketplaces',
+             b'Manage plugins'),
+            (b'Fork the current session',
+             b'Fork session'),
+        ]
+        for old_s, new_s in STRING_POOL:
+            if old_bytes == old_s:
+                pad = target_size - len(new_s)
+                if pad < 0:
+                    return None
+                return new_s + b' ' * pad
+        return None
 
     return None
 
