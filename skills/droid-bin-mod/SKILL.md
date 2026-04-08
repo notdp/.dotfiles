@@ -58,9 +58,9 @@ select: 1-9 / all / restore
 | 5   | Ctrl+N cycle | popup toggle     | c8A() 内联 cycle | -2   | Ctrl+N 直接在 custom model 间切换       |
 | 6   | mission 模型 | `V.includes(X)`  | `!0` + 空格填充  | 0    | 改条件而非数据，不强切+不警告           |
 | 7   | effort 级别  | `["off","low","medium","high"]` | 按 provider 区分 | +132 | 两处: 各+66 |
-| 8   | summarizer   | Responses API    | Chat Completions | +28  | OpenAI custom model 走正确 API          |
+| 8   | summarizer   | Responses API    | Chat Completions | +32  | 两条 OpenAI compress 路径都改走正确 API |
 | 9   | 禁用更新     | `let H,{remoteConfig:$}=...` | `return null;/*..*/` | 0 | checkForUpdates() 直接返回 null (可选) |
-| 补偿 | 死代码+字符串 | 多处            | 注释/缩短填充    | -158 | 统一补偿 mod5+7+8                       |
+| 补偿 | 死代码+字符串 | 多处            | 注释/缩短填充    | -162 | 统一补偿 mod5+7+8                       |
 
 ## 修改脚本
 
@@ -76,7 +76,7 @@ mods/mod4_diff_lines.py            # diff行数 20→99 (0 bytes)
 mods/mod5_custom_model_cycle.py    # Ctrl+N custom model cycle (-2 bytes)
 mods/mod6_mission_model.py         # Mission 模型不强切 (0 bytes)
 mods/mod7_custom_effort_levels.py  # effort 级别扩展 (+132 bytes)
-mods/mod8_summarizer_openai_fix.py # summarizer OpenAI fix (+28 bytes)
+mods/mod8_summarizer_openai_fix.py # summarizer/compress OpenAI fix (+32 bytes)
 mods/mod9_disable_auto_update.py   # 禁用自动更新 (0 bytes, 可选)
 ```
 
@@ -110,8 +110,8 @@ python3 mods/mod7_custom_effort_levels.py
 python3 mods/mod8_summarizer_openai_fix.py
 python3 mods/mod9_disable_auto_update.py    # 可选
 
-# 3. 补偿 (mod7:+132 + mod8:+28 + mod5:-2 = +158)
-python3 compensations/comp_universal.py 158
+# 3. 补偿 (mod7:+132 + mod8:+32 + mod5:-2 = +162)
+python3 compensations/comp_universal.py 162
 
 # 4. macOS: 重新签名
 codesign -s - ~/.local/bin/droid
@@ -178,9 +178,9 @@ ul=K9.useCallback(()=>{
 
 ### mod8: Summarizer OpenAI fix
 
-OpenAI custom model 的 summarizer 从 Responses API 重定向到 Chat Completions API：
-- 条件1: `provider==="openai"` 加 `&&!1` 短路 Responses API 路径
-- 条件2: generic-chat-completion-api 条件扩展匹配 `openai`
+OpenAI custom model 的 compress/summarizer 两条路径都从 Responses API 重定向到 Chat Completions API：
+- 路径1: `provider==="openai"` 加 `&&!1` 短路 Responses API 路径，并把 generic-chat-completion-api 条件扩展匹配 `openai`
+- 路径2: 另一条 `provider==="openai"` 直连 `responses.create(...).output_text||""` 的分支同样加 `&&!1`，自然落到后面的 `chat.completions.create(...)`
 
 ### mod9: 禁用自动更新 (可选)
 

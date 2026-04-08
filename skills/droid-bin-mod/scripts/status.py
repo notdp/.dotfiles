@@ -89,11 +89,43 @@ else:
     results['mod7'] = 'unknown'
 
 # mod8: summarizer openai fix
-DESCRIPTIONS['mod8'] = 'summarizer fix'
-if b'provider==="openai"&&!1)return(' in data:
+DESCRIPTIONS['mod8'] = 'summarizer/compress fix'
+mod8_generic_patched = bool(re.search(
+    rb'provider==="openai"&&!1\)return\(await new ' + V + rb'\(\{apiKey:' + V +
+    rb'\.apiKey,baseURL:' + V + rb'\.baseUrl,organization:null,project:null,defaultHeaders:' +
+    V + rb'\.extraHeaders\}\)\.responses\.create\(\{model:' + V + rb',input:' + V +
+    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+    rb'\}\)\)\.output_text;if\(' + V + rb'&&\(' +
+    V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{',
+    data))
+mod8_generic_original = bool(re.search(
+    rb'provider==="openai"\)return\(await new ' + V + rb'\(\{apiKey:' + V +
+    rb'\.apiKey,baseURL:' + V + rb'\.baseUrl,organization:null,project:null,defaultHeaders:' +
+    V + rb'\.extraHeaders\}\)\.responses\.create\(\{model:' + V + rb',input:' + V +
+    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+    rb'\}\)\)\.output_text;if\(' + V + rb'&&' +
+    V + rb'\.provider==="generic-chat-completion-api"\)\{',
+    data))
+mod8_direct_patched = bool(re.search(
+    rb'provider==="openai"&&!1\)return\(await ' + V +
+    rb'\.responses\.create\(\{model:' + V + rb'\.model,input:' + V +
+    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+    rb'\}\)\)\.output_text\|\|"";let ' + V +
+    rb'=\(await ' + V + rb'\.chat\.completions\.create\(',
+    data))
+mod8_direct_original = bool(re.search(
+    rb'provider==="openai"\)return\(await ' + V +
+    rb'\.responses\.create\(\{model:' + V + rb'\.model,input:' + V +
+    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+    rb'\}\)\)\.output_text\|\|"";let ' + V +
+    rb'=\(await ' + V + rb'\.chat\.completions\.create\(',
+    data))
+if mod8_generic_patched and mod8_direct_patched:
     results['mod8'] = 'modified'
-elif b'provider==="openai")return(await new' in data:
+elif mod8_generic_original and mod8_direct_original:
     results['mod8'] = 'original'
+elif any([mod8_generic_patched, mod8_generic_original, mod8_direct_patched, mod8_direct_original]):
+    results['mod8'] = 'partial'
 else:
     results['mod8'] = 'unknown'
 
