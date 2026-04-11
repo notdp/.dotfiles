@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-10T00:16:05.772Z",
+  "generatedAt": "2026-04-11T00:14:43.944Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -24,7 +24,7 @@
       "ref": "main",
       "source": "skills/hive",
       "target": "skills/hive",
-      "commit": "54f149ac70689aeba68f4d005f083153abc96719"
+      "commit": "586c5aec33b954c26fa387cf13284a93997f9465"
     },
     {
       "name": "react-best-practices",
