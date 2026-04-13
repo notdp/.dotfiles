@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-12T00:16:13.983Z",
+  "generatedAt": "2026-04-13T00:17:06.066Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -8,7 +8,7 @@
       "ref": "main",
       "source": "skills/agent-browser",
       "target": "skills/agent-browser",
-      "commit": "fa043a496f7579680c78b22d0a5015f48dc99a4d"
+      "commit": "2114bdf84751dd0b98e6d29e370de2cc7d4efda2"
     },
     {
       "name": "find-skills",
@@ -16,7 +16,7 @@
       "ref": "main",
       "source": "skills/find-skills",
       "target": "skills/find-skills",
-      "commit": "df0579f85cb8a360473c921e1343359006100d3c"
+      "commit": "004c73806e35f3b12582967759559203c4ed01f9"
     },
     {
       "name": "hive",
