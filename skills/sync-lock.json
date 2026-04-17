@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-16T00:20:48.661Z",
+  "generatedAt": "2026-04-17T00:19:20.043Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -8,7 +8,7 @@
       "ref": "main",
       "source": "skills/agent-browser",
       "target": "skills/agent-browser",
-      "commit": "b02e485a37e60a9a564d8cf57a4f82ec06bddd4f"
+      "commit": "717d1b09e1c841a4c0206033886a1a861e3ca5d9"
     },
     {
       "name": "find-skills",
@@ -24,7 +24,7 @@
       "ref": "main",
       "source": "skills/hive",
       "target": "skills/hive",
-      "commit": "e84364c291bccabf218d0c5750b678738a37461e"
+      "commit": "8b956f20c423331ad00a6d02fbd1061c3665b8f9"
     },
     {
       "name": "react-best-practices",
@@ -40,7 +40,7 @@
       "ref": "main",
       "source": "skills/react-doctor",
       "target": "skills/react-doctor",
-      "commit": "7136aa59fe2f2705adf46955166f9c52eff612ef"
+      "commit": "69eead3c439f20dca9613b1696cc839835b1db1a"
     },
     {
       "name": "shadcn-ui",
@@ -56,7 +56,7 @@
       "ref": "main",
       "source": "skills/frontend-design",
       "target": "skills/frontend-design",
-      "commit": "0f7c287eaf0d4fa511cb871bb55e2a7862251fbb"
+      "commit": "2c7ec5e78b8e5d43ea02e90bb8826f6b9f147b0c"
     }
   ]
 }
