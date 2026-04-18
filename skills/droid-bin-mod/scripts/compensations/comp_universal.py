@@ -103,6 +103,10 @@ def find_regions(data):
          b'Manage plugins'),
         (b'Fork the current session',
          b'Fork session'),
+        (b'General-purpose worker droid for delegating tasks. Use for non-trivial tasks that benefit from parallel execution, such as Q&A, research, analysis.',
+         b'Worker droid for delegated tasks'),
+        (b'Fast read-only codebase exploration agent. Use for searching files, finding patterns, understanding code structure. Cannot modify files or run commands.',
+         b'Read-only codebase explorer'),
     ]
     for old_s, new_s in STRING_POOL:
         pos_s = data.find(old_s)
@@ -171,6 +175,10 @@ def resize_region(old_bytes, target_size, rtype):
              b'Manage plugins'),
             (b'Fork the current session',
              b'Fork session'),
+            (b'General-purpose worker droid for delegating tasks. Use for non-trivial tasks that benefit from parallel execution, such as Q&A, research, analysis.',
+             b'Worker droid for delegated tasks'),
+            (b'Fast read-only codebase exploration agent. Use for searching files, finding patterns, understanding code structure. Cannot modify files or run commands.',
+             b'Read-only codebase explorer'),
         ]
         for old_s, new_s in STRING_POOL:
             if old_bytes == old_s:

@@ -6,6 +6,11 @@
 - Review my input, point out potential issues, offer suggestions beyond the obvious
 - If I say something absurd, call it out directly
 
+## UI/Layout Changes
+
+- 涉及布局调整、元素移动、结构变更时，先用 ASCII 示意图画出 before/after 确认意图，确认后再动手
+- 纯样式微调（颜色、间距、字号）不需要
+
 ## Truth Directive
 
 - Do not present guesses or speculation as fact.

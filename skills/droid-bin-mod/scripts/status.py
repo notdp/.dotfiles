@@ -33,7 +33,13 @@ else:
 
 # mod3: 输出行数 (含 exec hint)
 DESCRIPTIONS['mod3'] = '输出行数'
-if re.search(V + rb'=99\|\|4', data):
+# v0.104.0+: maxLines:VAR?VAR:99 (新)  vs  maxLines:VAR?VAR:8 (原版)
+# v0.96-0.99: VAR=99||4 (新) vs VAR=VAR?8:4 (原版)
+if re.search(rb'maxLines:[a-zA-Z0-9_$]{1,4}\?[a-zA-Z0-9_$]{1,4}:99', data):
+    results['mod3'] = 'modified'
+elif re.search(rb'maxLines:[a-zA-Z0-9_$]{1,4}\?[a-zA-Z0-9_$]{1,4}:8', data):
+    results['mod3'] = 'original'
+elif re.search(V + rb'=99\|\|4', data):
     results['mod3'] = 'modified'
 elif re.search(V + rb'=' + V + rb'\?8:4', data):
     results['mod3'] = 'original'
@@ -51,7 +57,8 @@ else:
 
 # mod5: Ctrl+N custom model cycle
 DESCRIPTIONS['mod5'] = 'Ctrl+N cycle'
-if b'let RR=c8A();if(RR.length<=1)return;' in data:
+# 使用正则兼容不同 minified 函数名（UR/GR 等）
+if re.search(rb'=[A-Za-z_$][A-Za-z0-9_$]{0,3}\(\)\.getCustomModels\(\)\.map\(\(gA\)=>gA\.id\);if\(RR\.length<=1\)return;', data):
     results['mod5'] = 'modified'
 elif re.search(rb'useCallback\(\(\)=>\{if\(' + V + rb'\.length<=1\)return;let ' + V + rb'=' + V + rb'\(\)\.getModelPolicy', data):
     results['mod5'] = 'original'
@@ -90,48 +97,46 @@ else:
 
 # mod8: summarizer openai fix
 DESCRIPTIONS['mod8'] = 'summarizer/compress fix'
-mod8_generic_patched = bool(re.search(
-    rb'provider==="openai"&&!1\)return\(await new ' + V + rb'\(\{apiKey:' + V +
-    rb'\.apiKey,baseURL:' + V + rb'\.baseUrl,organization:null,project:null,defaultHeaders:' +
-    V + rb'\.extraHeaders\}\)\.responses\.create\(\{model:' + V + rb',input:' + V +
-    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
-    rb'\}\)\)\.output_text;if\(' + V + rb'&&\(' +
-    V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{',
-    data))
-mod8_generic_patched_compressed = bool(re.search(
-    rb'provider==="openai"&&!1\)return null;/\*.{0,120}\*/if\(' + V + rb'&&\(' +
-    V + rb'\.provider==="generic-chat-completion-api"\|\|' + V + rb'\.provider=="openai"\)\)\{',
-    data))
-mod8_generic_original = bool(re.search(
-    rb'provider==="openai"\)return\(await new ' + V + rb'\(\{apiKey:' + V +
-    rb'\.apiKey,baseURL:' + V + rb'\.baseUrl,organization:null,project:null,defaultHeaders:' +
-    V + rb'\.extraHeaders\}\)\.responses\.create\(\{model:' + V + rb',input:' + V +
-    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
-    rb'\}\)\)\.output_text;if\(' + V + rb'&&' +
-    V + rb'\.provider==="generic-chat-completion-api"\)\{',
-    data))
-mod8_direct_patched = bool(re.search(
-    rb'provider==="openai"&&!1\)return\(await ' + V +
-    rb'\.responses\.create\(\{model:' + V + rb'\.model,input:' + V +
-    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
-    rb'\}\)\)\.output_text\|\|"";let ' + V +
-    rb'=\(await ' + V + rb'\.chat\.completions\.create\(',
-    data))
-mod8_direct_original = bool(re.search(
-    rb'provider==="openai"\)return\(await ' + V +
-    rb'\.responses\.create\(\{model:' + V + rb'\.model,input:' + V +
-    rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
-    rb'\}\)\)\.output_text\|\|"";let ' + V +
-    rb'=\(await ' + V + rb'\.chat\.completions\.create\(',
-    data))
-if (mod8_generic_patched or mod8_generic_patched_compressed) and mod8_direct_patched:
-    results['mod8'] = 'modified'
-elif mod8_generic_original and mod8_direct_original:
-    results['mod8'] = 'original'
-elif any([mod8_generic_patched, mod8_generic_patched_compressed, mod8_generic_original, mod8_direct_patched, mod8_direct_original]):
-    results['mod8'] = 'partial'
-else:
-    results['mod8'] = 'unknown'
+# Find lxH-equivalent function name dynamically
+_lxH_match = re.search(
+    rb'function ([A-Za-z_$][A-Za-z0-9_$]{0,5})\(' + V + rb'\)\{return ' + V +
+    rb'==="openai"\|\|' + V + rb'==="xai"\}', data)
+_lxH = _lxH_match.group(1) if _lxH_match else None
+
+def _mod8_detect():
+    if _lxH:
+        # v0.99.0+: uses lxH(provider) function call
+        byok_patched = bool(re.search(
+            _lxH + rb'\(' + V + rb'\.provider\)&&!1\)return\(await ' + V +
+            rb'\.responses\.create\(', data))
+        byok_original = bool(re.search(
+            rb'if\(' + _lxH + rb'\(' + V + rb'\.provider\)\)return\(await ' + V +
+            rb'\.responses\.create\(', data))
+        proxy_patched = bool(re.search(
+            _lxH + rb'\(' + V + rb'\)&&!1\)return\(await ' + V +
+            rb'\.responses\.create\(\{model:' + V + rb',input:' + V +
+            rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+            rb'\},\{headers:', data))
+        proxy_original = bool(re.search(
+            rb'if\(' + _lxH + rb'\(' + V + rb'\)\)return\(await ' + V +
+            rb'\.responses\.create\(\{model:' + V + rb',input:' + V +
+            rb',store:!1,instructions:' + V + rb',max_output_tokens:' + V +
+            rb'\},\{headers:', data))
+        if byok_patched and proxy_patched:
+            return 'modified'
+        elif byok_original and proxy_original:
+            return 'original'
+        elif byok_patched or proxy_patched:
+            return 'partial'
+    # v0.96.0 legacy: uses provider==="openai" direct check
+    legacy_patched = bool(re.search(rb'provider==="openai"&&!1\)return\(await new ' + V, data))
+    legacy_original = bool(re.search(rb'provider==="openai"\)return\(await new ' + V, data))
+    if legacy_patched:
+        return 'modified'
+    elif legacy_original:
+        return 'original'
+    return 'unknown'
+results['mod8'] = _mod8_detect()
 
 # mod9: 禁用自动更新 (可选)
 DESCRIPTIONS['mod9'] = '禁用自动更新'
@@ -141,6 +146,21 @@ elif b'async checkForUpdates(){' in data:
     results['mod9'] = 'original'
 else:
     results['mod9'] = 'unknown'
+
+# mod10: tag strip fix (ym9 找不到闭标签时不截断)
+DESCRIPTIONS['mod10'] = 'tag strip fix'
+mod10_pat_fixed = re.compile(rb'if\(([A-Za-z])<0\)\{([A-Za-z])=\2\.slice\(0  \);break\}')
+mod10_pat_orig = re.compile(rb'if\(([A-Za-z])<0\)\{([A-Za-z])=\2\.slice\(0,([A-Za-z])\);break\}')
+_fixed = len(list(mod10_pat_fixed.finditer(data)))
+_orig = len(list(mod10_pat_orig.finditer(data)))
+if _fixed >= 2 and _orig == 0:
+    results['mod10'] = 'modified'
+elif _orig >= 2 and _fixed == 0:
+    results['mod10'] = 'original'
+elif _fixed >= 1 and _orig >= 1:
+    results['mod10'] = 'partial'
+else:
+    results['mod10'] = 'unknown'
 
 # mod11: unicode escape fix (YcM/NcM parser)
 DESCRIPTIONS['mod11'] = 'unicode escape fix'
@@ -170,7 +190,7 @@ else:
 
 # 输出
 REQUIRED = ['mod1', 'mod2', 'mod3', 'mod4', 'mod5', 'mod6', 'mod7', 'mod8']
-OPTIONAL = ['mod9', 'mod11', 'mod12']
+OPTIONAL = ['mod9', 'mod10', 'mod11', 'mod12']
 total = len(REQUIRED)
 mod_count = sum(1 for k in REQUIRED if results.get(k) == 'modified')
 

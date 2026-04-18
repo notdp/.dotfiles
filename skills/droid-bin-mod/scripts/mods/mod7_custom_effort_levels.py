@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mod9: custom model 支持完整 effort 级别 (+132 bytes)
+"""mod7: custom model 支持完整 effort 级别 (+132 bytes)
 
 问题: 两个函数对 custom model 硬编码 supportedReasoningEfforts 为 ["off","low","medium","high"]，
 缺少 anthropic 的 "max" 和 openai 的 "xhigh"。
@@ -46,7 +46,7 @@ for pat, label in [(pat_max, "max-only"), (pat_orig, "original")]:
 if not replacements:
     done_count = len(re.findall(pat_done, data))
     if done_count >= 2:
-        print("mod9: 全部已应用")
+        print("mod7: 全部已应用")
         sys.exit(0)
     else:
         print(f"错误: custom model effort 列表未找到 (provider-aware={done_count})")
@@ -63,10 +63,10 @@ for start, end, old, var_cond_b, var_ref_b, label in sorted(replacements, key=la
     diff = len(new) - len(old)
     total_diff += diff
     applied += 1
-    print(f"mod9 [{applied}]: {label} → provider-aware ({diff:+d} bytes, cond={var_cond}, ref={var_ref})")
+    print(f"mod7 [{applied}]: {label} → provider-aware ({diff:+d} bytes, cond={var_cond}, ref={var_ref})")
 
 if total_diff == 0:
-    print("mod9: 全部已应用")
+    print("mod7: 全部已应用")
 else:
-    print(f"mod9: {applied} 处修改, 总计 {total_diff:+d} bytes")
+    print(f"mod7: {applied} 处修改, 总计 {total_diff:+d} bytes")
     save_droid(data)

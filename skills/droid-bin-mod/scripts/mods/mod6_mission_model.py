@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mod8: Mission 模型白名单恒通过 (0 bytes)
+"""mod6: Mission 模型白名单恒通过 (0 bytes)
 
 直接将两处 Y9H.includes(X) 调用替换为 !0 (true) + 空格填充:
 1. enter-mission: Y9H.includes(I) → !0 — 永远走 if 分支，不强切模型
@@ -36,15 +36,15 @@ if m1:
     target1 = var_name + b'.includes(' + arg_name + b')'
     replace1 = b'!0' + b' ' * (len(target1) - 2)
     data = data[:m1.start()] + replace1 + data[m1.start()+len(target1):]
-    print(f"mod8a enter-mission: {target1.decode()} → !0 (0 bytes)")
+    print(f"mod6a enter-mission: {target1.decode()} → !0 (0 bytes)")
     applied += 1
 else:
     # 检测是否已应用: !0 + 空格 + ){if(!h9H
     if re.search(rb'!0\s+\)\{if\(!' + V, data):
-        print("mod8a enter-mission 已应用，跳过")
+        print("mod6a enter-mission 已应用，跳过")
         applied += 1
     else:
-        print("mod8 失败: 未找到 enter-mission 中的白名单检查")
+        print("mod6 失败: 未找到 enter-mission 中的白名单检查")
         sys.exit(1)
 
 # --- 修改点 2: vO 回调的 Y9H.includes(X) ---
@@ -59,17 +59,17 @@ if m2:
     replace2 = b'!0' + b' ' * (len(target2) - 2)
     offset = m2.start(1)  # group(1) 起始 = VAR 名位置
     data = data[:offset] + replace2 + data[offset+len(target2):]
-    print(f"mod8b vO 回调: {target2.decode()} → !0 (0 bytes)")
+    print(f"mod6b vO 回调: {target2.decode()} → !0 (0 bytes)")
     applied += 1
 else:
     # 检测是否已应用: if(!(!0 + 空格 + &&h9H.includes(
     if re.search(rb'if\(!\(!0\s+&&' + V + rb'\.includes\(', data):
-        print("mod8b vO 回调已应用，跳过")
+        print("mod6b vO 回调已应用，跳过")
         applied += 1
     else:
-        print("mod8 失败: 未找到 vO 回调中的白名单检查")
+        print("mod6 失败: 未找到 vO 回调中的白名单检查")
         sys.exit(1)
 
 assert len(data) == original_size, f"大小变化 {len(data) - original_size:+d} bytes"
 save_droid(data)
-print(f"mod8 完成 ({applied}/2 修改)")
+print(f"mod6 完成 ({applied}/2 修改)")

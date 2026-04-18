@@ -29,25 +29,20 @@ npx skills add "$PWD" -g --all
 
 ## 首次进入
 
-1. `hive current` — 看当前 tmux 绑定、pane 列表、是否已绑 team
-2. 没 team 但在 tmux 里 → `hive init` 从当前 window 创建 team + workspace，自动把其他 pane 注册成 agent
-3. 不要依赖 `HIVE_TEAM_NAME` / `HIVE_AGENT_NAME` / `HIVE_WORKSPACE` / `CR_WORKSPACE` 之类环境变量；`hive current` 和 tmux 绑定才是准绳
+加载 hive skill = 你要作为 hive 成员工作。**立刻跑 `hive init`**，按 CLI 输出走，不要自己先 `hive current` 猜状态，也不要问用户「要不要 init」。`hive init` 幂等，报错信息会告诉你缺什么。
 
 ## 日常（Daily）
 
 ```bash
 hive current                          # 看上下文
-hive team                             # 看成员 + runtime inputState/activityState + peer
-hive send dodo "hello"                # 发短消息（positional：收件人 + body，不要加 --to / --msg）
-hive send dodo "see attachment" --artifact /tmp/file.md
+hive team                             # 看成员 + runtime inputState/busy/turnPhase + peer
+hive send dodo "see attachment" --artifact /tmp/file.md   # 仅当你已经有现成文件
 cat <<'EOF' | hive send dodo "see attachment" --artifact -
 # Findings
 - item
 EOF
 hive reply dodo "ack, looking"        # 回复 dodo 最近一条给你的消息（自动 reply-to）
 hive answer claude "yes"              # 回答 agent 的 pending question
-hive suggest                          # 基于当前 runtime 建议协作对象
-hive suggest momo                     # 以指定 source agent 视角给出候选
 hive notify "按 Space 和我对话"       # 给当前 pane 的用户弹通知
 ```
 
@@ -55,10 +50,17 @@ hive notify "按 Space 和我对话"       # 给当前 pane 的用户弹通知
 
 其他 agent 的消息会以 `<HIVE from=... to=... msgId=... />` block 出现在你 pane 里——这是主通道。不要去 `hive thread <msgId>` / `hive delivery <msgId>` 轮询等回复；durable store 不是收件箱。
 
-### `hive send` 是 fire-and-forget
+### `hive send` 的 root 协议
 
-- 返回 `queued` / `pending` / `confirmed` 都代表已进后台追踪，直接继续工作
-- body 默认只放动作 + 摘要；长内容、多行结构化内容、需要后续引用的上下文一律先写 artifact
+- root send（没有 `--reply-to`）必须：
+  - `body` 只放短摘要
+  - `artifact` 放详细内容
+- 不带 `--artifact` 的 root send 会直接失败
+- `body` 命中下面任一条件都会直接失败；把这些都移进 artifact：
+  - 超过 `500` 字符
+  - 一共有 `3` 行或更多
+  - 含 fenced code：`` ```
+  - 任一非空行以 `# `、`- `、`* ` 开头
 - 首选 heredoc + stdin artifact：
   ```bash
   cat <<'EOF' | hive send <name> "<message>" --artifact -
@@ -69,42 +71,50 @@ hive notify "按 Space 和我对话"       # 给当前 pane 的用户弹通知
 - 带引号的 `EOF` 标签不会做 shell 插值，markdown / 代码块 / 引号内容会原样传过去
 - `printf '%s\n' ... | hive send ... --artifact -` 只当备选；它更容易踩转义坑。只有已有现成文件时才传 `--artifact <path>`
 - 不要把 `$(cat <<EOF ...)` 这类多行 command substitution 直接塞进 `hive send`
+- `reply` 不受这套 root 协议影响，仍然可以只回一句短文本
+- target 正在 active turn 时，root send 路径会自动 fork 一个 clone 接管（`routingMode=fork_handoff, routingReason=active_turn_fork`）；不再有 `deferred` 状态
+- **shell 安全（`hive send` 和 `hive reply` 都适用）**：双引号 `body` 里不要出现反引号（``` ` ```），zsh/bash 会把反引号当作 command substitution 先执行，消息会被悄悄改坏。含 markdown inline code 时走 heredoc + `--artifact -`，或把 body 整句换成单引号包裹
 
-### `hive reply` vs `hive send --reply-to`
+### `hive send` vs `hive reply`
 
-- 刚收到某 agent 的消息、直接回复就用 `hive reply <agent> "..."`：它自动把 `reply-to` 填成"最近一条来自该 agent 且你还没回过的入站消息"
-- 没有入站消息、或最近一条已经回过，`hive reply` 会直接报错，要求你传 `--reply-to <msgId>`；它**不会**跨线程猜
-- 已经拿到了特定 `msgId`（例如 handoff 时 prompt 里带的），继续用 `hive send <agent> "..." --reply-to <msgId>`
+- `hive send` 只用于**开新 thread**（root send），不接受 `--reply-to`；必须带 `--artifact`，body 是短摘要
+- 要接续已有 thread 一律走 `hive reply`：
+  - **主路径**：`hive reply <agent> "..."` 让 Hive 自动挑"最近一条来自该 agent 且你还没回过的入站消息"作 reply-to。这就是默认用法，不需要你去找 msgId
+  - 只在下面这几种情况才显式传 `--reply-to <msgId>`：
+    - handoff / spawn 时 prompt 直接给了你 anchor msgId（你手头并没有那条的 inbound）
+    - 你想跨越 autoReply 默认挑的那条，回一条更早的 thread
+- `hive reply` 在没有可推断的入站消息且你也没传 `--reply-to` 时会直接报错；它**不会**跨线程猜
 
 ### 协作升级（4 条足矣）
 
-问题默认先在团队内消化——不要先把用户当传话筒。先 `hive team`，适合协作再 `hive suggest`，优先找**非同源模型 / 非同 CLI** 的 agent。
+问题默认先在团队内消化——不要先把用户当传话筒。先 `hive team` 看成员和 runtime 状态，再决定要不要找人协作。
+
+和 peer 讨论时，默认目标是**先在 team 内把结论收敛**，再对用户汇报；不要把仍在摇摆的 A/B/C、peer 的中间态分歧、或你准备回去继续 challenge 的漏洞，直接倒给用户。除非用户明确要求看原始讨论过程，否则对用户只给：
+
+1. 已收敛结论
+2. 仍未收敛但真正阻断推进的单个问题
+3. 你建议的下一步动作
+
+如果 peer 的论证里有洞，先直接回 peer 挑明并收敛，不要先把这个洞抛给用户代你消化。
 
 只有以下情况升级给用户：
 
-1. 已完成 `hive team` / `hive suggest` 检查仍无合适 agent
+1. 已完成 `hive team` 检查仍无合适 agent
 2. 决策涉及不可逆外部副作用（`git push`、发 PR comment、删除数据、跑迁移、通知外部系统）
 3. 需要用户提供团队内 agent 都不掌握的信息、授权或偏好
 4. 用户明确要求参与这类决策
 
-升级时直接说明：`已先检查 hive team / hive suggest；这一步仍需你决定，因为 ...`。不要问用户「要不要我先找别人讨论」「下一步该找谁接手」这类把用户当传话筒的问题。
+升级时直接说明：`已先检查 hive team；这一步仍需你决定，因为 ...`。不要问用户「要不要我先找别人讨论」「下一步该找谁接手」这类把用户当传话筒的问题。
 
 ### 默认分工
 
 Claude 偏前端体验、文案收敛和发散式讨论；GPT 偏后端 correctness、约束检查和严谨 review。若项目已有更明确的人选或团队经验，以项目事实为准。
 
-### `hive suggest` 怎么用
-
-- 想找人 review / 讨论 / 帮忙时先跑 `hive suggest`，默认 source 是自己；替别人挑协作者时 `hive suggest <source-agent>`
-- 输出重点看 `score` / `reasons` / `model` / `cli` / `inputState` / `activityState` / `isPeer`
-- 排序偏向：排除自己 / offline → 优先 `ready` → 其次 `activityState=idle` → 默认 peer → 不同 model / CLI
-- `suggest` 只给建议，选中后仍然用 `hive send <name> "<message>"`
-
 ### `hive team` 状态字段
 
 - `inputState=waiting_user` 说明对方在等答案，用 `hive answer` 回答
-- `activityState=idle` 说明对方从 transcript 看空闲，较适合协作
-- 两者都是从 session transcript 实时探测的 runtime 状态，不是事件投影
+- `busy=true/false` 是 tmux 输出层的秒级活动布尔，不等于语义上的 busy/idle
+- `turnPhase` 才是“现在插 new root 是否容易打断对方”的 transcript/JCL 语义层
 
 ### `hive notify` 原则
 
@@ -135,8 +145,8 @@ hive handoff orch-2 --fork --artifact /tmp/task.md
 
 ### 新处理者的动作
 
-1. 第一件事是用 `hive send <sender> "<short takeover with reason>" --reply-to <msgId>` 通知原 sender，例如"从 orch 手中接管了 X 任务，因为 orch 正在处理 Y"；不要让原 pane 先做中继
-2. 处理完成后，继续自己用 `hive send <sender> "<done summary>" --reply-to <msgId> [--artifact <path>]` 沿同一条 thread 回结果；后续 question / update 也都继续沿这条 thread 回复
+1. 第一件事是用 `hive reply <sender> --reply-to <msgId> "<short takeover with reason>"` 通知原 sender，例如"从 orch 手中接管了 X 任务，因为 orch 正在处理 Y"；不要让原 pane 先做中继。这里必须显式 `--reply-to`，因为你并不是 `<msgId>` 的 receiver，autoReply 推断不出来
+2. 等 sender 回你之后，你就是正常 receiver，后续直接 `hive reply <sender> "..."` 走 autoReply 即可；只在你**还**没收到过 sender 的回信却要继续沿同一 thread push 更新时，才继续显式 `--reply-to <msgId>`
 
 ### Workflow
 
@@ -154,8 +164,6 @@ workflow 加载后继续用 Hive 命令作为通信与状态底座。
 - `hive doctor [agent] [--skills]` — agent 连通性 / 本地 skill drift
 - `hive delivery <msgId>` — 某条消息的投递状态
 - `hive thread <msgId>` — 某条消息的 reply / observation 串联
-- `hive teams` — 列出所有已知 team（跨 team 排障）
-- `hive activity <agent>` — 分析 transcript 活跃度
 - `hive capture / inject / interrupt / kill / exec` — 低层 pane 操作
 
 ## 协议边界

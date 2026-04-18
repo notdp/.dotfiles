@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mod13: 禁用自动更新，checkForUpdates() 直接返回 null (0 bytes)"""
+"""mod9: 禁用自动更新，checkForUpdates() 直接返回 null (0 bytes)"""
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 from common import load_droid, save_droid
@@ -9,7 +9,7 @@ original_size = len(data)
 
 ALREADY_APPLIED = b'checkForUpdates(){return null;/*'
 if ALREADY_APPLIED in data:
-    print("mod13 已应用，跳过")
+    print("mod9 已应用，跳过")
     sys.exit(0)
 
 ANCHOR = b'async checkForUpdates(){'
@@ -30,8 +30,8 @@ new_stmt = new_core + b'/*' + b' ' * padding + b'*/'
 assert len(new_stmt) == len(old_stmt), f"长度不匹配: {len(new_stmt)} != {len(old_stmt)}"
 
 data = data[:body_start] + new_stmt + data[semicolon + 1:]
-assert len(data) == original_size, f"mod13 大小变化 {len(data) - original_size:+d} bytes"
+assert len(data) == original_size, f"mod9 大小变化 {len(data) - original_size:+d} bytes"
 
-print(f"mod13: {old_stmt.decode('utf-8', errors='replace')} → {new_stmt.decode('utf-8', errors='replace')} (0 bytes)")
+print(f"mod9: {old_stmt.decode('utf-8', errors='replace')} → {new_stmt.decode('utf-8', errors='replace')} (0 bytes)")
 save_droid(data)
-print("mod13 完成: checkForUpdates() 已短路，自动更新已禁用")
+print("mod9 完成: checkForUpdates() 已短路，自动更新已禁用")
