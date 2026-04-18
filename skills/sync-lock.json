@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-17T00:19:20.043Z",
+  "generatedAt": "2026-04-18T00:16:56.589Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -16,7 +16,7 @@
       "ref": "main",
       "source": "skills/find-skills",
       "target": "skills/find-skills",
-      "commit": "004c73806e35f3b12582967759559203c4ed01f9"
+      "commit": "bc21a37a12b90fcb5aec051c91baf5b227b704b1"
     },
     {
       "name": "hive",
@@ -24,7 +24,7 @@
       "ref": "main",
       "source": "skills/hive",
       "target": "skills/hive",
-      "commit": "8b956f20c423331ad00a6d02fbd1061c3665b8f9"
+      "commit": "0a50d592cc2a0859bc8936ac87decd952e8ca8f2"
     },
     {
       "name": "react-best-practices",
@@ -32,7 +32,7 @@
       "ref": "main",
       "source": "skills/react-best-practices",
       "target": "skills/react-best-practices",
-      "commit": "47863b24f8e22966bfcf8470debc7ba8c2c3b99c"
+      "commit": "ce3e64e468f8fa09a2d075d102771838061fdac0"
     },
     {
       "name": "react-doctor",
@@ -40,7 +40,7 @@
       "ref": "main",
       "source": "skills/react-doctor",
       "target": "skills/react-doctor",
-      "commit": "69eead3c439f20dca9613b1696cc839835b1db1a"
+      "commit": "5a962266086bd8c4574c2fdbd69024cce772487d"
     },
     {
       "name": "shadcn-ui",
