@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-04-18T00:16:56.589Z",
+  "generatedAt": "2026-04-19T00:16:46.893Z",
   "sources": [
     {
       "name": "agent-browser",
@@ -24,7 +24,7 @@
       "ref": "main",
       "source": "skills/hive",
       "target": "skills/hive",
-      "commit": "0a50d592cc2a0859bc8936ac87decd952e8ca8f2"
+      "commit": "8b2bf819a361b33cf01c0ec0b9402b798db00319"
     },
     {
       "name": "react-best-practices",
@@ -40,7 +40,7 @@
       "ref": "main",
       "source": "skills/react-doctor",
       "target": "skills/react-doctor",
-      "commit": "5a962266086bd8c4574c2fdbd69024cce772487d"
+      "commit": "b5519b60465905e8c7eb0b8a9294924bf3736158"
     },
     {
       "name": "shadcn-ui",
