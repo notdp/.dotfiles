@@ -28,7 +28,12 @@ If it exists, this is a **re-run after fixes**. You'll use it to determine what 
 
 Run the full test suite, typecheck, and lint from `.factory/services.yaml`.
 
-If any validator fails:
+If any validator fails, attempt simple fixes before giving up:
+- **Lint errors**: Run the project's auto-fix command (e.g., `npm run fix`) and re-check.
+- **Type errors**: If they are straightforward (missing imports, simple type mismatches), fix them directly and re-check.
+- **Test failures**: If the fix is obvious and localized (e.g., a snapshot update, a trivial assertion update), fix and re-check.
+
+If validators still fail after your fix attempt (or the failures are non-trivial):
 - Call `EndFeatureRun` with `successState: "failure"` and `returnToOrchestrator: true`
 - Include failing commands and output in `handoff.verification.commandsRun`
 - Include failures in `handoff.discoveredIssues`
@@ -45,7 +50,7 @@ jq --arg m "$MILESTONE" '
   .features
   | map(select(.milestone == $m and .status == "completed"))
   | map(select(.skillName // "" | test("^scrutiny-|^user-testing-") | not))
-  | map({id, description, commitId: .completedWorkerSessionId})
+  | map({id, description, workerSessionId: (.workerSessionIds // [])[-1]})
 ' {missionDir}/features.json
 ```
 
@@ -72,7 +77,7 @@ Task({
     Feature details:
     - ID: <feature-id>
     - Description: <description>
-    - Worker session: <completedWorkerSessionId>
+    - Worker session: <workerSessionId>
     
     Mission dir: <missionDir>
     
@@ -111,8 +116,8 @@ Collect all `sharedStateObservations` from reviewer reports. Deduplicate across 
 For each observation, apply your judgment using these first principles about what belongs where:
 
 - **`services.yaml`**: Operational commands and services that workers need to run. Factual, mechanical. Source of truth for how to execute things.
-- **`library/`**: Factual knowledge about the codebase discovered during work \u2014 patterns, quirks, env vars, API conventions, online documentation. Reference material, not instructions.
-- **`AGENTS.md`**: Normative guidance from orchestrator to workers \u2014 conventions, boundaries, rules. The orchestrator's voice.
+- **`library/`**: Factual knowledge about the codebase discovered during work — patterns, quirks, env vars, API conventions, online documentation. Reference material, not instructions.
+- **`AGENTS.md`**: Normative guidance from orchestrator to workers — conventions, boundaries, rules. The orchestrator's voice.
 - **Skills** (`.factory/skills/`): Procedural instructions for worker types. Should reflect what actually works, not idealized procedure.
 
 Triage each observation into one of three buckets:
@@ -124,7 +129,7 @@ For services.yaml entries, validate against the manifest schema before applying:
 - **Services** require: `start`, `stop`, `healthcheck` (port hardcoded in all three command strings), `port` (declares which port for conflict detection), `depends_on`
 - **Commands** require: the command string
 - Check that no existing service/command uses the same name or port
-- Only additive changes \u2014 never overwrite existing entries
+- Only additive changes — never overwrite existing entries
 
 **Recommend to orchestrator** (AGENTS.md and skill changes):
 These are normative decisions that belong to the orchestrator. For each recommendation, include:
@@ -134,7 +139,7 @@ These are normative decisions that belong to the orchestrator. For each recommen
 The orchestrator will decide whether to act.
 
 **Reject** (ambiguous, duplicate, or wrong):
-Record what you rejected and why. If a candidate is ambiguous or you're unsure, reject it \u2014 it's better to skip than to apply something wrong.
+Record what you rejected and why. If a candidate is ambiguous or you're unsure, reject it — it's better to skip than to apply something wrong.
 
 ## 5) Write synthesis report
 

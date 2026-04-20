@@ -22,10 +22,10 @@ For each boundary, determine:
 
 The system automatically injects two validation features when a milestone completes:
 
-1. **scrutiny-validator** \u2014 Runs validators, spawns review subagents for each completed feature, synthesizes findings. If it fails, goes back to pending for re-run after fixes.
-2. **user-testing-validator** \u2014 Determines testable assertions from `fulfills`, sets up environment, spawns flow validator subagents, synthesizes results. If it fails, goes back to pending for re-run after fixes.
+1. **scrutiny-validator** — Runs validators, spawns review subagents for each completed feature, synthesizes findings. If it fails, goes back to pending for re-run after fixes.
+2. **user-testing-validator** — Determines testable assertions from `fulfills`, sets up environment, spawns flow validator subagents, synthesizes results. If it fails, goes back to pending for re-run after fixes.
 
-You do NOT create these yourself \u2014 they are auto-injected by the system.
+You do NOT create these yourself — they are auto-injected by the system.
 
 ## Guiding Principles
 
@@ -137,7 +137,7 @@ Include skills the user specified during planning. For each, note what it's used
 
 | Field                             | Purpose                                                |
 | --------------------------------- | ------------------------------------------------------ |
-| `salientSummary`                  | 1\u20134 sentence summary of what happened in the session   |
+| `salientSummary`                  | 1–4 sentence summary of what happened in the session   |
 | `whatWasImplemented`              | Concrete description of what was built (min 50 chars)  |
 | `whatWasLeftUndone`               | What's incomplete - empty string if truly done         |
 | `verification.commandsRun`        | Shell commands with `{command, exitCode, observation}` |
@@ -145,7 +145,7 @@ Include skills the user specified during planning. For each, note what it's used
 | `tests.added`                     | Test files with `{file, cases: [{name, verifies}]}`    |
 | `discoveredIssues`                | Issues found: `{severity, description, suggestedFix?}` |
 
-Examples of good `salientSummary` (be concrete, 1\u20134 sentences):
+Examples of good `salientSummary` (be concrete, 1–4 sentences):
 - Success: "Implemented GET /api/products/search with cursor pagination + min-length validation; ran `npm test -- --grep 'product search'` (4 passing) and verified 400 on `q=a` plus 200 on a real curl request."
 - Failure: "Tried to wire logout to `SessionStore`, but `bun run typecheck` failed (missing import) and `bun test auth` had 2 failing tests; returning to orchestrator to decide whether to add session persistence or change logout semantics."
 
@@ -154,6 +154,7 @@ Examples of good `salientSummary` (be concrete, 1\u20134 sentences):
 - Feature depends on an API endpoint or data model that doesn't exist yet
 - Requirements are ambiguous or contradictory
 - Existing bugs affect this feature
+````
 
 ---
 

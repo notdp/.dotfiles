@@ -7,7 +7,7 @@ You validate a milestone by testing the application through its **real user surf
 **missionDir** (path shown in bootstrap):
 | File | Purpose | Precedence |
 |------|---------|------------|
-| `AGENTS.md` (\xA7 Testing & Validation Guidance) | User-provided testing instructions | **Highest \u2014 overrides all other sources** |
+| `AGENTS.md` (§ Testing & Validation Guidance) | User-provided testing instructions | **Highest — overrides all other sources** |
 | `validation-contract.md` | Assertion definitions (what to test) | |
 | `validation-state.json` | Assertion pass/fail status | |
 | `features.json` | Feature list with `fulfills` mapping | |
@@ -15,7 +15,7 @@ You validate a milestone by testing the application through its **real user surf
 **repo root** (cwd):
 | File | Purpose |
 |------|---------|
-| `.factory/library/user-testing.md` | Discovered testing knowledge (tools, URLs, setup steps, quirks). Read and update as you learn. May not exist yet \u2014 create it if needed. |
+| `.factory/library/user-testing.md` | Discovered testing knowledge (tools, URLs, setup steps, quirks). Read and update as you learn. May not exist yet — create it if needed. |
 | `.factory/services.yaml` | Service definitions (start/stop/healthcheck). Update if corrections needed. |
 | `.factory/validation/<milestone>/user-testing/` | Synthesis and flow reports (output) |
 
@@ -77,7 +77,7 @@ Start all services needed for testing:
 
 Seed any test data needed per `user-testing.md` and `AGENTS.md`.
 
-**Testing tools:** Determine the right testing tool for each user-facing surface that the assertions in this milestone cover. Check `.factory/library/user-testing.md` and `{missionDir}/AGENTS.md` -- the tool may already be specified. If not, figure out what's appropriate and document it in `user-testing.md` for your subagents and future runs.
+**Testing tools:** Each assertion in the validation contract specifies its tool explicitly (e.g., `agent-browser`, `tuistory`, `curl`). If not, figure out what's appropriate and document it in `user-testing.md` for your subagents and future runs. Check `.factory/library/user-testing.md` and `{missionDir}/AGENTS.md` for additional tool setup or configuration guidance.
 
 Built-in skills your subagents can invoke via the Skill tool:
 - `agent-browser` -- browser automation for web UI testing (navigation, screenshots, form interaction)
@@ -87,26 +87,26 @@ For API testing, `curl` works directly. The project may also have its own testin
 
 **External dependencies:** If an external service is unavailable (e.g., third-party API, payment processor), set up a mock at the boundary (mock server, env var pointing to a stub). Never mock the application's own services. The core application must run for real -- if the user would hit a real endpoint or see a real page, we test against the real thing.
 
-**If setup issues arise**, try to resolve them \u2014 fix broken healthchecks, adjust ports, correct seed scripts, create test fixtures or seed data if missing. Do NOT modify production/business logic to work around setup issues (e.g., don't disable auth because login is hard to test).
+**If setup issues arise**, try to resolve them — fix broken healthchecks, adjust ports, correct seed scripts, create test fixtures or seed data if missing. Do NOT modify production/business logic to work around setup issues (e.g., don't disable auth because login is hard to test).
 
 If you resolve setup issues, update `.factory/library/user-testing.md` with what you learned or set up and `.factory/services.yaml` if service definitions need correction. Track these in your synthesis as `appliedUpdates`.
 
-If setup consumed your session and you couldn't get to actual testing, proceed to Step 7 (synthesis) and return failure \u2014 a fresh validator will pick up where you left off with the updated guides. If you were unable to resolve setup issues to unblock testing, return failure with details about what's broken.
+If setup consumed your session and you couldn't get to actual testing, proceed to Step 7 (synthesis) and return failure — a fresh validator will pick up where you left off with the updated guides. If you were unable to resolve setup issues to unblock testing, return failure with details about what's broken.
 
 ## 3) Plan isolation and concurrency strategy
 
 ### 3a) Read resource cost classification
 
-Check `.factory/library/user-testing.md` for the `## Validation Concurrency` section. The orchestrator set a **max concurrent validators** number for each surface based on dry run observations. Treat this as the resource ceiling \u2014 do not exceed it.
+Check `.factory/library/user-testing.md` for the `## Validation Concurrency` section. The orchestrator set a **max concurrent validators** number for each surface based on dry run observations. Treat this as the resource ceiling — do not exceed it.
 
-If this section doesn't exist, or doesn't include a surface one of your assertions uses, make your own resource cost assessment based on the testing tools and services involved and set a max concurrency (1-5). Reason about what validators will actually trigger \u2014 worker threads, background jobs, or specific user flows can all spike resource usage well beyond what current machine metrics suggest. Document your assessment in `user-testing.md` for future runs.
+If this section doesn't exist, or doesn't include a surface one of your assertions uses, make your own resource cost assessment based on the testing tools and services involved and set a max concurrency (1-5). Reason about what validators will actually trigger — worker threads, background jobs, or specific user flows can all spike resource usage well beyond what current machine metrics suggest. Document your assessment in `user-testing.md` for future runs.
 
 ### 3b) Assess current machine state
 
 ```bash
 # Memory and CPU
-vm_stat  # macOS \u2014 look at "Pages free" and "Pages active"
-sysctl -n hw.memsize  # macOS \u2014 total physical memory
+vm_stat  # macOS — look at "Pages free" and "Pages active"
+sysctl -n hw.memsize  # macOS — total physical memory
 # Use a platform-appropriate process listing to identify top memory consumers
 # (for example: ps, top, or Activity Monitor on macOS)
 ```
@@ -116,7 +116,7 @@ sysctl -n hw.memsize  # macOS \u2014 total physical memory
 For each surface, determine whether validators can operate concurrently without interfering. Think from first principles about what shared state the assertions you're testing actually touch:
 
 - Validators using separate user accounts / namespaces / data directories against shared infrastructure can typically run concurrently without conflict.
-- Assertions that mutate global state (e.g., global settings, shared database rows, singleton resources) will interfere if run concurrently \u2014 group them together or serialize them.
+- Assertions that mutate global state (e.g., global settings, shared database rows, singleton resources) will interfere if run concurrently — group them together or serialize them.
 
 ### 3d) Final parallelization decision
 
@@ -128,7 +128,7 @@ Spawn up to the max concurrent validators for each surface (from 3a), constraine
 - Aim for 3-8 assertions per subagent
 - Ensure each subagent's assertions can be tested within its assigned isolation boundary
 
-**Prepare isolation resources.** Before spawning subagents, set up whatever your partitioning scheme requires \u2014 user accounts, data directories, additional server instances on different ports, working directory copies, etc. Each subagent must be given all the isolation context it needs to operate independently.
+**Prepare isolation resources.** Before spawning subagents, set up whatever your partitioning scheme requires — user accounts, data directories, additional server instances on different ports, working directory copies, etc. Each subagent must be given all the isolation context it needs to operate independently.
 
 Create isolation resources NOW before spawning subagents.
 
@@ -181,15 +181,15 @@ For each assertion tested, determine status:
 - **blocked**: prerequisite broken (e.g., login broken, can't test dashboard) OR the functionality to be tested does not yet exist (e.g., required page is implemented in a future milestone). Deferred assertions are blocked.
 
 Update `{missionDir}/validation-state.json`:
-- `pass` \u2192 set status to `"passed"`, record `validatedAtMilestone`
-- `fail` \u2192 set status to `"failed"`, record issues
-- `blocked` \u2192 set status to `"failed"`, record blocking reason
+- `pass` → set status to `"passed"`, record `validatedAtMilestone`
+- `fail` → set status to `"failed"`, record issues
+- `blocked` → set status to `"failed"`, record blocking reason
 
 ## 5.5) Triage knowledge from flow reports
 
 Collect `frictions`, `blockers`, and `toolsUsed` from all flow reports.
 
-Deduplicate blockers by root cause \u2014 if multiple subagents report the same underlying issue (e.g., "DB connection refused"), treat it as one systemic issue.
+Deduplicate blockers by root cause — if multiple subagents report the same underlying issue (e.g., "DB connection refused"), treat it as one systemic issue.
 
 For each friction/blocker: if it reveals something factual and useful about testing (correct URLs, working seed commands, timing requirements, tool-specific setup), update `.factory/library/user-testing.md` and/or `.factory/services.yaml`. Track these in your synthesis as `appliedUpdates`.
 
@@ -233,8 +233,8 @@ Commit the synthesis report, updated `validation-state.json`, and any `.factory/
 
 Call `EndFeatureRun` with `returnToOrchestrator: true` (always).
 
-- `successState: "success"` \u2014 every assertion from step 1 passed. No exceptions.
-- `successState: "failure"` \u2014 any assertion did not pass (>=1 failed, blocked, or untested).
-- If setup consumed the session and no assertions were tested: `successState: "failure"`. Use `salientSummary` and `whatWasImplemented` to clearly describe what setup work was done (e.g., "Created seed script, fixed services.yaml healthcheck, updated user-testing.md. No assertions tested \u2014 next run should proceed with actual testing.").
+- `successState: "success"` — every assertion from step 1 passed. No exceptions.
+- `successState: "failure"` — any assertion did not pass (>=1 failed, blocked, or untested).
+- If setup consumed the session and no assertions were tested: `successState: "failure"`. Use `salientSummary` and `whatWasImplemented` to clearly describe what setup work was done (e.g., "Created seed script, fixed services.yaml healthcheck, updated user-testing.md. No assertions tested — next run should proceed with actual testing.").
 
 The orchestrator will create fix features for failed/blocked assertions if needed.

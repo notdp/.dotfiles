@@ -1,61 +1,41 @@
 # Mission Planning
 
-This skill guides you through the planning phase. Do not skip phases or rush through them.
+This skill guides you through the planning phase.
 
-## Phase 1: Understand Requirements (INTERACTIVE)
+## Phase 1: Understand & Plan (DYNAMIC, ITERATIVE)
 
-Talk with the user to fully understand their goal and requirements:
-- Ask clarifying questions - don't assume
-- What's the goal? What should users be able to do?
-- Any technical constraints or preferences (language, framework, existing patterns)?
-- What's the scope?
-- What technologies, SDKs, and integrations will this mission involve?
-- Any specific skills, tools, or workflows workers should use?
+This is the most important phase. Your goal is to arrive at a deep, comprehensive understanding of: what we're building, how it works architecturally, where complexity lives, what user-facing surfaces exist, and what the approach should be.
 
-**Ask clarifying questions.** Don't assume. If the request is vague, ask before proceeding.
+**Start by asking the user** enough questions to build shared understanding of what we're building and what matters — so that all subsequent investigation has direction. Ask as many as make sense in one go. Don't start investigating until these are answered.
 
-**If working in an existing codebase**, investigate it to understand requirements in context. Delegate deep investigation to subagents while you handle structural overview (READMEs, configs, directory layouts). Subagents should explore code, trace flows, and discover operational details (build/test commands, service setup, existing patterns). Synthesize their reports into a clear understanding of the existing system before planning milestones.
+**Then interleave these activities as needed** — the problem dictates the path:
+- **Investigate** the codebase and technologies via subagents. Delegate deep investigation — code reading, flow tracing, module analysis, operational discovery. You handle structural overview (READMEs, configs, directory layouts) and synthesize subagent reports.
+- **Research** technologies where your training knowledge may be insufficient. Follow the Online Research guidelines — delegate to subagents.
+- **Identify testing surfaces** — where behavior can be tested through user-facing boundaries (browser UI, CLI, API). Delegate architectural analysis to subagents when assessing this.
+- **Think through the approach** — how will this be built, what are the boundaries, where will workers need the most guidance? For any deep thinking or thorough analysis, delegate to subagents.
+- **Ask again** if investigation reveals new ambiguities.
 
-Identify all technologies, SDKs, and integrations the mission involves. Follow the Online Research guidelines in "Investigation Scope" to determine which ones need research before you can make correct architectural decisions.
+**Always delegate deep investigation and deep thinking to subagents.** Your context window is finite — preserve it for orchestration, synthesis, and user interaction. When you need thorough analysis of any aspect (architectural decomposition, surface identification, technology assessment, edge case enumeration), spawn a subagent.
 
-Only move forward when you have a clear picture of what success looks like.
+### Iterative Exploration Loop
 
-## Phase 2: Identify Milestones
+Planning is not a single pass of investigation followed by a proposal. After each round of investigation, explicitly enumerate what you still don't know and assess which unknowns matter most. For each high-importance unknown, either investigate via subagent or ask the user. Then re-assess — did exploration surface new unknowns? Keep going until nothing important is left unexplored.
 
-Identify all milestones (feature areas). Each milestone is a vertical slice of functionality that leaves the product in a coherent, testable state.
+Continue until you can answer these questions about every part of the system you're building:
+- What does it do?
+- What are its boundaries?
+- Where does complexity concentrate?
+- How would an independent party verify it works?
 
-Milestones control when validation runs. When all features in a milestone complete, the system automatically injects features to the work (scrutiny + user testing).
+If you can't answer these, you don't understand the problem well enough yet. Keep investigating.
 
-- **Single milestone**: Use for simple missions. All implementation runs first, validation happens once at the end.
-- **Multiple milestones**: Use for complex missions. Validation is interleaved with implementation, catching foundational issues before dependent features are built on top.
+**Keep in mind:** Your understanding here directly informs the validation contract — the behavioral assertions that define "done." The contract will need assertions for every surface you identify. Shallow understanding produces shallow contracts, which produce shallow validation.
 
-State your chosen strategy and briefly explain your reasoning when presenting milestones. The user can always override if they prefer a different approach.
+Only move forward when you have a clear, deep picture of what success looks like.
 
-## Phase 3: Confirm Milestones (INTERACTIVE)
+## Phase 2: Infrastructure & Boundaries
 
-Present your milestones to the user:
-
-```
-Here's how I'm thinking about breaking this down:
-
-**Milestone: direct-messages**
-[High-level but complete description of what this encompasses]
-
-**Milestone: channels**
-[High-level but complete description]
-
-[etc.]
-
-Does this cover everything? Any areas missing or out of scope?
-```
-
-**You need explicit user confirmation to proceed.** Iterate until they agree.
-
-**Milestone Lifecycle:** Once a milestone's validators pass, it is **sealed**. Any subsequent work goes into a new milestone (follow-up or misc bucket). Never add to a completed milestone.
-
-## Phase 4: Think About Infrastructure & Boundaries
-
-Once milestones are agreed, determine what infrastructure is needed:
+Determine what infrastructure is needed:
 - What services? (databases, caches, queues, etc.)
 - What processes? (API server, web frontend, workers, etc.)
 - What ports will each need?
@@ -83,7 +63,7 @@ Analyze the output to:
 - Discover processes that might conflict with your mission
 - Note any ports/directories that should be off-limits
 
-Present infrastructure needs and how they fit with the user's setup:
+Present needed infrastructure and how they fit with the user's setup:
 
 ```
 This mission will need:
@@ -94,27 +74,29 @@ This mission will need:
 Does this setup work for you?
 ```
 
-**You need explicit user confirmation to proceed.** Iterate until they agree.
+**You need explicit user confirmation to proceed.**
 
-## Phase 5: Set Up Credentials & Accounts (INTERACTIVE)
+## Phase 3: Set Up Credentials & Accounts (INTERACTIVE)
 
-If the mission requires new third-party services, set up everything needed so the mission can run fully autonomously from this point forward. For greenfield projects, this likely means all credentials and accounts. For existing codebases, investigate what's already configured and only set up what's missing.
+If the mission involves any external dependencies (APIs, databases, auth providers, third-party SDKs), you must set up real credentials and connections so the mission can be validated end-to-end. This is not optional — the default is real integration, not mocks.
+
+For greenfield projects, this likely means all credentials and accounts. For existing codebases, investigate what's already configured and only set up what's missing.
 
 If new credentials/accounts are needed:
 1. If they don't already exist, initialize any needed configuration files first (e.g., `.env` files with variable names and placeholder values), so the user has somewhere to put them.
 2. Guide the user through the specific steps to create any needed accounts and generate credentials, providing clear instructions and links.
 
-**CRITICAL: During this step, we must set up everything such that the mission can run autonomously until completion.**
+**CRITICAL: During this step, we must set up everything such that the mission can be validated end-to-end with real integrations.** Workers must be able to test against real APIs, real databases, real auth flows. If a feature streams from an LLM API, the real API key must be configured. If a feature processes payments, a real sandbox/test-mode key must be configured. The validation contract will include assertions that exercise these real integration paths.
 
-The user may explicitly choose to defer specific credentials (e.g., "use mocks for now", "I'll add Stripe keys later"). Respect this, but note it in the mission proposal so workers know what's unavailable.
+The user may explicitly choose to defer specific credentials (e.g., "use mocks for now", "I'll add Stripe keys later"). Respect this, but note it in the mission proposal so workers know what's unavailable and which end-to-end assertions are deferred. This is an explicit user opt-out — never silently default to mocks.
 
-Skip this phase entirely if the mission doesn't require any external credential or account setup.
+Only skip this phase if the mission genuinely has no external credential or account dependencies.
 
 Ensure that you don't commit any secrets or sensitive information. Add these files to `.gitignore`.
 
-## Phase 6: Plan Testing & Validation Strategy
+## Phase 4: Plan Testing & Validation Strategy
 
-Use subagents to investigate both testing infrastructure and user testing strategy. For existing codebases, discover established patterns and conventions. For greenfield, determine what testing infrastructure and validation tooling the mission needs. If the mission's technologies have specific testing patterns or libraries that you don't know by heart (e.g., Convex test helpers, Supabase local dev), reference your online research findings or do targeted follow-up research.
+Use subagents to investigate testing infrastructure and plan the validation strategy. For existing codebases, discover established patterns and conventions. For greenfield, determine what testing infrastructure and validation tooling the mission needs. If the mission's technologies have specific testing patterns or libraries that you don't know by heart (e.g., Convex test helpers, Supabase local dev), reference your online research findings or do targeted follow-up research. Always delegate deep investigation to subagents.
 
 ### Testing Infrastructure
 
@@ -132,7 +114,7 @@ Plan how the mission's output will be validated through its real user surface. T
 Determine:
 - Which surfaces will be tested (browser, CLI, API endpoints)?
 - What tools will be used and what setup is needed?
-- Are there any gaps \u2014 surfaces that exist but can't be reliably tested?
+- Are there any gaps — surfaces that exist but can't be reliably tested?
 
 **Tool selection rule:** If the mission involves a web application or an Electron desktop app, you MUST use `agent-browser` for validation of that surface, unless the user explicitly requests an alternative.
 
@@ -142,10 +124,10 @@ You must run a validation readiness dry run before proceeding to the mission pro
 
 - Use the `Task` tool to delegate this dry run to a subagent. It should:
   - Start required services and run a representative pass of the intended user-testing flows with the tools the mission will use (agent-browser, tuistory, curl), including auth/bootstrap paths when applicable.
-  - For new (greenfield) codebases: there is no running application yet, so the dry run focuses on verifying the toolchain \u2014 confirm that testing tools (agent-browser, tuistory, curl) are installed and functional, that planned ports are available, and that the environment can support the validation approach (e.g., can agent-browser launch and navigate to a local URL?).
-  - For existing codebases: verify the full validation path \u2014 dev server starts, pages load, testing tools can interact with the application surface, auth/bootstrap paths work, existing fixtures/seed data are available, and the application is in a testable state.
+  - For new (greenfield) codebases: there is no running application yet, so the dry run focuses on verifying the toolchain — confirm that testing tools (agent-browser, tuistory, curl) are installed and functional, that planned ports are available, and that the environment can support the validation approach (e.g., can agent-browser launch and navigate to a local URL?).
+  - For existing codebases: verify the full validation path — dev server starts, pages load, testing tools can interact with the application surface, auth/bootstrap paths work, existing fixtures/seed data are available, and the application is in a testable state.
   - Confirm the validation path is actually executable in this environment before implementation begins.
-  - Measure resource consumption during the dry run: check memory usage, CPU load, and process count before and after exercising flows. Report the numbers. Note whether flows triggered substantial background work, process spawning, or unexpected resource growth \u2014 these observations feed directly into the resource cost classification step below.
+  - Measure resource consumption during the dry run: check memory usage, CPU load, and process count before and after exercising flows. Report the numbers. Note whether flows triggered substantial background work, process spawning, or unexpected resource growth — these observations feed directly into the resource cost classification step below.
   - Identify blockers early (auth/access issues, missing fixtures/seed data, env/config gaps, broken local setup, unavailable entrypoints, flaky prerequisites).
 - Present blockers and concrete options to the user, then iterate until either:
   1. validation is runnable, or
@@ -155,15 +137,15 @@ You must run a validation readiness dry run before proceeding to the mission pro
 
 #### Resource Cost Classification
 
-Check the machine's total memory, CPU cores, and current utilization. Determine the **max concurrent validators** for each validation surface \u2014 up to 5. Consider: how much memory/CPU does each validator instance consume on this surface? How much headroom does the machine have? Some surfaces share infrastructure across validators; others multiply it. Factor in the actual weight of what gets multiplied.
+Check the machine's total memory, CPU cores, and current utilization. Determine the **max concurrent validators** for each validation surface — up to 5. Consider: how much memory/CPU does each validator instance consume on this surface? How much headroom does the machine have? Some surfaces share infrastructure across validators; others multiply it. Factor in the actual weight of what gets multiplied.
 
-**Use 70% of available headroom** when calculating max concurrency. Dry run profiles are estimates, and real usage may be unpredictable. Planning against 70% of headroom absorbs the unexpected.
+**Use 70% of available headroom** when calculating max concurrency. Dry run profiles are estimates, and real usage may be unpredictable.
 
-**Example \u2014 agent-browser (lightweight app):** The app is lightweight, so each agent-browser instance uses ~300 MB of RAM. The dev server adds ~200 MB. On a machine with 18 GB total RAM, 12 CPU cores, and ~6 GB used at baseline, usable headroom is 12 GB * 0.7 = **8.4 GB**. Running 5 concurrent instances adds ~1.5 GB, plus ~200 MB for the dev server \u2014 well within budget. Max concurrent: **5**.
+**Example — agent-browser (lightweight app):** The app is lightweight, so each agent-browser instance uses ~300 MB of RAM. The dev server adds ~200 MB. On a machine with 18 GB total RAM, 12 CPU cores, and ~6 GB used at baseline, usable headroom is 12 GB * 0.7 = **8.4 GB**. Running 5 concurrent instances adds ~1.5 GB, plus ~200 MB for the dev server — well within budget. Max concurrent: **5**.
 
-**Example \u2014 agent-browser (heavy app):** The app under test is an Electron-based IDE that consumes ~2 GB of RAM per instance. Each validator needs its own app instance (separate CDP port) plus an agent-browser session (~300 MB). That's ~2.3 GB per validator. On the same machine, usable headroom is **8.4 GB**. 3 validators = 6.9 GB (fits). 4 validators = 9.2 GB (exceeds budget). Max concurrent: **3**.
+**Example — agent-browser (heavy app):** The app under test is an Electron-based IDE that consumes ~2 GB of RAM per instance. Each validator needs its own app instance (separate CDP port) plus an agent-browser session (~300 MB). That's ~2.3 GB per validator. On the same machine, usable headroom is **8.4 GB**. 3 validators = 6.9 GB (fits). 4 validators = 9.2 GB (exceeds budget). Max concurrent: **3**.
 
-**Reason beyond dry runs, especially in existing codebases.** A dry run is a snapshot of one moment \u2014 it won't capture what the codebase actually does under real usage. A greenfield app behaves predictably; an established codebase with years of accumulated infrastructure does not. Before finalizing concurrency limits, reason about what the mission is actually building and what it will interact with \u2014 worker threads, background jobs, or specific user flows can all spike resource usage well beyond what a dry run captures. Use this understanding to inform concurrency limits.
+**Reason beyond dry runs, especially in existing codebases.** A dry run is a snapshot of one moment — it won't capture what the codebase actually does under real usage. A greenfield app behaves predictably; an established codebase with years of accumulated infrastructure does not. Before finalizing concurrency limits, reason about what the mission is actually building and what it will interact with — worker threads, background jobs, or specific user flows can all spike resource usage well beyond what a dry run captures. Use this understanding to inform concurrency limits.
 
 If the mission has multiple surfaces, classify each independently.
 
@@ -183,11 +165,21 @@ Before concluding this phase, you must align with the user on both the testing a
 - Validation surfaces, tools, setup, and resource cost classification
 - Any accepted limitations
 
-**You need explicit user confirmation to proceed.** Iterate until they agree.
+**You need explicit user confirmation to proceed.**
 
-Capture the final validation approach and any accepted limitations in all relevant mission artifacts.
+## Phase 5: Identify & Confirm Milestones
 
-## Phase 7: Create Mission Proposal
+Now that you have a deep understanding of requirements, architecture, surfaces, and validation strategy, identify milestones.
+
+Each milestone is a vertical slice of functionality that leaves the product in a coherent, testable state. Milestones control when validation runs — when all features in a milestone complete, the system automatically injects scrutiny + user testing validators.
+
+Present your milestones to the user. Explain the tradeoff - more milestones means a more thorough validation contract and a more granular breakdown of features, resulting in higher quality but increasing mission cost. Fewer milestones means faster execution but less detailed validation and coarser feature decomposition. Let the user decide where they want that balance.
+
+**You need explicit user confirmation to proceed.** Iterate until you have it.
+
+**Milestone Lifecycle:** Once a milestone's validators pass, it is **sealed**. Any subsequent work goes into a new milestone.
+
+## Phase 6: Create Mission Proposal
 
 With the comprehensive plan complete, call `propose_mission` with a detailed markdown proposal.
 
@@ -198,7 +190,7 @@ The proposal should include:
 - Infrastructure (services, processes, ports) and boundaries
 - Testing strategy: how will the mission be tested? Cover which levels apply (unit, component, integration, e2e)
 - User testing strategy: how manual user testing will work (what surfaces to test, what tools to use, any setup needed).
-- Validation readiness: results of the dry run \u2014 confirm the validation path is executable, or note any accepted limitations/alternatives.
+- Validation readiness: results of the dry run — confirm the validation path is executable, or note any accepted limitations/alternatives.
 - Non-functional requirements
 
 The infrastructure section tells workers what's needed and what to avoid. Example:
