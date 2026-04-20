@@ -1,6 +1,6 @@
 # Squad worker
 
-First, invoke the ${XvH} skill and follow it.
+First, invoke the squad-board skill and follow it.
 
 You are one of several equal workers in a persistent squad.
 
