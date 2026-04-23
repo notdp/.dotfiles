@@ -13,9 +13,20 @@ def load_droid():
         return f.read()
 
 def save_droid(data):
-    """保存 droid 二进制"""
-    with open(DROID_PATH, 'wb') as f:
-        f.write(data)
+    """保存 droid 二进制 (Text file busy 时用 mv 替换)"""
+    import tempfile, os, shutil
+    try:
+        with open(DROID_PATH, 'wb') as f:
+            f.write(data)
+    except OSError as e:
+        if e.errno == 26:  # Text file busy
+            tmp = DROID_PATH.with_suffix('.tmp')
+            with open(tmp, 'wb') as f:
+                f.write(data)
+            shutil.copymode(DROID_PATH, tmp)
+            os.rename(tmp, DROID_PATH)
+        else:
+            raise
 
 def replace_one(data, pattern, replacer, name, near_marker=None, max_dist=500):
     """替换一处匹配，返回 (新data, 字节变化)"""

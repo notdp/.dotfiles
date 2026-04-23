@@ -24,10 +24,10 @@ applied = 0
 # 上下文: getReasoningEffort();if(Y9H.includes(X)){if(!h9H
 pat1 = rb'(' + V + rb')\.includes\((' + V + rb')\)\)\{if\(!' + V
 m1 = None
-for candidate in re.finditer(pat1, data):
-    ctx = data[max(0, candidate.start()-120):candidate.start()+100]
+for _m in re.finditer(pat1, data):
+    ctx = data[max(0, _m.start()-120):_m.start()+120]
     if b'getReasoningEffort' in ctx:
-        m1 = candidate
+        m1 = _m
         break
 
 if m1:
