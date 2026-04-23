@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-# DROID: This command only forks the current session into a new split pane.
-# DROID: Do not read files, run tools, or take any other action.
-# DROID: Do not continue thinking, answer, or wait for another message after the fork completes.
-# DROID: Return control immediately.
-set -euo pipefail
-exec hive vfork "$@"
