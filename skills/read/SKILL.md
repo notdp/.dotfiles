@@ -1,8 +1,9 @@
 ---
 name: read
-description: Invoke when given any URL, web page link, or PDF to read. Fetches the content as clean Markdown via proxy cascade and saves to Downloads. Not for local text files or source code already in the repo.
+description: "Fetches any URL or PDF as clean Markdown. Handles paywalls, JS-heavy pages, X/Twitter, and Chinese platforms via proxy cascade. Always prefer this over WebFetch for any URL. Not for local text files or source code already in the repo."
+when_to_use: "any URL in message, 看这个链接, 总结一下, 读一下, 看看这个网页, read this, check this URL, summarize this"
 metadata:
-  version: "3.9.0"
+  version: "3.14.0"
 ---
 
 # Read: Fetch Any URL or PDF as Markdown
@@ -20,6 +21,7 @@ Convert any URL or local PDF to clean Markdown and save it. No analysis, no summ
 | `mp.weixin.qq.com` | Proxy cascade first, built-in WeChat article script only if the proxies fail |
 | `.pdf` URL or local PDF path | PDF extraction |
 | GitHub URLs (`github.com`, `raw.githubusercontent.com`) | Prefer raw content or `gh` first. Use the proxy cascade only as fallback. |
+| `x.com`, `twitter.com` | Proxy cascade (r.jina.ai keeps image URLs). Do not try WebFetch; it 402s. |
 | Everything else | Proxy cascade |
 
 After routing, load `references/read-methods.md` and run the commands for the chosen method.
@@ -43,6 +45,16 @@ Skip only if user says "just preview" or "don't save". Tell the user the saved p
 
 If `~/Downloads/{title}.md` already exists, append `-1`, `-2`, etc., to the filename. Never overwrite an existing file without explicit confirmation.
 
+## Images
+
+By default only save Markdown. Download images only when the user explicitly asks: "download images", "save images", "带图", "下载图片", or similar.
+
+When asked, after saving the Markdown:
+
+1. Extract image URLs: `grep -oE 'https?://[^ )"]+\.(jpg|jpeg|png|webp|gif)' {md_path} | sort -u`
+2. Create `~/Downloads/{title}-images/` and curl each URL in parallel (`&` + `wait`). Use the same proxy env vars as the fetch step.
+3. Report the count and folder path. If any download fails, list the failed URLs.
+
 ## Hard Rules
 
 - **Do not summarize or analyze the content.** Your job is conversion and storage, not interpretation.
@@ -59,3 +71,16 @@ If `~/Downloads/{title}.md` already exists, append `-1`, `-2`, etc., to the file
 | Long content | `| head -n 200` to preview first; mention truncation when reporting the save. |
 | Local fallback tools returned JSON | Extract the Markdown-bearing field. Raw JSON is not a valid final output for `/read`. |
 | All methods failed | Stop and tell the user what was tried and what failed. Suggest opening the URL in a browser or providing an alternative. Do not silently return empty or partial results. |
+
+## Content Extraction for Restyling
+
+Activate when: "extract content", "reformat this document", or user hands over a document to restyle
+
+Extract and tag:
+- **Headings**: H1/H2/H3 hierarchy
+- **Body paragraphs**: Plain text, no styling
+- **Lists**: Bullet vs numbered, nesting level
+- **Metrics/data**: Numbers, dates, quantifiable claims
+- **Images/diagrams**: Descriptions, captions
+
+Output: Clean, tagged content ready to feed into kami or other typesetting tools.

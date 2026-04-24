@@ -1,8 +1,9 @@
 ---
 name: learn
-description: "Invoke when diving deep into an unfamiliar domain, preparing a research article, or turning collected sources into publish-ready output. Runs a six-phase workflow: collect, digest, outline, fill in, refine, self-review. Not for quick lookups or single-file reads."
+description: "Runs a six-phase research workflow to turn unfamiliar domains or collected sources into publish-ready output. Not for quick lookups or single-file reads."
+when_to_use: "学习一下, 深入研究, 研究一下, 整理成文章, research, deep dive, help me understand, compile sources, unfamiliar domain"
 metadata:
-  version: "3.9.0"
+  version: "3.14.0"
 ---
 
 # Learn: From Raw Materials to Published Output
@@ -101,3 +102,15 @@ When it reads clean from start to finish, the draft is ready for the user to pub
 | Treated a convincing explainer as ground truth | Ask: does this appear in at least two different contexts from the same source? |
 | Phase 2 wrote summaries instead of teaching the concept | Digest means building the mental model. Summarizing is not digesting. |
 | AI offered to upload the article to a blog or social platform after the user said it was ready | Stop at confirmation. Publishing is the user's action, not yours. |
+
+## Specification Writing Mode
+
+Activate when: "codify design rules", "write a spec", "document patterns", or synthesizing design system
+
+Workflow:
+1. **Collect**: Gather all references (existing docs, code, screenshots)
+2. **Extract patterns**: Identify recurring decisions (spacing scale, color palette, typography rules)
+3. **Codify**: Write explicit rules with examples and anti-patterns
+4. **Validate**: Check that the spec covers all observed cases
+
+Output: Structured specification document (e.g., design.md, API.md, style-guide.md)
