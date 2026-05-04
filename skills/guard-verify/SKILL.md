@@ -18,6 +18,23 @@ argument-hint: <交付物|验证范围>
 4. **回归检查** — 确认没有破坏已有功能
 5. **结构性验证** — 若本次改动涉及架构/重构/大 diff，补充说明影响面是否合理、验证护栏是否足够；必要时引用 `/think-quality` 结论
 
+## UI 任务额外门禁
+
+当交付物涉及 UI、CSS、React/Vue/Svelte 组件、页面、设计系统或视觉调整时，自动验证不够。必须补充视觉证据：
+
+| Check | 必需证据 |
+|---|---|
+| 页面入口 | URL、本地 route、Storybook story 或组件预览入口 |
+| Viewport | 至少 mobile + desktop；建议 `390x844`、`1280x900` |
+| Screenshot | 每个关键 viewport 的截图路径 |
+| DOM snapshot | 关键区域 snapshot 或 selector 查询结果 |
+| Horizontal overflow | `scrollWidth <= innerWidth` 或等价检查 |
+| Text overflow | 聚焦区域无截断、遮挡、按钮撑破的证据 |
+| Interaction state | 关键控件 hover/focus/disabled/loading/error 中适用状态 |
+| Reference diff | 有参考图时引用 `/fe-ui-visual-iterate` 差异表 |
+
+禁止把“测试通过”“肉眼看了下”当成 UI verified。缺截图或 overflow 证据时，UI 交付物状态只能是 `partial`。
+
 ## 工具化步骤
 
 ```
@@ -82,6 +99,15 @@ verification: none -- structural gap
 | lint  | `...` | pass | ... |
 
 （若 exit=2 / 未探测到测试命令 / 无 characterization：在此节末尾追加 `verification: none -- structural gap`）
+
+### UI 视觉验证（仅 UI 任务）
+| Check | Result | Evidence |
+|-------|--------|----------|
+| viewport | pass/partial | `390x844`, `1280x900` |
+| screenshot | pass/partial | `/tmp/.../page.png` |
+| horizontal overflow | pass/partial | `scrollWidth <= innerWidth` |
+| text overflow | pass/partial | selector / screenshot region |
+| interaction states | pass/partial | selector / screenshot / snapshot |
 
 ### 结构性评估
 - 影响面: ...

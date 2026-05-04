@@ -49,6 +49,24 @@
       "role": "canonical"
     },
     {
+      "name": "fe-ui-critique",
+      "path": "skills/fe-ui-critique",
+      "domain": "fe",
+      "role": "canonical"
+    },
+    {
+      "name": "fe-ui-design-system",
+      "path": "skills/fe-ui-design-system",
+      "domain": "fe",
+      "role": "canonical"
+    },
+    {
+      "name": "fe-ui-lint-artifact",
+      "path": "skills/fe-ui-lint-artifact",
+      "domain": "fe",
+      "role": "canonical"
+    },
+    {
       "name": "think-architecture",
       "path": "skills/think-architecture",
       "domain": "think",

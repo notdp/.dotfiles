@@ -88,3 +88,6 @@
 [submodule "refs/github/awesome-copilot"]
 	path = refs/github/awesome-copilot
 	url = https://github.com/github/awesome-copilot.git
+[submodule "refs/nexu-io/open-design"]
+	path = refs/nexu-io/open-design
+	url = https://github.com/nexu-io/open-design

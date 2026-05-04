@@ -38,6 +38,10 @@ My Droid skills/scripts
 | `readable-metrics` | 终端可扫描的指标表达 |
 | `assist-learn` | 经验沉淀为规则 / 模板 / 操作卡 |
 | `fe-ui-design` | 前端设计约束；创建 web 组件、页面或应用时使用 |
+| `fe-ui-critique` | UI 设计诊断；已有页面、截图或实现需要判断视觉质量时使用 |
+| `fe-ui-design-system` | 轻量设计系统；提取或生成 DESIGN.md 风格视觉契约 |
+| `fe-ui-lint-artifact` | UI artifact 扫描；检查 AI slop、硬编码 token、filler copy 和溢出风险 |
+| `fe-ui-visual-iterate` | UI 视觉迭代；截图、差异表和复拍驱动视觉收敛 |
 | `react-doctor` | React 代码健康检查；React 改动后运行，用于提前发现问题 |
 | `web-read` | 把远程 URL / GitHub / PDF 读成干净 Markdown |
 | `agent-browser` | 浏览器与 Electron 应用自动化；交互、截图、表单、提取 |

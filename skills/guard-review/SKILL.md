@@ -44,6 +44,13 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
 - [ ] 安全：输入验证、敏感数据、注入风险
 - [ ] 测试：覆盖关键路径、测试行为而非实现
 - [ ] 需求：变更是否满足目标
+- [ ] UI 专项（仅当前端/UI/CSS diff 命中）：
+  - [ ] 新增颜色是否来自 token，是否出现默认 indigo/purple 或 trust gradient
+  - [ ] 是否新增硬编码 spacing/radius/shadow，破坏既有 design system
+  - [ ] 是否固定宽高或滥用 `overflow-hidden`，导致文字溢出被掩盖
+  - [ ] 是否缺 `focus-visible`、`prefers-reduced-motion`、mobile touch target
+  - [ ] 是否出现卡片嵌套、glassmorphism、emoji icon、filler copy、无来源指标
+  - [ ] 状态样式是否覆盖 loading/error/disabled/empty 中适用状态
 - [ ] Drift Signals（scope drift 自动检查，命中任意一条 → Important 起步）：
   - [ ] diff 含与 PR 标题/描述无关的文件
   - [ ] 纯重构与行为变更混合在同一 commit

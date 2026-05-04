@@ -8,6 +8,23 @@ argument-hint: <页面/组件需求|设计目标>
 
 构建符合设计原则的前端界面，避免 AI 生成的典型视觉问题。
 
+## Design Contract（动 UI 前先锁定）
+
+写任何 UI 代码前，先用 5-8 行锁定设计契约；已有 design system 时读取并沿用，没有时生成临时契约。
+
+→ 契约模板见 [design-contract](refs/design-contract.md)
+
+必填：
+
+- Surface：web / mobile / dashboard / deck / fixed canvas
+- Audience：工具型 / 营销型 / 内容型 / 游戏型
+- Direction：editorial / modern-minimal / warm-soft / tech-utility / brutalist，或项目既有风格
+- Tokens：`--bg` / `--surface` / `--fg` / `--muted` / `--border` / `--accent` / display/body font
+- Type scale：12 / 14 / 16 / 20 / 24 / 32 / 48 / 64
+- Spacing scale：4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 80
+- Accent budget：每屏最多 2 个可见 accent
+- Forbidden：本任务明确禁用的视觉套路和内容占位
+
 ## 四大基础原则
 
 每次生成或修改 UI 时，先用这四条自检：
@@ -16,6 +33,31 @@ argument-hint: <页面/组件需求|设计目标>
 2. **对比** — 用 size/weight/color 的明确差异建立层次。标题和正文的大小比至少 1.5:1，差异不够 = 没有层次。
 3. **一致** — 间距、颜色、字体、圆角、阴影在整个页面使用统一 token。不造新值。
 4. **聚合（Proximity）** — 相关元素靠近，无关元素拉远。用距离表达分组，不依赖边框和卡片。
+
+→ 可执行检查表见 [layout-principles](refs/layout-principles.md)
+
+## P0 Anti-slop Gate（交付前必须通过）
+
+→ 完整规则见 [anti-ai-slop](refs/anti-ai-slop.md)
+
+- 禁默认 Tailwind indigo/purple accent：`#6366f1`、`#4f46e5`、`#4338ca`、`#3730a3`、`#8b5cf6`、`#7c3aed`、`#a855f7`
+- 禁两段式 trust gradient：purple→blue、blue→cyan、indigo→pink
+- 禁 emoji 做 feature / UI icon
+- 禁圆角卡片 + 左侧彩色粗边框
+- 禁无来源指标：`10x faster`、`99.9% uptime`、`3x productive`
+- 禁 filler copy：lorem ipsum、Feature One/Two/Three、placeholder text、sample content
+- 禁颜色散落：颜色必须来自 token 或 token 派生值
+- 禁用 `overflow-hidden` 掩盖文本溢出；真正修布局
+
+## Overflow Contract
+
+→ 详细规则见 [overflow](refs/overflow.md)
+
+- flex/grid 子项承载文本时默认考虑 `min-width: 0`
+- 长单词、URL、数字串、混排文本必须有安全换行策略
+- 按钮和卡片不能靠固定宽高赌文案长度
+- fixed canvas / deck / poster 先定义 content bounds，再放文字
+- 内容超预算时拆 section/slide，不把正文缩到不可读
 
 ## Typography
 

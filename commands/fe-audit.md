@@ -51,6 +51,27 @@ Grep 代码库检查以下 AI 典型指纹：
 - 视觉：glassmorphism（`backdrop-filter: blur`）、渐变文字、一侧粗彩色边框
 - 交互：过度使用 modal
 
+### Open Design 风格 P0 扫描
+
+把以下命中作为 P0/P1 候选，必须结合上下文确认后报告 `file:line`：
+
+```bash
+rg '#6366f1|#4f46e5|#4338ca|#3730a3|#8b5cf6|#7c3aed|#a855f7' <scope>
+rg 'linear-gradient|purple|violet|indigo|cyan' -i <scope>
+rg '✨|🚀|🎯|⚡|🔥|💡|✅|⭐' <scope>
+rg 'lorem ipsum|placeholder text|sample content|feature one|feature two|feature three' -i <scope>
+rg '10x faster|10× faster|99\\.9% uptime|3x productive|3× productive' -i <scope>
+rg 'overflow-hidden|backdrop-filter|scrollIntoView' <scope>
+```
+
+严重度建议：
+
+| 发现 | 严重度 |
+|---|---|
+| 默认 indigo/purple accent、trust gradient、emoji icon、filler copy、无来源指标 | P0/P1 |
+| raw hex 大量散落、accent 过度使用、placeholder 图片 CDN | P1/P2 |
+| decorative blob/orb、卡片嵌套、玻璃拟态泛滥 | P2 |
+
 ### 可访问性
 
 - 文本对比度是否达到 WCAG AA（正文 4.5:1，大文本 3:1）

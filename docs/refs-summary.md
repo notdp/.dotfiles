@@ -6,7 +6,7 @@
 - **技能集合与市场**：以 skills 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
-- **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
+- **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`automazeio/ccpm`、`gsd-build/get-shit-done`、`obra/superpowers`
 - **最佳实践 / 知识库**：围绕 Claude Code 概念地图、目录约定、功能导航与实践经验整理。 代表项目：`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
@@ -34,6 +34,7 @@
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
 | [`muratcankoylan/Agent-Skills-for-Context-Engineering`](./refs-details/muratcankoylan/Agent-Skills-for-Context-Engineering.md) | 上下文 / 记忆管理 | 围绕 context engineering 的 Agent Skills 集合，重点讲生产级 agent 的上下文设计、记忆、工具与评测。 |
 | [`nextlevelbuilder/ui-ux-pro-max-skill`](./refs-details/nextlevelbuilder/ui-ux-pro-max-skill.md) | 前端 UI / 设计系统 | 面向 UI/UX 生成的设计情报包，结合大规模 CSV 规则库、Claude skills 与安装 CLI。 |
+| [`nexu-io/open-design`](./refs-details/nexu-io/open-design.md) | 前端 UI / 设计系统 | 本地优先的 AI 设计工作台，用 daemon 调用用户已有 Agent CLI，并把 Skills、DESIGN.md、项目文件和 sandbox 预览串成 artifact 工作流。 |
 | [`notdp/.dotfiles`](./refs-details/notdp/.dotfiles.md) | Agent 配置管理 / 工具链 | 统一管理 33+ AI 编码 Agent 的 skills、commands 和全局指令的 dotfiles 框架。 |
 | [`notdp/hive`](./refs-details/notdp/hive.md) | 多智能体协作与工作流编排 | 基于 tmux 的多 agent 协作运行时/CLI，围绕 Factory Droid 工作流构建。 |
 | [`nyldn/claude-octopus`](./refs-details/nyldn/claude-octopus.md) | 多智能体协作与工作流编排 | 超大体量的多模型编排插件，把 Claude Code/Droid 扩展成带工作流、角色、hooks、MCP 和兼容层的协作系统。 |
@@ -103,7 +104,7 @@
 
 ## 补充观察
 
-- `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行——验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
+- `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行，验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
 - `travisvn/awesome-claude-Skills`、`libukai/awesome-agent-Skills` 更偏导航/市场/索引；适合找来源，不适合直接当能力实现。
 - `ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser` 是浏览器自动化/前端调试类的两条重要主线，前者偏 DevTools MCP，后者偏 agent-browser CLI/runtime。
 - `Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus` 属于多智能体/多模型协作平台型项目。

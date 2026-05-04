@@ -22,6 +22,15 @@ argument-hint: <需求描述|范围|方案问题>
 - 有没有已有方案可以参考？
 - 对于特定技术问题，考虑是否可以形式化建模（利用已有求解工具）
 
+UI / 前端视觉任务必须额外锁定：
+
+- 页面类型：app / dashboard / landing / docs / mobile / deck
+- 受众与使用情境：谁在什么压力下使用
+- 设计系统来源：现有项目 / 用户提供 / 临时 contract
+- 视觉方向：existing / editorial / modern-minimal / warm-soft / tech-utility / brutalist
+- 禁用项：渐变、glass、emoji icon、虚构指标、filler copy、无来源图片
+- 验收方式：截图 viewport、overflow、状态覆盖、CRAP 原则检查
+
 如果发现需求跨多个相对独立的子系统，先建议拆成多个 spec，再继续设计；不要把互不相干的问题硬塞进一个方案。
 
 ### 规则
