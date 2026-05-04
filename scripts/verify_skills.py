@@ -113,6 +113,8 @@ def load_catalog(context: ValidationContext) -> list[SkillEntry]:
             fail(f"DUPLICATE NAME: {name}")
         if path in seen_paths:
             fail(f"DUPLICATE PATH: {raw_path}")
+        if path.is_symlink() and not path.resolve().is_relative_to(context.repo_root):
+            fail(f"PATH ESCAPES REPO: {name} path={raw_path}")
         if not path.exists():
             fail(f"MISSING PATH: {raw_path}")
         if not (path / "SKILL.md").exists():

@@ -69,6 +69,15 @@ class SkillsRegistryTests(unittest.TestCase):
         self.assertIn("readable-metrics", names)
         self.assertIn("readable-final-answer", names)
 
+    def test_catalog_paths_do_not_escape_repo(self) -> None:
+        catalog = json.loads(CATALOG.read_text())
+        for entry in catalog["skills"]:
+            path = REPO_ROOT / entry["path"]
+            self.assertFalse(
+                path.is_symlink() and not path.resolve().is_relative_to(REPO_ROOT),
+                f"{entry['name']} path should not symlink outside the repo: {entry['path']}",
+            )
+
     def test_catalog_keeps_latest_names_only_for_renamed_skills(self) -> None:
         catalog = json.loads(CATALOG.read_text())
         names = {entry["name"] for entry in catalog["skills"]}
