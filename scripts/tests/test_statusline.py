@@ -92,6 +92,63 @@ class StatuslineTests(unittest.TestCase):
             self.assertIn("Pro", output)
             self.assertIn("1.5/10M", output)
 
+    def test_cc_mode_handles_gnu_stat_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_dir = Path(tmp) / "repo"
+            repo_dir.mkdir()
+            subprocess.run(["git", "init", str(repo_dir)], check=True, capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(repo_dir), "config", "user.name", "Test"], check=True)
+            subprocess.run(["git", "-C", str(repo_dir), "config", "user.email", "test@example.com"], check=True)
+            (repo_dir / "README.md").write_text("ok\n")
+            subprocess.run(["git", "-C", str(repo_dir), "add", "README.md"], check=True)
+            subprocess.run(["git", "-C", str(repo_dir), "commit", "-m", "init"], check=True, capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(repo_dir), "branch", "-M", "main"], check=True)
+
+            fakebin_dir = Path(tmp) / "fakebin"
+            fakebin_dir.mkdir()
+            (fakebin_dir / "stat").write_text(
+                """#!/bin/sh
+if [ "$1" = "-f" ]; then
+  printf '/\\n'
+  exit 0
+fi
+if [ "$1" = "-c" ]; then
+  python3 -c 'import os, sys; print(int(os.path.getmtime(sys.argv[1])))' "$3"
+  exit 0
+fi
+exec /usr/bin/stat "$@"
+"""
+            )
+            os.chmod(fakebin_dir / "stat", 0o755)
+
+            pr_cache = Path("/tmp/droid_statusline_pr_repo_main")
+            previous_pr_cache = pr_cache.read_text() if pr_cache.exists() else None
+            pr_cache.write_text("none\n")
+            self.addCleanup(
+                lambda: pr_cache.write_text(previous_pr_cache)
+                if previous_pr_cache is not None
+                else pr_cache.unlink(missing_ok=True)
+            )
+
+            payload = {
+                "cwd": str(repo_dir),
+                "session_id": "12345678-abcd",
+                "model": {"display_name": "GPT-5.4"},
+                "context_window": {"used_percentage": 12},
+            }
+            result = subprocess.run(
+                ["bash", str(SCRIPT)],
+                input=json.dumps(payload),
+                text=True,
+                capture_output=True,
+                check=True,
+                env={**os.environ, "HOME": tmp, "PATH": f"{fakebin_dir}:{os.environ['PATH']}"},
+            )
+
+            output = strip_control_sequences(result.stdout)
+            self.assertIn("12345678", output)
+            self.assertIn("Pro", output)
+
     def test_refresh_keeps_last_good_cache_when_api_returns_error_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             factory_dir = Path(tmp) / ".factory"

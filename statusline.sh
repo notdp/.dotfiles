@@ -35,6 +35,19 @@ _restore_last_good_usage_cache() {
   _has_valid_usage_data "$LAST_GOOD_USAGE_CACHE" || return 1
   cp -f "$LAST_GOOD_USAGE_CACHE" "$USAGE_CACHE" 2>/dev/null
 }
+_mtime_seconds() {
+  local value
+  value=$(stat -f %m "$1" 2>/dev/null)
+  case "$value" in
+    ''|*[!0-9]*) ;;
+    *) printf "%s\n" "$value"; return ;;
+  esac
+  value=$(stat -c %Y "$1" 2>/dev/null)
+  case "$value" in
+    ''|*[!0-9]*) printf "0\n" ;;
+    *) printf "%s\n" "$value" ;;
+  esac
+}
 _fetch_usage() {
   local tok tmp
   # Try auth.v2 (AES-256-GCM encrypted) first, fall back to legacy auth.encrypted
@@ -68,7 +81,7 @@ elif [ -f "$USAGE_CACHE" ] && [ -s "$USAGE_CACHE" ]; then
   _restore_last_good_usage_cache
 fi
 if [ -f "$USAGE_CACHE" ] && [ -s "$USAGE_CACHE" ]; then
-  CACHE_AGE=$(( $(date +%s) - $(stat -f %m "$USAGE_CACHE" 2>/dev/null || echo 0) ))
+  CACHE_AGE=$(( $(date +%s) - $(_mtime_seconds "$USAGE_CACHE") ))
   [ "$CACHE_AGE" -ge 600 ] && _fetch_usage &
 else
   _fetch_usage
@@ -128,7 +141,7 @@ if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   PR_VIS=""
 
   if [ -f "$CACHE_FILE" ]; then
-    CACHE_AGE=$(( $(date +%s) - $(stat -f %m "$CACHE_FILE" 2>/dev/null || echo 0) ))
+    CACHE_AGE=$(( $(date +%s) - $(_mtime_seconds "$CACHE_FILE") ))
     if [ "$CACHE_AGE" -ge 300 ]; then
       (cd "$REPO_ROOT" && gh pr view --json number,url -q '.number,.url' > "$CACHE_FILE" 2>/dev/null || echo "none" > "$CACHE_FILE") &
     fi
