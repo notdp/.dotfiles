@@ -6,6 +6,37 @@
 
 ---
 
+## 0. Harness Engineering 分层原则
+
+Skill 的价值不是把 agent 训练成脚本执行器，而是把某类任务的判断力、边界和验收标准外化出来。
+
+| 层 | 放什么 | 不放什么 |
+|---|---|---|
+| `agents/AGENTS.md` | 身份、长期偏好、事实纪律、所有任务都成立的红线 | 高频流程细节、领域长清单、具体命令顺序 |
+| `skills/` | 任务契约、触发场景、输出形态、证据门、停止/升级条件 | 固定到某个项目路径或某个旧工具链的机械步骤 |
+| `refs/` / `docs/` | 长清单、审美细则、背景调研、可追溯参考 | 每次触发都必须读完的主流程 |
+| `scripts/` / CI / hook | 可确定性检查的硬门：lint、测试、扫描、预检 | 需要模型判断的审美、架构和 trade-off |
+| MCP / tools | 真实系统、数据和外部状态访问 | 可直接写在仓库内的规则说明 |
+
+### 好 skill / 坏 skill
+
+| 好 skill | 坏 skill |
+|---|---|
+| 说明这类任务要交付什么、什么证据算数 | 规定不看上下文也照做的固定路径 |
+| 定义风险信号、停止条件、升级路径 | 把历史经验写成“永远先 A 再 B 再 C” |
+| 给出结构化输出，让 review 和验证可扫描 | 把长篇产品手册或工具文档复制进正文 |
+| 把可自动化部分下沉给脚本/CI | 依赖模型自觉执行可脚本化检查 |
+
+工作流型 skill 新增或大改时，正文必须至少包含以下一类质量门：
+
+- Evidence / 验证 / 验收：什么证据能支持结论或交付
+- Stop / 退出 / 停止：什么时候可以停，什么时候必须继续
+- Risk / Gotchas / 禁止：什么风险出现时要升级或阻断
+
+原则：可以规定流程纪律和验收标准，不要微操具体操作路径。
+
+---
+
 ## 1. frontmatter 触发语义（硬约束）
 
 ### 1.1 规范
@@ -123,7 +154,16 @@ Invoke when ...
 
 ## 3. 自动校验
 
-`scripts/verify_skills.py` 在启动时读取每个 skill 的 `description`，校验触发前缀合规。不合规时：
+`scripts/verify_skills.py` 在启动时读取每个 skill，执行以下低误报检查：
+
+- catalog、name/path/domain/role/frontmatter 一致
+- `description` 触发前缀合规
+- `refs/`、`scripts/` 等引用存在
+- 仓库根 `scripts/*.sh` / `scripts/*.py` 带执行位
+- 长工作流型 skill 有 Evidence / Stop / Risk / Gotchas 等质量门标题
+- `description` 或正文中写“与 X 区别”时，X 必须是 catalog 中存在的 skill
+
+触发前缀不合规时：
 
 ```
 DESCRIPTION TRIGGER PREFIX VIOLATION: <skill-name> description must start with one of:
@@ -134,7 +174,7 @@ DESCRIPTION TRIGGER PREFIX VIOLATION: <skill-name> description must start with o
 got: "..."
 ```
 
-校验规则不检查场景化 vs 用户行为化（这部分由人工 review 把关），只检查前缀词法。
+校验规则不检查场景化 vs 用户行为化（这部分由人工 review 把关），也不判断正文质量是否“足够好”；脚本只拦截明显结构缺口。
 
 ---
 
@@ -182,6 +222,9 @@ description: 当 ... 时使用；<能力摘要>。
 
 ## 判断启发式
 | 场景 | 走哪条 |
+
+## Evidence / Stop / Risk
+...
 
 ## 跳过条件
 ...
@@ -292,6 +335,8 @@ Do not proceed with implementation until this is reviewed.
 - [ ] frontmatter：`name` 与目录名一致
 - [ ] frontmatter：`description` 通过 1.1-1.4 的硬约束
 - [ ] 按 4.1/4.2/4.3 之一选骨架（推荐，非强制）
+- [ ] 工作流型 skill 有 Evidence / Stop / Risk / Gotchas 等质量门
+- [ ] 机械步骤和长清单已尽量下沉到 `refs/`、`docs/` 或 `scripts/`
 - [ ] 如需输入参数，按 5.1 用 `{{var}}`
 - [ ] 如输出本应结构化，按 5.2 附固定表格
 - [ ] 如引用 `scripts/*.sh` 或 `scripts/*.py`（仓库根），脚本必须 `chmod +x`

@@ -15,6 +15,25 @@ BRAND_EXCEPTIONS = {"hive", "agent-browser", "react-doctor"}
 REFERENCE_PATTERN = re.compile(
     r"(?<![/.])\b(?:refs|references|examples|scripts|agents|templates)/[\w./-]+\b"
 )
+BOUNDARY_REFERENCE_PATTERN = re.compile(r"与\s*/?([a-z]+-[a-z0-9-]+)\s*(?:的)?区别")
+WORKFLOW_QUALITY_TERMS = (
+    "证据",
+    "验收",
+    "验证",
+    "停止",
+    "退出",
+    "风险",
+    "禁止",
+    "Gotchas",
+    "Evidence",
+    "Acceptance",
+    "Verification",
+    "Stop",
+    "Exit",
+    "Risk",
+    "Escalate",
+)
+WORKFLOW_QUALITY_LINE_THRESHOLD = 80
 TRIGGER_PREFIXES = (
     "Use when ",
     "Invoke when ",
@@ -183,6 +202,23 @@ def collect_references(skill_file: Path) -> set[str]:
     return set(REFERENCE_PATTERN.findall(content))
 
 
+def collect_boundary_references(content: str) -> set[str]:
+    return set(BOUNDARY_REFERENCE_PATTERN.findall(content))
+
+
+def content_without_frontmatter(skill_file: Path) -> str:
+    lines = skill_file.read_text().splitlines()
+    if not lines or lines[0] != "---":
+        fail(f"INVALID FRONTMATTER: {skill_file}")
+
+    try:
+        end_index = lines.index("---", 1)
+    except ValueError as exc:
+        raise ValidationError(f"MISSING FRONTMATTER END: {skill_file}") from exc
+
+    return "\n".join(lines[end_index + 1 :])
+
+
 def is_trigger_exempt(entry: SkillEntry) -> bool:
     # brand-exception skills 默认豁免，其它 skill 通过 trigger-exempt 显式豁免
     return entry.role == "brand-exception" or entry.trigger_exempt
@@ -197,6 +233,35 @@ def validate_trigger_prefix(entry: SkillEntry, description: str) -> None:
             f"DESCRIPTION TRIGGER PREFIX VIOLATION: {entry.name} description must start with one of:\n  - {allowed}\n"
             f"got: {description!r}"
         )
+
+
+def validate_workflow_quality(entry: SkillEntry, skill_file: Path, content: str) -> None:
+    if is_trigger_exempt(entry):
+        return
+
+    non_empty_lines = [line for line in content.splitlines() if line.strip()]
+    if len(non_empty_lines) < WORKFLOW_QUALITY_LINE_THRESHOLD:
+        return
+
+    headings = [
+        line.strip()
+        for line in content.splitlines()
+        if line.lstrip().startswith("#")
+    ]
+    if any(term in heading for heading in headings for term in WORKFLOW_QUALITY_TERMS):
+        return
+
+    fail(
+        f"WORKFLOW QUALITY VIOLATION: {entry.name} has {len(non_empty_lines)} non-empty lines "
+        f"but no quality gate heading in {skill_file}. Add evidence/acceptance/stop/risk/gotchas guidance "
+        "or move mechanical detail into refs/."
+    )
+
+
+def validate_boundary_references(entry: SkillEntry, content: str, skill_names: set[str]) -> None:
+    for reference in sorted(collect_boundary_references(content)):
+        if reference not in skill_names:
+            fail(f"UNKNOWN SKILL BOUNDARY: {entry.name} references {reference}")
 
 
 def resolve_reference(entry: SkillEntry, context: ValidationContext, relative_path: str) -> Path | None:
@@ -226,15 +291,18 @@ def validate_executable_bit(skill_file: Path, resolved: Path) -> None:
         )
 
 
-def validate_skill_entry(context: ValidationContext, entry: SkillEntry) -> None:
+def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_names: set[str]) -> None:
     skill_file = entry.path / "SKILL.md"
     frontmatter = parse_frontmatter(skill_file)
+    content = content_without_frontmatter(skill_file)
     if frontmatter["name"] != entry.name:
         fail(
             f"NAME MISMATCH: catalog={entry.name} frontmatter={frontmatter['name']} file={skill_file}"
         )
 
     validate_trigger_prefix(entry, frontmatter["description"])
+    validate_workflow_quality(entry, skill_file, content)
+    validate_boundary_references(entry, frontmatter["description"] + "\n" + content, skill_names)
 
     for relative_path in sorted(collect_references(skill_file)):
         resolved = resolve_reference(entry, context, relative_path)
@@ -248,8 +316,9 @@ def main() -> int:
         repo_root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
         context = ValidationContext(repo_root=repo_root)
         entries = load_catalog(context)
+        skill_names = {entry.name for entry in entries}
         for entry in entries:
-            validate_skill_entry(context, entry)
+            validate_skill_entry(context, entry, skill_names)
             print(f"ok: {entry.name} -> {entry.path.relative_to(context.repo_root)}")
         print(f"validated {len(entries)} skills")
     except ValidationError as error:

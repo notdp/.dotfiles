@@ -134,104 +134,21 @@ argument-hint: <页面/组件需求|设计目标>
 **DO**: 按钮文案用「动词 + 名词」— "保存更改" 而非 "确定"
 **DO**: 错误信息回答三个问题：发生了什么？为什么？怎么修？
 
-## Codex 反模式硬约束（信息密度优先，逐条照抄）
+## Codex 反模式索引
 
-> 来源：OpenAI codex base_instructions / Frontend guidance。完整保留以避免漏项。
+来源细则见 OpenAI codex base_instructions / Frontend guidance；本 skill 主流程只保留交付契约：
 
-### Build with empathy
-
-- 已有 design system 时严格沿用现有约定
-- 设计需匹配应用受众与领域：SaaS / CRM / 运营工具应安静、实用、信息密集；游戏可表现化
-- 通用工作流必须便捷高效、可在视图间无缝穿梭
-
-### Controls & Icons
-
-- 工具按钮带图标；颜色用 swatch；模式用 segmented control；二元设置用 toggle / checkbox；数值用 slider / stepper / input；选项集用 menu；视图用 tab；命令才用文字按钮
-- 卡片圆角 ≤ 8px（除非现有 design system 要求）
-- 能用熟悉符号 / 图标的不用圆角矩形 + 文字（撤销重做、加粗斜体、保存下载缩放）；不熟悉的图标 hover 显示 tooltip
-- 优先 lucide 图标，其次现有库；不手画 SVG
-- 不用页内可见文字描述功能、快捷键、视觉元素或如何使用应用
-
-### Hero / Landing
-
-- 不做 landing page，除非明确要求；要 site / app / game / tool 直接给可用体验
-- Hero 用相关图片 / 生成位图 / 沉浸式全幅交互场景做背景，文字叠加（不在卡片里）
-- 禁用 split text/media hero 卡片布局
-- 禁用 hero 文字或主体放卡片
-- 禁用 gradient / SVG hero 页
-- 真实图片可用时不要 SVG hero illustration
-- 品牌 / 产品 / 场所 / 作品集 / 对象页：品牌或主体必须出现在首屏首要位置，不能只在导航小字
-- 任意 mobile / desktop 视口下，hero 必须留出下一节可见的提示
-- landing hero 的 H1 = 品牌 / 产品 / 地点 / 人名 或 直白的 offer / 品类；价值主张放副文，不挤进 H1
-
-### 视觉资源
-
-- 网站和游戏必须使用视觉资产
-- 可用图片搜索、相关图、生成位图，避免 SVG（除非游戏）
-- 主图必须呈现真实产品 / 地点 / 物体 / 状态 / 玩法 / 人物
-- 拒绝暗、模糊、裁切过度、stock-style、纯氛围照
-- 高度具体的游戏资产用 SVG / Three.js 自定义
-
-### Game / 引擎
-
-- 有成熟规则 / 物理 / 解析 / AI 引擎库时直接用，不手写核心域逻辑（除非用户明示）
-
-### 3D
-
-- 用 Three.js
-- 主 3D 场景 full-bleed 或无框，不放装饰卡 / 预览容器
-- 完成前用 Playwright 跨视口截图 + canvas 像素检查：非空、构图正确、可交互 / 有动效、引用资产正确无重叠
-
-### Card / Section 边界
-
-- 不在卡片里嵌卡片
-- 不把页面 section 做成浮动卡
-- 卡片仅用于：可重复条目、modal、有真实边界的工具表面
-- 页面 section 必须 full-width band 或无框布局，内容内收
-
-### 装饰禁忌
-
-- 不放离散 orb / 渐变 orb / bokeh blob 作装饰或背景
-
-### 文本容器适配
-
-- 文本必须在所有 mobile / desktop 视口适配父容器；不行就换行；仍不行用动态字号让最长词放下
-- 文本不能遮挡前后内容
-- 卡片 / 按钮内文本仍需看起来专业精致
-
-### 显示文字与容器匹配
-
-- hero 字号留给真 hero
-- 紧凑面板 / 卡片 / 侧栏 / dashboard / 工具面用更小、更紧的标题
-
-### 固定布局尺寸
-
-- 棋盘 / 网格 / 工具栏 / 图标按钮 / 计数器 / 瓦片这类固定格式 UI，必须用 `aspect-ratio` / grid tracks / min-max / container-relative sizing 定稳
-- 防 hover / label / icon / loading / 动态内容触发 reflow
-
-### 字号 / 字距
-
-- 不让字号随 viewport width 缩放
-- letter-spacing = 0，不用负值
-
-### 调色禁忌
-
-- 避免单一色相主导整个 UI
-- 避免主紫 / 紫蓝渐变占主导
-- 避免米色 / 奶油 / 沙色 / 棕褐色主导
-- 避免深蓝 / 石板蓝主导
-- 避免棕橙 / 咖啡色主导
-- 收稿前扫一遍 CSS 颜色，命中以上主调要改
-
-### 重叠
-
-- UI 元素与文字不能不连贯地重叠（极差体验）
+- 已有 design system 时沿用现有约定，不引入第二套 token。
+- 控件优先使用熟悉模式和现有图标库；不靠圆角矩形 + 文字描述替代清晰 affordance。
+- Landing / hero / game / 3D / fixed canvas 先锁定任务类型和视觉资产来源，再决定布局。
+- Card、section、视觉装饰、文本容器、固定尺寸控件都必须服务信息层级和可用性。
+- 命中大面积模板化调色、无意义装饰、文字遮挡、重叠或 reflow 风险时，停下重审设计契约。
 
 ## AI Slop Test
 
 **关键质量检查**：如果你把这个界面展示给人，说"AI 做的"，他们会立刻相信吗？如果会，那就是问题。
 
-回顾上面所有 DON'T — 它们是 2024-2025 年 AI 生成作品的指纹。
+不要把某一年的流行禁忌当成永久规则；判断依据是任务目标、信息层级、可访问性、响应式和项目既有风格。
 
 ## Gotchas
 

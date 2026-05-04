@@ -57,6 +57,20 @@ My Droid skills/scripts
 | `skills/` | 领域能力、流程能力、按需触发的专项约束 | 本应全局生效的硬规则 |
 | `docs/` | 调研沉淀、refs 详情、设计取舍与可追溯背景 | 需要每次任务都注入上下文的规则 |
 
+### 相邻 Skill 路由矩阵
+
+| 任务状态 | 优先 skill | 不选谁 |
+|----------|------------|--------|
+| 任务接近完成，需要判断继续还是停止 | `guard-close` | 不做 review/verify 细查 |
+| 准备交付前，需要总检查和编排 | `guard-check` | 不替代具体 `guard-review` / `guard-verify` |
+| 准备声称完成，需要证据 | `guard-verify` | 不做 scope 裁决 |
+| 接手陌生仓库，需要全局地图 | `think-map` | 不聚焦单次改动文件表 |
+| 单次任务影响面不明，需要改动地图 | `think-context-map` | 不输出全仓库架构说明 |
+| 回答前上下文不足 | `think-ask-context` | 不直接规划实现 |
+| 开放主题综述，不急着下判断 | `think-survey` | 不强制推荐方案 |
+| 技术选型/方案决策，需要结论 | `think-research` | 不只罗列流派 |
+| 多个候选路径已明确，需要取舍 | `think-compare` | 不重新做开放调研 |
+
 ### 技能串联
 
 ```

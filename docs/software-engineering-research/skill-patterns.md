@@ -233,6 +233,64 @@ Also remember to tend your todo list.
 
 ---
 
+## 模式 F：Task Contract（目标契约型）
+
+把 skill 写成“任务契约”，而不是 SOP。它规定任务必须产出什么、什么证据算数、什么风险要停下；具体文件、命令、工具路径由 agent 根据当前仓库和可用工具决定。
+
+### 用它的场景
+
+- 工作流型 skill 容易变成长步骤清单
+- 任务质量取决于证据、边界和验收，而不是固定操作顺序
+- 细则会过时，适合放到 `refs/` 或脚本里
+
+### 最小骨架
+
+```markdown
+---
+name: <skill-name>
+description: 当 ... 时使用；<能力摘要>。
+---
+
+# <Skill>
+
+## Goal
+这类任务要交付什么，什么不算完成。
+
+## Inputs
+- 当前任务 / diff / URL / 截图 / 日志等
+
+## Output Contract
+- 必须输出哪些字段、表格或裁决
+
+## Evidence Gate
+- 哪些证据能支持结论
+- 哪些证据缺失时只能标 partial / blocked
+
+## Stop / Escalate
+- 什么时候可以停止
+- 什么时候必须转其它 skill、问用户或报告 blocker
+
+## Refs / Tools
+- 长清单和机械检查放这里，不放主流程
+```
+
+### 写法对比
+
+| 推荐 | 避免 |
+|---|---|
+| “交付前必须给出测试/截图/路径证据” | “先运行固定命令 A，再打开固定文件 B” |
+| “如果证据不足，输出 partial 并说明缺口” | “不管项目如何，都按 20 步走完” |
+| “优先沿用项目已有工具，找不到再说明 blocker” | “假设某个 CLI 一定存在” |
+| “长规则见 refs，由当前任务按需读取” | “把所有设计禁忌复制到 SKILL.md 主体” |
+
+### 在本仓库的映射
+
+- `guard-verify` 的三层证据门是强样例
+- `fe-ui-visual-iterate` 应保留截图证据和差异表，但避免把循环写成不可适配的机械脚本
+- `dev-large-delivery` 应强调 Phase contract，而不是把所有团队都锁进同一执行顺序
+
+---
+
 ## 模式汇总表
 
 | 模式 | 代表样例 | 行数 | 何时用 |
@@ -242,6 +300,7 @@ Also remember to tend your todo list.
 | C 固定输出表格 | `context-map` / review skills | 混入 | 输出本该结构化 |
 | D Micro-prompt 提醒 | `remember-interactive-programming` | 10-20 | 单条准则独立化 |
 | E 交互式 Refinement | `first-ask` | 30-60 | 需求模糊需对话澄清 |
+| F Task Contract | `guard-verify` / 工作流型 skills | 40-160 | 需要目标、证据、停止条件而非固定 SOP |
 
 ---
 

@@ -259,6 +259,75 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("SCRIPT NOT EXECUTABLE", result.stderr)
 
+    def test_verify_script_reports_long_workflow_without_quality_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            body = "\n".join(f"- Step {index}" for index in range(90))
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n# Demo\n\n"
+                + body
+                + "\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("WORKFLOW QUALITY VIOLATION", result.stderr)
+
+    def test_verify_script_reports_unknown_skill_boundary_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "guard-demo",
+                                "path": "skills/guard-demo",
+                                "domain": "guard",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: guard-demo\n"
+                "description: 当测试时使用；demo（与 think-missing 区别：只做 demo）。\n"
+                "---\n# Demo\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("UNKNOWN SKILL BOUNDARY", result.stderr)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
