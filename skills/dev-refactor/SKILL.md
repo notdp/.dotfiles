@@ -92,6 +92,18 @@ Return（固定格式）:
 3. **范围可控** —— 影响的文件和调用者数量合理
 4. **不需同时改行为** —— 必须改行为才能重构的，拆成两步
 
+### Deepening 候选判断
+
+当候选目标是一组浅模块或过度拆碎的函数时，额外检查：
+
+- **Deletion test**：删除该模块后，复杂度是消失，还是扩散到多个调用者？
+- **接口杠杆**：调用者学习少量接口，是否能获得大量行为？
+- **局部性**：bug、规则、验证是否能集中到一个接口后面？
+- **接口位置真实性**：是否存在至少两种真实适配器，还是只为了测试增加间接层？
+- **依赖类别**：in-process / local-substitutable / remote but owned / true external，决定 characterization 测试方式。
+
+如果 deepening 成立，重构方向优先是“把规则收进更深模块，并通过该模块接口测试”，而不是继续给浅模块堆更多单测。
+
 ## 4. 安全网评估
 
 行为不变是重构的硬约束，验证手段必须先于动手决定。
@@ -139,6 +151,11 @@ Return（固定格式）:
 |---|---|---|---|---|---|---|---|---|
 | 1 | P0 | path:42-78 | 长函数+混合职责 | Extract Function / Move Function | Boundary, Locality | 已有 unit | 跑 X 测试 | — |
 | 2 | P1 | ... | ... | ... | ... | 需 characterization | ... | 依赖 1 |
+
+### Deepening 评估（如适用）
+| 候选模块 | Deletion test | 接口杠杆 | 局部性 | 依赖类别 | 测试策略 |
+|---|---|---|---|---|---|
+| ... | 复杂度会扩散到 N 个调用者 | 高 / 中 / 低 | 高 / 中 / 低 | in-process / local-substitutable / remote-owned / external | ... |
 
 ### 执行顺序
 1. 先建安全网（characterization / golden master）
@@ -237,6 +254,10 @@ refactor(billing): Replace Conditional with Polymorphism (PaymentMethod)
 - 改完验证成本反而更高，通常不是好重构
 - history 模式下 churn ≠ 一定要改；hotspot 是**候选**，主流程裁决才是结论
 - 子 agent 的输出永远是证据不是判断；不要直接采纳为重构计划
+
+## 扩展阅读
+
+- `docs/software-engineering-research/architecture-deepening.md`
 
 ### Framework-aware dead code 白名单
 

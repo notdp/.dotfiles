@@ -337,6 +337,9 @@ Do not proceed with implementation until this is reviewed.
 - [ ] 按 4.1/4.2/4.3 之一选骨架（推荐，非强制）
 - [ ] 工作流型 skill 有 Evidence / Stop / Risk / Gotchas 等质量门
 - [ ] 机械步骤和长清单已尽量下沉到 `refs/`、`docs/` 或 `scripts/`
+- [ ] `SKILL.md` 主体只保留高频判断；低频细节拆到 reference，避免一次加载过多上下文
+- [ ] 引用链最多一层深；不要让 agent 读 A 时再被迫追 B、C、D
+- [ ] 可确定性操作已优先下沉脚本，而不是每次让 agent 生成临时代码
 - [ ] 如需输入参数，按 5.1 用 `{{var}}`
 - [ ] 如输出本应结构化，按 5.2 附固定表格
 - [ ] 如引用 `scripts/*.sh` 或 `scripts/*.py`（仓库根），脚本必须 `chmod +x`
@@ -354,6 +357,7 @@ Do not proceed with implementation until this is reviewed.
 | `guard-verify` | `scripts/run-verify.sh` | 自动探测项目 test/lint/build 并运行，输出固定表 |
 | `guard-review` | `scripts/collect_diff.py` | 打印 diff overview + 敏感信息/调试遗留 flags |
 | `guard-ship` | `scripts/preflight.sh` | 分支/工作树/敏感/远端同步/追踪 secret 预检 |
+| `guard-diff-scan` | `scripts/scan_diff_residue.py` | 扫描新增 diff 行和未追踪文件中的调试遗留；默认排除 Markdown、测试 fixture 和扫描器自身 |
 | `agent-health` | `skills/agent-health/scripts/collect_data.sh` | 收集 agent 配置审计数据 |
 
 规范：

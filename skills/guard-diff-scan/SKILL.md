@@ -10,11 +10,13 @@ description: 当改动已完成但未 commit、需要确认没留调试遗留物
 ## 核心循环
 
 ```
-1. 跑 git diff（工作树 + 暂存区）
-2. 按固定清单扫遗留物
+1. 优先跑 scripts/scan_diff_residue.py（工作树 + 暂存区）
+2. 按固定清单人工复核命中
 3. 输出每条命中 + 建议处理
 4. 全部确认后才 commit
 ```
+
+脚本 exit code：`0` = 无命中，`1` = 有命中需人工处理，`2` = 扫描失败。
 
 ## 扫描清单
 
@@ -23,9 +25,18 @@ description: 当改动已完成但未 commit、需要确认没留调试遗留物
 | TODO/FIXME/XXX/HACK | `\b(TODO|FIXME|XXX|HACK)\b` |
 | 调试打印 | `console\.log`、`print(`、`dbg!`、`pp `、`fmt.Println` |
 | 调试断点 | `debugger;`、`breakpoint\(\)`、`pdb.set_trace` |
+| 临时 DEBUG 前缀 | `\[DEBUG-[A-Za-z0-9_-]+\]` |
 | 注释掉的代码块 | 连续 3+ 行以注释开头且含代码语法 |
 | 硬编码 secret 疑似 | `password=`、`api_key=`、`token=` |
 | 临时变量名 | `foo`、`bar`、`tmp1`、`test_xxx` 在生产代码里 |
+
+## 工具化扫描
+
+```bash
+scripts/scan_diff_residue.py
+```
+
+脚本扫描新增 diff 行和未追踪文件，并默认排除 `refs/**`、Markdown、`scripts/tests/**` 和扫描器自身，避免参考仓库快照与 fixture 产生噪音。脚本结果是第一层过滤，不替代人工判断：文档示例、测试 fixture、故意保留的 TODO 仍需逐条裁决。
 
 ## 输出格式
 
@@ -78,4 +89,4 @@ description: 当改动已完成但未 commit、需要确认没留调试遗留物
 
 ## 未来增量
 
-可加脚本做自动化扫描（backlog，见 docs/software-engineering-research/skill-patterns.md 里 tool-backed 升级思路）。
+可继续把注释掉的代码块检测做成更强 AST / parser 版本；当前脚本先覆盖低误报文本模式。

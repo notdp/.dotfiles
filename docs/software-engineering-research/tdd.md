@@ -1,6 +1,6 @@
 # TDD 调研
 
-调研对象：Superpowers (test-driven-development)、GSD (tdd reference + verifier)、CCPM (execute phase)。
+调研对象：Superpowers (test-driven-development)、GSD (tdd reference + verifier)、CCPM (execute phase)、mattpocock/skills (`tdd`)。
 
 ## 各项目方案摘要
 
@@ -16,6 +16,17 @@
 
 测试是并行工作流的一个 Layer（与 DB/Service/API/UI 并列），不做方法论层面的约束。"Always run tests before committing"。
 
+### mattpocock/skills — Vertical slice TDD
+
+`tdd` 明确反对 horizontal slicing：不要先写一堆测试，再写一堆实现。正确方式是一个行为一个 tracer bullet，一轮 RED→GREEN 后再写下一个行为。
+
+测试质量判断：
+
+- 通过 public interface 验证 observable behavior。
+- 不测 private method、内部调用次数、内部协作者顺序。
+- Mock 只用于系统边界，避免 mock 自己控制的模块。
+- 接口要为可测试性设计：依赖注入、返回结果而非隐藏 side effect、surface area 小。
+
 ## 共识
 
 1. **Red-Green-Refactor 是基本循环**
@@ -25,15 +36,27 @@
 5. **提交前必须跑通测试**
 6. **Bug 修复必须先写失败测试**
 7. **验证 > 生成** — 没看到测试失败就不知道测试对不对
+8. **Vertical slice 优先** — 一个行为一轮 RED→GREEN，不批量 RED
+9. **接口就是测试面** — 调用者和测试都应通过同一个 public interface 验证行为
 
-## 需要决断
+## 已采纳到 canonical skill
+
+| 决策 | 状态 | 落点 |
+|------|------|------|
+| 务实 TDD 边界：有明确输入/输出的行为强制，纯配置/文档/样式跳过 | 已采纳 | `skills/dev-tdd/SKILL.md` |
+| Bug 修复先写失败测试 | 已采纳 | `skills/dev-debug/SKILL.md`、`skills/dev-tdd/SKILL.md` |
+| Mock 只放外部边界 | 已采纳 | `skills/dev-tdd/SKILL.md` |
+| 禁止 horizontal slicing | 已采纳 | `skills/dev-tdd/SKILL.md` |
+| 测试 public interface 的 observable behavior | 已采纳 | `skills/dev-tdd/SKILL.md` |
+
+## 仍待决策
 
 ### 1. TDD 适用边界
 
 | 立场 | 来源 |
 |------|------|
 | 几乎全部场景，例外需人类批准 | Superpowers |
-| 有明确输入/输出的才用，UI/配置/胶水跳过 | GSD |
+| 有明确输入/输出的才用，UI/配置/胶水跳过 | GSD，已作为当前默认 |
 | 不做方法论约束 | CCPM |
 
 ### 2. "先写了代码再补测试" 的处理
@@ -41,14 +64,14 @@
 | 立场 | 来源 |
 |------|------|
 | 删掉代码，从测试重新开始，无例外 | Superpowers |
-| 分类处理：已完成的代码用 add-tests 补测试是正常流程 | GSD |
+| 分类处理：已完成的代码用 add-tests 补测试是正常流程 | GSD，当前按场景处理 |
 
 ### 3. Mock 策略
 
 | 立场 | 来源 |
 |------|------|
 | Mock 是最后手段，必须理解依赖才能 mock | Superpowers |
-| 按边界分：mock 外部依赖（fs/http/db），不 mock 内部纯函数 | GSD |
+| 按边界分：mock 外部依赖（fs/http/db），不 mock 内部纯函数 | GSD / mattpocock，已作为当前默认 |
 
 ### 4. 探索性编码
 
@@ -72,3 +95,6 @@
 | 合理化反驳表 | Superpowers | 预判 agent 用来绕过 TDD 的借口并逐条反驳 |
 | 上下文预算 | GSD | TDD plan ~40%（比标准 plan 的 ~50% 低，因为来回更多） |
 | 质量审计 | GSD | 检查禁用测试、循环测试、断言强度（存在性 vs 值 vs 行为级） |
+| Horizontal slicing 反模式 | mattpocock/skills | 禁止批量 RED，再批量 GREEN |
+| Tracer bullet | mattpocock/skills | 一个行为贯穿一轮 RED→GREEN |
+| 接口可测试性 | mattpocock/skills | 依赖注入、返回结果、小 surface area |

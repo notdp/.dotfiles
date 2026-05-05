@@ -12,6 +12,8 @@ argument-hint: <功能点|bug 描述|行为变更>
 
 ## 核心循环
 
+TDD 的单位是 vertical slice / tracer bullet：一个可观察行为对应一轮 RED→GREEN。不要把 RED 理解成“先批量写完所有测试”。
+
 ```
 RED    → 写一个失败测试（一个行为、名字说清行为）
        → 跑测试，确认失败原因是"功能缺失"而非 typo
@@ -26,6 +28,25 @@ REFACTOR → 消除重复、改名、提取（保持绿灯）
 
 不能（UI 布局、配置、胶水代码、原型探索）→ 标准流程，事后补测试
 
+### 禁止 Horizontal Slicing
+
+错误做法：
+
+```text
+RED:   一次写 test1, test2, test3, test4
+GREEN: 一次写 impl1, impl2, impl3, impl4
+```
+
+正确做法：
+
+```text
+RED→GREEN: test1→impl1
+RED→GREEN: test2→impl2
+RED→GREEN: test3→impl3
+```
+
+原因：批量测试通常验证想象中的结构，而不是刚刚确认过的真实行为；它更容易测试数据形状、函数签名和内部协作，而不是用户或调用方可观察到的结果。
+
 ## 跳过条件
 
 用户明确说以下任一时，不强制 TDD：
@@ -35,10 +56,18 @@ REFACTOR → 消除重复、改名、提取（保持绿灯）
 
 ## 测试质量
 
-- 测试行为，不测实现
+- 测试 public interface 的 observable behavior，不测实现细节
 - 一个测试一个概念
 - Mock 只在外部边界使用（fs/http/db），不 mock 内部纯函数
+- 优先通过真实接口验证结果；不要绕过接口直接查内部状态
 - 提交模式：`test(scope): failing test` → `feat(scope): implement`
+
+### 好测试信号
+
+- 名字描述“系统能做什么”，不是“调用了哪个内部函数”
+- 重构内部实现时不需要改测试
+- 断言具体行为或结果，不只断言存在
+- 测试 setup 体现业务场景，而不是复刻实现结构
 
 ## Anti-Rationalization Guard
 
@@ -57,6 +86,7 @@ REFACTOR → 消除重复、改名、提取（保持绿灯）
 ## Gotchas
 
 - 先写实现、再补测试，不叫 TDD
+- 先批量写完所有测试、再批量实现，也不叫有效 TDD
 - 红灯必须因为“行为缺失/不符合预期”，不能只是 typo 或测试本身坏掉
 - UI 探索、样式调整、纯配置改动不要生搬硬套 TDD
 - GREEN 阶段只做让测试过的最小实现，不顺手优化、不顺手重构

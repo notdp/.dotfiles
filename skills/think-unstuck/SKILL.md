@@ -8,7 +8,7 @@ argument-hint: <当前卡点/失败模式>
 
 ## Handoff 接续（与 dev-debug 对齐）
 
-如果上游 `/dev-debug` 已用 Handoff 格式交接进来（连续 3 次假设验证失败触发），不要重新组织信息，直接接同一组表头继续推进：
+如果上游 `/dev-debug` 已用 Handoff 格式交接进来（连续 2 次假设验证失败触发），不要重新组织信息，直接接同一组表头继续推进：
 
 1. **Symptom** — 症状描述 + 复现命令
 2. **Hypotheses Tested** — 已试过哪些假设 + 为什么失败

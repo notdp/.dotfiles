@@ -291,6 +291,37 @@ description: 当 ... 时使用；<能力摘要>。
 
 ---
 
+## 模式 G：Progressive Disclosure
+
+把常用判断放在 `SKILL.md`，把低频细节、长清单、示例和确定性操作下沉到 reference 或 scripts。目标是让 skill 触发时加载最小必要上下文。
+
+### 用它的场景
+
+- skill 正文开始超过 100-160 行
+- 内容包含多个低频分支、长格式模板或大量示例
+- 某些步骤可以用脚本稳定执行
+
+### 写法
+
+```markdown
+## Core Rules
+- 高频规则 1
+- 高频规则 2
+
+## Refs / Tools
+- 详细模板见 `docs/.../reference.md`
+- 机械扫描用 `scripts/check_x.py`
+```
+
+### 规则
+
+- 主体只保留路由后立即需要的判断。
+- reference 只引用一层，不做多级追链。
+- 可确定性操作优先脚本化，脚本输出 Markdown 表格。
+- reference 不是垃圾桶；过期材料应删，不是继续拆。
+
+---
+
 ## 模式汇总表
 
 | 模式 | 代表样例 | 行数 | 何时用 |
@@ -301,6 +332,7 @@ description: 当 ... 时使用；<能力摘要>。
 | D Micro-prompt 提醒 | `remember-interactive-programming` | 10-20 | 单条准则独立化 |
 | E 交互式 Refinement | `first-ask` | 30-60 | 需求模糊需对话澄清 |
 | F Task Contract | `guard-verify` / 工作流型 skills | 40-160 | 需要目标、证据、停止条件而非固定 SOP |
+| G Progressive Disclosure | `write-a-skill` / 本仓库 tool-backed skills | 混入 | 主流程要短，细节按需加载 |
 
 ---
 

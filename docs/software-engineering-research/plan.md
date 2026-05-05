@@ -26,39 +26,50 @@
 6. **具体文件路径** — 计划必须指明精确路径，不用含糊描述
 7. **产物链条** — 需求文档 → 设计/调研 → 执行计划，每阶段有明确产物
 
-## 需要决断
+## 已采纳到 canonical skill
+
+| 决策 | 状态 | 落点 |
+|------|------|------|
+| 计划粒度采用 action 描述级，不默认写 2-5 分钟原子步骤 | 已采纳 | `skills/think-plan/SKILL.md` |
+| 设计未经批准不进入实现 | 已采纳 | `skills/think-plan/SKILL.md` |
+| 输出区分已锁定 / 待决策 / 可自由裁量 | 已采纳 | `skills/think-plan/SKILL.md` |
+| 复杂交互用 Mermaid 辅助说明 | 已采纳 | `skills/think-plan/SKILL.md` |
+| 技术不确定时先转 `/think-research` | 已采纳 | `skills/think-plan/SKILL.md` |
+| 领域术语冲突和 ADR-lite 作为可选机制 | 已采纳 | `skills/think-plan/SKILL.md`、`docs/software-engineering-research/domain-language-and-adr.md` |
+
+## 仍待决策
 
 ### 1. 计划粒度
 
 | 选项 | 来源 | 取舍 |
 |------|------|------|
 | 每步 2-5 分钟，含完整代码 | Superpowers | 精确无歧义，但编写成本高 |
-| 每任务 15-60 分钟，action 描述 | GSD | 适合复杂项目，执行者需更多自主判断 |
+| 每任务 15-60 分钟，action 描述 | GSD | 已作为当前默认，适合复杂项目 |
 | ≤10 个任务的 Epic 预览 | CCPM | 粗粒度概览，适合先看全局再细化 |
 
 ### 2. 独立调研阶段
 
 | 选项 | 来源 | 取舍 |
 |------|------|------|
-| 专门 research 阶段，产出 RESEARCH.md | GSD | 技术选型有据，但增加流程长度 |
-| 调研融入对话中 | Superpowers | 轻量，深度依赖对话质量 |
+| 专门 research 阶段，产出 RESEARCH.md | GSD | 通过 `/think-research` 按需触发，不默认创建文档 |
+| 调研融入对话中 | Superpowers | 简单任务默认采用 |
 | 无显式调研 | CCPM | 最简，可能遗漏技术风险 |
 
 ### 3. 交互模式
 
 | 选项 | 来源 | 取舍 |
 |------|------|------|
-| 一次一个问题，逐个深入 | Superpowers | 质量高，耗时 |
+| 一次一个问题，逐个深入 | Superpowers | 已用于关键澄清，但执行型任务不强制每步等待 |
 | 识别灰色地带后用户选择讨论哪些 | GSD | 用户控制节奏 |
 | 五个核心问题一次问完 | CCPM | 快速，深度不足 |
 
 ### 4. 上下文预算管理
 
-是否在 plan 中显式引入上下文预算概念？GSD 限制每计划 2-3 任务目标 ~50%，其他项目不管理。
+暂不在 `think-plan` 中硬性引入上下文预算。复杂交付可转 `/dev-large-delivery` 或拆多份 spec。
 
 ### 5. 计划验证
 
-计划写完后自审（Superpowers），还是独立 plan-checker 代理做目标后推验证（GSD）？
+当前采用内置自审清单。是否新增独立 plan-checker 子 agent 仍待观察真实失败案例。
 
 ## 精华提取
 
