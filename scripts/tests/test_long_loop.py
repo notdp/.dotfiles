@@ -27,8 +27,13 @@ class LongLoopTests(unittest.TestCase):
             root = cwd / ".long-loop"
             self.assertTrue((root / "PROMPT.md").exists())
             self.assertTrue((root / "SPEC.md").exists())
+            self.assertTrue((root / "specs" / "main.md").exists())
             self.assertTrue((root / "IMPLEMENTATION_PLAN.md").exists())
+            self.assertTrue((root / "fix_plan.md").exists())
             self.assertTrue((root / "ASSERT.md").exists())
+            self.assertTrue((root / "validator.md").exists())
+            self.assertTrue((root / "validator-results.json").exists())
+            self.assertTrue((root / "events.jsonl").exists())
             self.assertTrue((root / "progress.md").exists())
             self.assertTrue((root / "logs").exists())
             state = json.loads((root / "state.json").read_text())
@@ -147,10 +152,20 @@ class LongLoopTests(unittest.TestCase):
             result = self.run_script(cwd, "help")
 
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((cwd / ".long-loop").exists())
             self.assertIn("State Flow", result.stdout)
             self.assertIn("plan -> awaiting_approval -> approve -> approved -> run -> running", result.stdout)
             self.assertIn("pause -> paused -> edit plan -> approve", result.stdout)
             self.assertIn("Most common path", result.stdout)
+
+    def test_status_does_not_create_workspace_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            result = self.run_script(cwd, "status")
+
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse((cwd / ".long-loop").exists())
+            self.assertIn("missing state file", result.stderr)
 
     def test_help_reports_current_state_when_workspace_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -183,6 +198,77 @@ class LongLoopTests(unittest.TestCase):
             self.assertEqual(state["iterations"], 1)
             self.assertEqual(state["last_validation"], "pass")
             self.assertEqual(state["stop_reason"], "max iterations reached")
+            self.assertIn("## Iteration 1 Summary", result.stdout)
+            self.assertIn("Agent: pass", result.stdout)
+            self.assertIn("Verify: pass", result.stdout)
+            progress = (cwd / ".long-loop" / "progress.md").read_text(encoding="utf-8")
+            self.assertIn("## Iteration 1 Summary", progress)
+            events = (cwd / ".long-loop" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            event_payloads = [json.loads(line) for line in events if line.strip()]
+            self.assertTrue(any(event["event"] == "validator-pass" for event in event_payloads))
+            self.assertTrue(any(event["event"] == "iteration-summary" for event in event_payloads))
+            log_text = next((cwd / ".long-loop" / "logs").glob("*.md")).read_text(encoding="utf-8")
+            self.assertRegex(log_text, r"## 20\\d\\d-\\d\\d-\\d\\dT.* \\| iteration-1 \\| validator-pass \\|")
+
+    def test_run_uses_fresh_context_without_prior_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            scripts = cwd / "scripts"
+            scripts.mkdir()
+            run_verify = scripts / "run-verify.sh"
+            run_verify.write_text("#!/usr/bin/env bash\necho verify ok\n", encoding="utf-8")
+            scan = scripts / "scan_diff_residue.py"
+            scan.write_text("#!/usr/bin/env python3\nprint('scan ok')\n", encoding="utf-8")
+            capture = scripts / "capture_context.py"
+            capture.write_text(
+                "import pathlib, sys\npathlib.Path('context.txt').write_text(sys.stdin.read(), encoding='utf-8')\nprint('OLD_STDOUT_SHOULD_NOT_LEAK')\n",
+                encoding="utf-8",
+            )
+            run_verify.chmod(0o755)
+            scan.chmod(0o755)
+
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            self.run_script(cwd, "approve")
+            first = self.run_script(cwd, "run", "--once", "--agent-cmd", "python3 scripts/capture_context.py")
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            self.run_script(cwd, "approve")
+            second = self.run_script(cwd, "run", "--once", "--agent-cmd", "python3 scripts/capture_context.py")
+
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            context = (cwd / "context.txt").read_text(encoding="utf-8")
+            self.assertIn("fix_plan.md", context)
+            self.assertIn("validator.md", context)
+            self.assertNotIn("OLD_STDOUT_SHOULD_NOT_LEAK", context)
+
+    def test_run_requires_validator_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            (cwd / ".long-loop" / "validator.md").unlink()
+            self.run_script(cwd, "approve")
+            result = self.run_script(cwd, "run", "--once", "--agent-cmd", "true")
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("missing validator file", result.stderr)
+
+    def test_validator_failure_stops_before_marking_done(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            (cwd / ".long-loop" / "validator.md").write_text(
+                "# Validator\n\n## Item validator\n\n- `false`\n",
+                encoding="utf-8",
+            )
+            self.run_script(cwd, "approve")
+            result = self.run_script(cwd, "run", "--once", "--agent-cmd", "true")
+
+            self.assertEqual(result.returncode, 1)
+            state = json.loads((cwd / ".long-loop" / "state.json").read_text())
+            self.assertEqual(state["status"], "stopped")
+            self.assertEqual(state["last_validation"], "fail")
+            self.assertIn("judge validation failed", state["stop_reason"])
+            fix_plan = (cwd / ".long-loop" / "fix_plan.md").read_text(encoding="utf-8")
+            self.assertIn("Status: pending", fix_plan)
 
     def test_run_respects_zero_minute_budget_before_agent_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
