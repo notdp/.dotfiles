@@ -26,10 +26,10 @@ UI / 前端视觉任务必须额外锁定：
 
 - 页面类型：app / dashboard / landing / docs / mobile / deck
 - 受众与使用情境：谁在什么压力下使用
-- 设计系统来源：现有项目 / 用户提供 / 临时 contract
+- 设计系统来源：项目 `DESIGN.md` / 现有 theme-token / 用户提供 / 临时 contract
 - 视觉方向：existing / editorial / modern-minimal / warm-soft / tech-utility / brutalist
 - 禁用项：渐变、glass、emoji icon、虚构指标、filler copy、无来源图片
-- 验收方式：截图 viewport、overflow、状态覆盖、CRAP 原则检查
+- 验收方式：截图 viewport、overflow、状态覆盖、CRAP 原则检查、DESIGN.md adherence
 
 涉及领域概念、业务术语或架构决策时，额外检查：
 
@@ -38,6 +38,20 @@ UI / 前端视觉任务必须额外锁定：
 - 是否需要新增领域术语；只记录 domain expert 也会使用的概念，不记录通用编程词。
 - 是否存在值得记录的架构决策；只有同时满足“难回退、缺上下文会令人意外、存在真实 trade-off”时才建议 ADR。
 - 文档必须 lazy create：只有用户要求沉淀，或本 skill 明确产物包含文档时才创建。
+
+复杂实现任务额外使用 REASONS-lite 自查，但不要把所有小任务强行写成 Canvas：
+
+| 维度 | 检查点 |
+|------|--------|
+| Requirements | 问题、DoD、Non-goals、验收标准是否明确 |
+| Entities | 领域对象、术语、关系是否显式 |
+| Approach | 采用什么策略、放弃了什么备选、为什么 |
+| Structure | 改哪些文件 / 组件 / 边界，不改哪些 |
+| Operations | 步骤是否可执行、可测试、顺序合理 |
+| Norms | 项目命名、测试、日志、错误处理等规范 |
+| Safeguards | 安全、兼容性、性能、不变量和回退点 |
+
+当后续实现、验证或 review 发现现实与 plan 不一致时，优先更新 plan/spec artifact，再继续实现；不要只在代码上 patch，导致意图记录漂移。
 
 如果发现需求跨多个相对独立的子系统，先建议拆成多个 spec，再继续设计；不要把互不相干的问题硬塞进一个方案。
 

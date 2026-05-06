@@ -69,30 +69,6 @@ elif re.search(rb'dimColor:!0,children:"v\d+\.\d+\.\d+"', data) or re.search(rb'
 else:
     results['mod-highlight-welcome-modified'] = 'unknown'
 
-# mod-unlock-max-custom-effort: custom model effort 级别
-# 新版紧凑版: 列表路径 provider-aware + 当前模型路径 max-only
-provider_count = len(re.findall(
-    rb'supportedReasoningEfforts:' + V + rb'\?' + V
-    + rb'\.provider=="openai"\?\["none","low","medium","high","xhigh"\]:\["off","low","medium","high","max"\]:\["none"\]',
-    data,
-))
-max_only_count = len(re.findall(
-    rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high","max"\]:\["none"\]',
-    data,
-))
-original_count = len(re.findall(
-    rb'supportedReasoningEfforts:' + V + rb'\?\["off","low","medium","high"\]:\["none"\]',
-    data,
-))
-if provider_count >= 2 or (provider_count >= 1 and max_only_count >= 1 and original_count == 0):
-    results['mod-unlock-max-custom-effort'] = 'modified'
-elif provider_count >= 1 or max_only_count >= 1:
-    results['mod-unlock-max-custom-effort'] = 'partial'
-elif original_count >= 1:
-    results['mod-unlock-max-custom-effort'] = 'original'
-else:
-    results['mod-unlock-max-custom-effort'] = 'unknown'
-
 # mod-extend-kitty-timeout: kitty keyboard 检测超时
 if re.search(rb'setTimeout\(\w+,999\)', data) and b'enableKittyProtocol' in data:
     results['mod-extend-kitty-timeout'] = 'modified'
@@ -146,8 +122,6 @@ else:
                 extra = m.get('extraArgs', {})
 
                 issues = []
-                has_max_effort_mod = results.get('mod-unlock-max-custom-effort') == 'modified'
-
                 # reasoningEffort 优先级:
                 #   有值 (low/medium/high/max/xhigh) → Droid 控制，extraArgs 中的 effort 被忽略
                 #   none/off → Droid 不发送 thinking/reasoning，extraArgs 接管
@@ -181,8 +155,7 @@ else:
                         issues.append(
                             f'extraArgs 中的整个 reasoning 对象必须移除（包括 summary）'
                             '（responses.create 中 extraArgs 浅展开会覆盖 requestParams.reasoning，'
-                            '导致 effort 字段丢失，Tab 切换 Thinking Level 完全无效'
-                            + (f'；mod-unlock-max-custom-effort 已解锁 xhigh' if has_max_effort_mod else '') + '）'
+                            '导致 effort 字段丢失，Tab 切换 Thinking Level 完全无效）'
                             + keep_note)
 
                 icon = '✓' if not issues else '⚠'

@@ -16,6 +16,10 @@
 
 两阶段：写 PRD → 解析为 Epic。头脑风暴产出需求文档（含用户故事、功能需求、成功标准、显式排除项），再转为技术 Epic。质量门控：无占位符、用户故事含验收标准、成功标准可度量。
 
+### SPDD - 结构化 prompt 作为交付资产
+
+Structured-Prompt-Driven Development 将 prompt 作为一等交付产物：可版本化、可 review、可复用，并与代码双向同步。核心结构是 REASONS Canvas：Requirements、Entities、Approach、Structure、Operations、Norms、Safeguards。它比普通 spec 更偏向 LLM 执行边界，把业务意图、领域模型、技术方案、操作步骤和护栏压进同一个可审查 artifact。
+
 ## 共识
 
 1. **先理解再动手** — 禁止跳过需求分析直接写代码
@@ -25,6 +29,8 @@
 5. **YAGNI** — 不做用户没要求的事
 6. **具体文件路径** — 计划必须指明精确路径，不用含糊描述
 7. **产物链条** — 需求文档 → 设计/调研 → 执行计划，每阶段有明确产物
+8. **计划即 prompt artifact**：对复杂任务，计划不仅给人看，也作为后续实现和 review 的意图基准
+9. **意图漂移先回写 artifact**：当验证或 review 发现现实与计划不一致，先修正 plan/spec，再继续改代码
 
 ## 已采纳到 canonical skill
 
@@ -36,6 +42,9 @@
 | 复杂交互用 Mermaid 辅助说明 | 已采纳 | `skills/think-plan/SKILL.md` |
 | 技术不确定时先转 `/think-research` | 已采纳 | `skills/think-plan/SKILL.md` |
 | 领域术语冲突和 ADR-lite 作为可选机制 | 已采纳 | `skills/think-plan/SKILL.md`、`docs/software-engineering-research/domain-language-and-adr.md` |
+| 复杂任务采用 REASONS-lite 视角 | 已采纳 | `skills/think-plan/SKILL.md` |
+| 调研结论必须映射到当前系统能力 | 已采纳 | `skills/think-research/SKILL.md` |
+| 有 plan/spec artifact 时交付检查补看 intent alignment | 已采纳 | `skills/guard-check/` |
 
 ## 仍待决策
 
@@ -71,6 +80,10 @@
 
 当前采用内置自审清单。是否新增独立 plan-checker 子 agent 仍待观察真实失败案例。
 
+### 6. 是否新增 SPDD 独立入口
+
+暂不新增 `/spdd` 或 `think-spdd`。先把 SPDD 的 REASONS-lite 和 prompt/code sync 纪律吸收到现有 `think-plan`、`think-research`、`guard-check` 链路。若后续多个真实任务都需要长期保存 prompt artifact，再考虑独立入口。
+
 ## 精华提取
 
 | 技巧 | 来源 | 说明 |
@@ -84,3 +97,5 @@
 | 不要自造轮子清单 | GSD | 显式列出"不应手写实现"的部分 |
 | Scope 不可缩减 | GSD | 禁止用"简化版"偷偷缩减范围，放不下就拆阶段 |
 | PRD 质量门控 | CCPM | 无占位符、用户故事含验收标准、成功标准可度量 |
+| REASONS Canvas | SPDD | Requirements / Entities / Approach / Structure / Operations / Norms / Safeguards，适合作为复杂任务 plan 的自审框架 |
+| Prompt/code sync | SPDD | 验证或 review 发现偏差时，先回写 plan/spec，再继续实现，减少意图漂移 |

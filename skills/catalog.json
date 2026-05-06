@@ -37,6 +37,12 @@
       "role": "canonical"
     },
     {
+      "name": "workflow-helper",
+      "path": "skills/workflow-helper",
+      "domain": "workflow",
+      "role": "canonical"
+    },
+    {
       "name": "guard-check",
       "path": "skills/guard-check",
       "domain": "guard",
@@ -159,6 +165,12 @@
     {
       "name": "dev-large-delivery",
       "path": "skills/dev-large-delivery",
+      "domain": "dev",
+      "role": "canonical"
+    },
+    {
+      "name": "dev-long-loop",
+      "path": "skills/dev-long-loop",
       "domain": "dev",
       "role": "canonical"
     },

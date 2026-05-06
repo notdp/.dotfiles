@@ -1,0 +1,19 @@
+{
+  "name": "design-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "cli": "bun run packages/cli/src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "bun-types": "^1.3.12",
+    "turbo": "latest",
+    "typescript": "latest"
+  }
+}

@@ -26,6 +26,7 @@ argument-hint: <技术问题|方案对比|可行性评估>
 | 不要自造轮子 | 哪些问题有成熟方案，不应手写？ |
 | 常见坑 | 已知的陷阱和踩坑经验 |
 | 代码示例 | 关键实现的参考代码 |
+| 当前系统映射 | 调研结论如何落到现有 skill / command / script / docs |
 
 ### 来源优先级
 
@@ -64,6 +65,8 @@ argument-hint: <技术问题|方案对比|可行性评估>
 - 每条结论标注置信度（确认/推断/未验证）
 - 不给模糊建议（"可以考虑 X 或 Y"→ 给出推荐和理由）
 - 调研结果可作为 `/think-plan` 的输入
+- 方法论、工程流程或系统改造类调研，必须说明如何复用当前仓库已有能力；不要因为看到外部工具链就默认新增平行入口
+- 复杂任务的调研产物应能支持后续 plan 形成 Requirements / Entities / Approach / Structure / Operations / Norms / Safeguards 的轻量映射
 
 ## Gotchas
 

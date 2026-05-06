@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team"}
+ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team", "workflow"}
 ALLOWED_ROLES = {"canonical", "legacy", "brand-exception"}
 BRAND_EXCEPTIONS = {"hive", "agent-browser", "react-doctor"}
 REFERENCE_PATTERN = re.compile(

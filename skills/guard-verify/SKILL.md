@@ -31,6 +31,7 @@ argument-hint: <交付物|验证范围>
 | Horizontal overflow | `scrollWidth <= innerWidth` 或等价检查 |
 | Text overflow | 聚焦区域无截断、遮挡、按钮撑破的证据 |
 | Interaction state | 关键控件 hover/focus/disabled/loading/error 中适用状态 |
+| DESIGN.md adherence | 若存在 `DESIGN.md`，说明已读取并给出 token / direction 遵守证据；若偏离，说明理由 |
 | Reference diff | 有参考图时引用 `/fe-ui-visual-iterate` 差异表 |
 
 禁止把“测试通过”“肉眼看了下”当成 UI verified。缺截图或 overflow 证据时，UI 交付物状态只能是 `partial`。
@@ -108,11 +109,29 @@ verification: none -- structural gap
 | horizontal overflow | pass/partial | `scrollWidth <= innerWidth` |
 | text overflow | pass/partial | selector / screenshot region |
 | interaction states | pass/partial | selector / screenshot / snapshot |
+| DESIGN.md adherence | pass/partial | `DESIGN.md` path + token/direction evidence |
 
 ### 结构性评估
 - 影响面: ...
 - 护栏是否足够: yes / no（理由）
 - 是否需要 `/think-quality`: yes / no
+```
+
+### Long-loop 每轮验证（仅 long-loop 任务）
+
+当交付物来自 `.long-loop/` 工作流时，额外输出：
+
+```markdown
+### Long-loop 轮次验证
+| Iteration | Plan item | Agent result | Verify | Diff scan | State update | Verdict |
+|---|---|---|---|---|---|---|
+| 1 | ... | pass/fail | pass/fail | pass/fail | pass/fail | continue/stop |
+
+### Stop check
+- [ ] 未超过 max_iterations / max_minutes
+- [ ] `.long-loop/progress.md` 已更新
+- [ ] `.long-loop/state.json` 已更新
+- [ ] 未触发远端副作用
 ```
 
 ## 规则

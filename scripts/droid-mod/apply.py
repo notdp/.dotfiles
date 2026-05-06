@@ -10,9 +10,7 @@
 
 归档说明:
     已归档的 mod 保留在 mods/_archive/ 下，不再出现在列表中，也不再参与补偿计算。
-    当前归档: mod-hide-command-truncation, mod-expand-diff-lines
-    注意: mod-unlock-max-custom-effort 依赖 mod-hide-command-truncation 释放出来的
-          ~100B 死代码区域来补偿 +72B，单独 apply 会因补偿空间不足而失败。
+    当前归档: mod-hide-command-truncation, mod-expand-diff-lines, mod-unlock-max-custom-effort
 """
 import subprocess, sys, platform, shutil
 from pathlib import Path
@@ -38,12 +36,6 @@ MODS = [
         'id': '3',
         'script': 'mod_highlight_welcome_modified',
         'desc': 'Welcome/Header 高亮 Modified 标记',
-    },
-    {
-        'key': 'mod-unlock-max-custom-effort',
-        'id': '4',
-        'script': 'mod_unlock_max_custom_effort',
-        'desc': '为 custom model 解锁 max effort',
     },
     {
         'key': 'mod-extend-kitty-timeout',
@@ -154,29 +146,6 @@ def main():
         if not selected:
             print(f'用法: {sys.argv[0]} [status|restore|mod-cycle-custom-model,...|1,2,...]')
             sys.exit(1)
-
-    # 依赖校验: mod-unlock-max-custom-effort 需要约 +72B 补偿。
-    # 当前唯一稳定补偿源是 mod-cycle-custom-model 在 selector 工厂区压缩后
-    # 预留的 /* spaces */ padding (~1KB)。
-    if 'mod-unlock-max-custom-effort' in selected:
-        binary = DROID.read_bytes()
-        # 若 mod-unlock 已应用过，本次运行不会产生字节增量，无需 padding 依赖
-        unlock_already_applied = (
-            b'.provider=="openai"?["none","low","medium","high","xhigh"]'
-            in binary
-        )
-        if not unlock_already_applied:
-            # 检查 mod-cycle-custom-model 的 mT1/iT1 padding 是否在位（它们才是补偿源）
-            mcc_padding_markers = (
-                b'JH.push(...g.map((UH)=>{let QH=fF(UH.id,M,UH)',
-                b'JT.push(...xH.map((ER)=>{let WR=fF(ER.id,YH,ER)',
-            )
-            mcc_padding_applied = all(m in binary for m in mcc_padding_markers)
-            if not mcc_padding_applied and 'mod-cycle-custom-model' not in selected:
-                print('错误: mod-unlock-max-custom-effort 需要 +72B 补偿。')
-                print('  当前可用补偿源是 mod-cycle-custom-model 提供的 padding。')
-                print('  请同时选中 mod-cycle-custom-model，或先单独应用它。')
-                sys.exit(1)
 
     ver = get_version()
     print(f'droid v{ver}\n')

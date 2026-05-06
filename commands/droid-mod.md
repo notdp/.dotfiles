@@ -58,7 +58,6 @@ python3 "$SCRIPT_DIR/restore.py" --list
 | 6 | Ctrl+N 跳过 Copilot model（ID 含 `[` 的模型） | ~+27 |
 | 7 | 多行历史按↓无法返回空输入框 → 修复 | 0 |
 | 8 | Welcome 橙色 + 版本号 "Modified" 标记 | ~+54 |
-| 9 | Custom model effort 完整级别（Anthropic=`max`，OpenAI=`xhigh`） | ~+72 |
 | 10 | Kitty keyboard 检测超时 200→999ms | 0 |
 
 ## 规则

@@ -1,0 +1,73 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+        
+    - name: Install dependencies
+      run: bun install
+      
+    - name: Run tests
+      run: bun test
+
+    - name: Build CLI
+      run: cd packages/cli && bun run build
+
+    - name: Node.js Smoke Test
+      run: node packages/cli/dist/index.js lint examples/atmospheric-glass/DESIGN.md
+
+    - name: Tarball Smoke Test
+      run: |
+        cd packages/cli && npm pack
+        mkdir -p /tmp/designmd-smoke && cd /tmp/designmd-smoke
+        npm init -y
+        npm install $GITHUB_WORKSPACE/packages/cli/google-design.md-*.tgz
+        echo -e '---\ncolors:\n  primary: "#0000ff"\n---' > DESIGN.md
+        npx design.md lint DESIGN.md
+        node -e "import('@google/design.md/linter').then(m => console.log('OK:', Object.keys(m).length, 'exports'))"
+
+  npm-registry-smoke-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        registry-url: https://registry.npmjs.org
+
+    - name: Install @google/design.md from the public npm registry
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/npm-registry-smoke"
+        cd "$RUNNER_TEMP/npm-registry-smoke"
+        npm init -y
+        npm install "@google/design.md@latest"
+        node node_modules/@google/design.md/dist/index.js spec --rules-only --format json > /dev/null
+        node -e "import('@google/design.md/linter').then(m => console.log('OK:', Object.keys(m).length, 'exports'))"
+

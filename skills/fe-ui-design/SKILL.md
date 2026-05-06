@@ -14,6 +14,19 @@ argument-hint: <页面/组件需求|设计目标>
 
 → 契约模板见 [design-contract](refs/design-contract.md)
 
+### DESIGN.md SSOT
+
+UI 任务开工前先找项目级 `DESIGN.md`：
+
+1. 如果存在，读取并遵守其中的 token 与 rationale。
+2. 如果不存在但项目已有 theme / CSS variables / 组件库，先用 `/fe-ui-design-system` 提取临时 DESIGN.md contract。
+3. 如果没有任何来源，先声明 `[推断]` 的临时方向，不能把临时审美当成项目事实。
+4. 实现时颜色、字体、间距、圆角、组件状态优先从 DESIGN.md 或现有 token 派生。
+
+参考规范：`refs/google-labs-code/design.md/docs/spec.md`。参考样本库：`refs/voltagent/awesome-design-md`。
+
+DESIGN.md 不是最终验收。实现后仍需要截图、CRAP 检查、overflow 检查和状态覆盖证据。
+
 必填：
 
 - Surface：web / mobile / dashboard / deck / fixed canvas
@@ -24,6 +37,7 @@ argument-hint: <页面/组件需求|设计目标>
 - Spacing scale：4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 80
 - Accent budget：每屏最多 2 个可见 accent
 - Forbidden：本任务明确禁用的视觉套路和内容占位
+- DESIGN.md source：项目现有 / 用户提供 / 临时生成 / 未找到
 
 ## 四大基础原则
 
