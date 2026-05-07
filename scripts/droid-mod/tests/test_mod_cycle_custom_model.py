@@ -223,6 +223,26 @@ class ModCycleCustomModelTests(unittest.TestCase):
             self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
             self.assertIn("mod-cycle-custom-model: 已修改", status.stdout)
 
+    def test_patches_duplicate_tw_anchors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            original = (
+                MT1_ORIGINAL + b"...filler..." + IT1_ORIGINAL + b"...filler..."
+                + TW_ANCHOR_ORIGINAL + b"...duplicate..." + TW_ANCHOR_ORIGINAL
+            )
+            droid = _write_droid(home, original)
+
+            result = _run(SCRIPT, home)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+            patched = droid.read_bytes()
+            self.assertEqual(patched.count(TW_CORE), 2)
+            self.assertNotIn(TW_ANCHOR_ORIGINAL, patched)
+
+            status = _run(STATUS, home)
+            self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+            self.assertIn("mod-cycle-custom-model: 已修改", status.stdout)
+
     def test_fails_loudly_when_pattern_not_found(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)

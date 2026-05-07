@@ -37,7 +37,12 @@ TW_CORE_PAT = re.compile(
 def is_already_applied(data: bytes) -> bool:
     selector_core_count = len(list(SELECTOR_CORE_PAT.finditer(data)))
     selector_original_count = len(list(SELECTOR_PAT.finditer(data)))
-    return bool(selector_core_count > 0 and selector_original_count == 0 and TW_CORE_PAT.search(data))
+    return bool(
+        selector_core_count > 0
+        and selector_original_count == 0
+        and TW_CORE_PAT.search(data)
+        and not TW_PAT.search(data)
+    )
 
 
 def build_selector_core(match: re.Match[bytes]) -> bytes:
@@ -98,36 +103,37 @@ def patch_selectors(data: bytes) -> bytes:
 
 
 def patch_tw(data: bytes) -> bytes:
-    if TW_CORE_PAT.search(data):
+    matches = list(TW_PAT.finditer(data))
+    if not matches and TW_CORE_PAT.search(data):
         print(f'{NAME} hasAnyAvailableModel anchor: 已应用')
         return data
 
-    matches = list(TW_PAT.finditer(data))
-    if len(matches) != 1:
+    if not matches:
         raise ValueError(
-            f'hasAnyAvailableModel anchor match count={len(matches)}, expected 1 — droid 版本可能变了'
+            'hasAnyAvailableModel anchor pattern not found — droid 版本可能变了'
         )
 
-    match = matches[0]
-    old = match.group(0)
-    new = (
-        match.group('prefix')
-        + match.group('models')
-        + b'='
-        + match.group('svc')
-        + b'().getCustomModels().map(m=>m.id),'
-        + match.group('empty')
-        + b'=!'
-        + match.group('svc')
-        + b'().hasAnyAvailableModel('
-        + match.group('models')
-        + b'),' 
-    )
-    data = data[:match.start()] + new + data[match.end():]
-    print(
-        f'{NAME} hasAnyAvailableModel anchor → custom: {len(old)}B → {len(new)}B '
-        f'({len(new) - len(old):+d} bytes)'
-    )
+    total = len(matches)
+    for idx, match in enumerate(reversed(matches), start=1):
+        old = match.group(0)
+        new = (
+            match.group('prefix')
+            + match.group('models')
+            + b'='
+            + match.group('svc')
+            + b'().getCustomModels().map(m=>m.id),'
+            + match.group('empty')
+            + b'=!'
+            + match.group('svc')
+            + b'().hasAnyAvailableModel('
+            + match.group('models')
+            + b'),'
+        )
+        data = data[:match.start()] + new + data[match.end():]
+        print(
+            f'{NAME} hasAnyAvailableModel anchor[{total - idx + 1}] → custom: '
+            f'{len(old)}B → {len(new)}B ({len(new) - len(old):+d} bytes)'
+        )
     return data
 
 
