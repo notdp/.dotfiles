@@ -13,6 +13,8 @@ from pathlib import Path
 
 
 DEFAULT_DIR = ".long-loop"
+CURRENT_MARKER = "current"
+GITIGNORE_ENTRY = ".long-loop/"
 STATE_VERSION = 1
 
 
@@ -81,6 +83,85 @@ def today_log_path(paths: LoopPaths) -> Path:
     return paths.logs / f"{datetime.now().strftime('%Y-%m-%d')}.md"
 
 
+def slugify_goal(goal: str) -> str:
+    parts: list[str] = []
+    last_was_separator = False
+    for char in goal.strip().lower():
+        if char.isalnum():
+            parts.append(char)
+            last_was_separator = False
+        elif char.isspace() or char in {"-", "_"}:
+            if parts and not last_was_separator:
+                parts.append("-")
+                last_was_separator = True
+    slug = "".join(parts).strip("-")
+    return slug or "task"
+
+
+def dated_workspace_name(goal: str) -> str:
+    return f"{datetime.now().strftime('%Y-%m-%d')}_{slugify_goal(goal)}"
+
+
+def next_available_workspace(base_dir: Path, goal: str, *, force: bool) -> Path:
+    name = dated_workspace_name(goal)
+    root = base_dir / name
+    if force:
+        return root
+    candidate = root
+    suffix = 2
+    while candidate.exists() and any(candidate.iterdir()):
+        candidate = base_dir / f"{name}-{suffix}"
+        suffix += 1
+    return candidate
+
+
+def resolve_workspace_root(raw_dir: str) -> Path:
+    root = Path(raw_dir)
+    if (root / "state.json").exists():
+        return root
+    marker = root / CURRENT_MARKER
+    if marker.exists():
+        marker_text = marker.read_text(encoding="utf-8").strip()
+        if marker_text:
+            marker_path = Path(marker_text)
+            return marker_path if marker_path.is_absolute() else root / marker_path
+    return root
+
+
+def plan_workspace_root(args: argparse.Namespace) -> Path:
+    base_dir = Path(args.dir)
+    if args.dir == DEFAULT_DIR:
+        return next_available_workspace(base_dir, args.goal, force=args.force)
+    return base_dir
+
+
+def write_current_workspace_marker(workspace_root: Path) -> None:
+    if workspace_root.parent.name != DEFAULT_DIR:
+        return
+    marker = workspace_root.parent / CURRENT_MARKER
+    marker.write_text(workspace_root.name + "\n", encoding="utf-8")
+
+
+def gitignore_has_long_loop(lines: list[str]) -> bool:
+    accepted = {".long-loop", ".long-loop/", "/.long-loop", "/.long-loop/"}
+    return any(line.strip() in accepted for line in lines if not line.lstrip().startswith("#"))
+
+
+def ensure_gitignore_ignores_long_loop(repo_root: Path) -> None:
+    gitignore = repo_root / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(GITIGNORE_ENTRY + "\n", encoding="utf-8")
+        return
+    text = gitignore.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    if gitignore_has_long_loop(lines):
+        return
+    prefix = text
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    gitignore.write_text(prefix + GITIGNORE_ENTRY + "\n", encoding="utf-8")
+
+
 def read_state(paths: LoopPaths) -> dict:
     if not paths.state.exists():
         raise RuntimeError(f"missing state file: {paths.state}")
@@ -144,21 +225,21 @@ def initial_state(goal: str) -> dict:
     }
 
 
-def template_prompt(goal: str) -> str:
+def template_prompt(goal: str, workspace: str) -> str:
     return f"""# Long Loop Prompt
 
 Goal: {goal}
 
 Read these files before acting:
 
-- `.long-loop/specs/main.md`
-- `.long-loop/fix_plan.md`
-- `.long-loop/validator.md`
-- `.long-loop/progress.md`
+- `{workspace}/specs/main.md`
+- `{workspace}/fix_plan.md`
+- `{workspace}/validator.md`
+- `{workspace}/progress.md`
 
 Rules:
 
-0. Do not execute unless `.long-loop/state.json` is approved.
+0. Do not execute unless `{workspace}/state.json` is approved.
 1. Pick exactly one highest-priority item from `fix_plan.md`.
 2. Before editing, search the repository; do not assume the item is not already implemented.
 3. Implement the item fully. Do not add placeholder or toy implementations.
@@ -170,7 +251,7 @@ Rules:
 """
 
 
-def template_spec(goal: str) -> str:
+def template_spec(goal: str, workspace: str) -> str:
     return f"""# Long Loop Spec
 
 ## Goal
@@ -184,8 +265,8 @@ def template_spec(goal: str) -> str:
 
 ## Acceptance
 
-- Required checks in `.long-loop/ASSERT.md` pass.
-- Each completed item updates `.long-loop/progress.md`.
+- Required checks in `{workspace}/ASSERT.md` pass.
+- Each completed item updates `{workspace}/progress.md`.
 
 ## Budget
 
@@ -210,7 +291,7 @@ Goal: {goal}
 """
 
 
-def template_fix_plan(goal: str) -> str:
+def template_fix_plan(goal: str, workspace: str) -> str:
     return f"""# Fix Plan
 
 Goal: {goal}
@@ -221,7 +302,7 @@ Goal: {goal}
 - Status: pending
 - Why: Initial placeholder created by `plan`; replace before running a real loop.
 - Evidence needed: Item-specific validator passes.
-- Validator: `.long-loop/validator.md`
+- Validator: `{workspace}/validator.md`
 - Notes: Keep learnings here, not in status reports.
 
 ## Backlog
@@ -325,27 +406,67 @@ def format_iteration_summary(
     )
 
 
+def format_review_bundle(paths: LoopPaths) -> str:
+    files = [
+        ("SPEC.md", paths.spec),
+        ("IMPLEMENTATION_PLAN.md", paths.plan),
+        ("fix_plan.md", paths.fix_plan),
+        ("ASSERT.md", paths.assert_file),
+        ("validator.md", paths.validator),
+    ]
+    sections = [
+        "# Long Loop Review",
+        "",
+        f"Workspace: `{paths.root}`",
+        "",
+        "Review the generated plan below. If it looks good, run the loop command directly; `run` is treated as your explicit approval for an initial plan.",
+    ]
+    for label, path in files:
+        sections.extend(
+            [
+                "",
+                f"## {label}",
+                "",
+                "```markdown",
+                path.read_text(encoding="utf-8").strip(),
+                "```",
+            ]
+        )
+    sections.extend(
+        [
+            "",
+            "Next: review the plan above, then run `scripts/long_loop.py run --once --agent-cmd \"...\"`.",
+            "",
+        ]
+    )
+    return "\n".join(sections)
+
+
 def init_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(plan_workspace_root(args))
     if paths.root.exists() and any(paths.root.iterdir()) and not args.force:
         raise RuntimeError(f"{paths.root} already exists and is not empty; use --force to overwrite")
+    if args.dir == DEFAULT_DIR:
+        ensure_gitignore_ignores_long_loop(Path.cwd())
     paths.root.mkdir(parents=True, exist_ok=True)
     paths.specs.mkdir(parents=True, exist_ok=True)
     paths.logs.mkdir(parents=True, exist_ok=True)
-    paths.prompt.write_text(template_prompt(args.goal), encoding="utf-8")
-    paths.spec.write_text(template_spec(args.goal), encoding="utf-8")
-    paths.main_spec.write_text(template_spec(args.goal), encoding="utf-8")
+    workspace = str(paths.root)
+    paths.prompt.write_text(template_prompt(args.goal, workspace), encoding="utf-8")
+    paths.spec.write_text(template_spec(args.goal, workspace), encoding="utf-8")
+    paths.main_spec.write_text(template_spec(args.goal, workspace), encoding="utf-8")
     paths.plan.write_text(template_plan(args.goal), encoding="utf-8")
-    paths.fix_plan.write_text(template_fix_plan(args.goal), encoding="utf-8")
+    paths.fix_plan.write_text(template_fix_plan(args.goal, workspace), encoding="utf-8")
     paths.assert_file.write_text(template_assert(), encoding="utf-8")
     paths.validator.write_text(template_validator(), encoding="utf-8")
     paths.validator_results.write_text("[]\n", encoding="utf-8")
     paths.events.write_text("", encoding="utf-8")
     paths.progress.write_text(template_progress(args.goal), encoding="utf-8")
     write_state(paths, initial_state(args.goal))
+    write_current_workspace_marker(paths.root)
     append_event(paths, {"iteration": 0, "event": "plan-created", "item": None, "summary": args.goal})
     append_log(paths, "planned", f"Goal: {args.goal}")
-    sys.stdout.write(f"planned long-loop workspace at {paths.root}; run approve before run\n")
+    sys.stdout.write(format_review_bundle(paths))
     return 0
 
 
@@ -423,7 +544,7 @@ def status_payload(paths: LoopPaths, state: dict) -> dict:
 
 
 def status_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     state = read_state(paths)
     if args.json:
@@ -436,13 +557,13 @@ def status_workspace(args: argparse.Namespace) -> int:
 def next_command_for_state(state: dict) -> str:
     status = state.get("status")
     if status == "awaiting_approval":
-        return "scripts/long_loop.py approve"
+        return 'scripts/long_loop.py run --once --agent-cmd "..."'
     if status == "approved":
         return 'scripts/long_loop.py run --once --agent-cmd "..."'
     if status == "running":
         return "scripts/long_loop.py status"
     if status == "paused":
-        return "edit .long-loop files, then scripts/long_loop.py approve"
+        return "edit current workspace files, then scripts/long_loop.py approve"
     if status == "stopped":
         return "scripts/long_loop.py status"
     if status == "done":
@@ -470,7 +591,7 @@ def format_help_guide(paths: LoopPaths) -> str:
 {format_current_state(paths)}
 ## Most common path
 
-1. plan: create `.long-loop/` files
+1. plan: create `.long-loop/<date>_<topic>/` files
 2. edit/review: check `SPEC.md`, `IMPLEMENTATION_PLAN.md`, `ASSERT.md`
 3. approve: unlock execution
 4. run: execute bounded iterations
@@ -504,12 +625,12 @@ stopped -> approve -> approved -> resume -> running
 
 
 def help_workspace(args: argparse.Namespace) -> int:
-    sys.stdout.write(format_help_guide(LoopPaths(Path(args.dir))))
+    sys.stdout.write(format_help_guide(LoopPaths(resolve_workspace_root(args.dir))))
     return 0
 
 
 def tail_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     log_files = sorted(paths.logs.glob("*.md"))
     if not log_files:
@@ -523,7 +644,7 @@ def tail_workspace(args: argparse.Namespace) -> int:
 
 
 def watch_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     index = 0
     while args.iterations is None or index < args.iterations:
@@ -540,7 +661,7 @@ def watch_workspace(args: argparse.Namespace) -> int:
 
 
 def stop_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     state = read_state(paths)
     state.update(
@@ -557,9 +678,15 @@ def stop_workspace(args: argparse.Namespace) -> int:
 
 
 def approve_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     state = read_state(paths)
+    approve_state(paths, state)
+    sys.stdout.write("approved long-loop plan\n")
+    return 0
+
+
+def approve_state(paths: LoopPaths, state: dict) -> None:
     state.update(
         {
             "status": "approved",
@@ -572,12 +699,10 @@ def approve_workspace(args: argparse.Namespace) -> int:
     )
     write_state(paths, state)
     append_log(paths, "approved", "Plan approved for execution.")
-    sys.stdout.write("approved long-loop plan\n")
-    return 0
 
 
 def pause_workspace(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     state = read_state(paths)
     state.update(
@@ -715,7 +840,7 @@ def run_validation(repo_root: Path) -> tuple[bool, str]:
 
 
 def run_loop(args: argparse.Namespace) -> int:
-    paths = LoopPaths(Path(args.dir))
+    paths = LoopPaths(resolve_workspace_root(args.dir))
     require_workspace(paths)
     if not args.agent_cmd:
         raise RuntimeError("run requires --agent-cmd")
@@ -726,8 +851,12 @@ def run_loop(args: argparse.Namespace) -> int:
         raise RuntimeError("--max-iterations must be >= 1")
 
     state = read_state(paths)
+    if state.get("approval") == "pending" and state.get("status") == "awaiting_approval":
+        approve_state(paths, state)
+        sys.stdout.write("auto-approved long-loop plan via run\n")
+        state = read_state(paths)
     if state.get("approval") != "approved" or state.get("status") not in {"approved", "running"}:
-        raise RuntimeError("long-loop plan is not approved; run approve before run")
+        raise RuntimeError("long-loop plan is not approved; run approve first, or run directly from the initial awaiting_approval state")
 
     state["status"] = "running"
     state["last_event"] = "run_started"
