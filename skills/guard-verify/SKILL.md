@@ -128,8 +128,9 @@ verification: none -- structural gap
 | 1 | ... | pass/fail | pass/fail | pass/fail | pass/fail | continue/stop |
 
 ### Stop check
-- [ ] 未超过 max_iterations / max_minutes
-- [ ] `.long-loop/progress.md` 已更新
+- [ ] 未超过 max_iterations
+- [ ] `.long-loop/logs.md` 已更新
+- [ ] `.long-loop/fix_plan.md` 已更新
 - [ ] `.long-loop/state.json` 已更新
 - [ ] 未触发远端副作用
 ```

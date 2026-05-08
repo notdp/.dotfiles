@@ -1,4 +1,5 @@
 import unittest
+import json
 from pathlib import Path
 
 
@@ -6,28 +7,40 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class CommandEntryTests(unittest.TestCase):
-    def test_long_loop_entry_resolves_script_independent_of_cwd(self) -> None:
-        command = (REPO_ROOT / "commands" / "long-loop.md").read_text(encoding="utf-8")
+    def test_long_loop_command_is_removed_and_skill_is_registered(self) -> None:
+        catalog = json.loads((REPO_ROOT / "skills" / "catalog.json").read_text(encoding="utf-8"))
+        skill_names = {entry["name"] for entry in catalog["skills"]}
 
-        self.assertIn("LONG_LOOP_SCRIPT=", command)
-        self.assertIn("$HOME/.dotfiles/scripts/long_loop.py", command)
-        self.assertIn('python3 "$LONG_LOOP_SCRIPT"', command)
+        self.assertFalse((REPO_ROOT / "commands" / "long-loop.md").exists())
+        self.assertIn("dev-long-loop", skill_names)
+        self.assertTrue((REPO_ROOT / "skills" / "dev-long-loop" / "SKILL.md").exists())
 
-    def test_long_loop_help_is_read_only_terminal_command(self) -> None:
-        command = (REPO_ROOT / "commands" / "long-loop.md").read_text(encoding="utf-8")
+    def test_long_loop_skill_is_only_user_facing_entry(self) -> None:
+        skills_text = "\n".join(path.read_text(encoding="utf-8") for path in (REPO_ROOT / "skills").glob("*/SKILL.md"))
+        catalog_text = (REPO_ROOT / "skills" / "catalog.json").read_text(encoding="utf-8")
 
-        self.assertIn("`help` 是终止命令", command)
-        self.assertIn("不得创建 `.long-loop/`", command)
-        self.assertIn("不得调用 `dev-long-loop`", command)
-        self.assertIn("每轮结束必须输出阶段总结", command)
+        self.assertIn("dev-long-loop", catalog_text)
+        self.assertNotIn("/long-loop", skills_text)
+        self.assertIn("long_loop.py", skills_text)
+        self.assertTrue((REPO_ROOT / "skills" / "dev-long-loop" / "long_loop.py").exists())
 
-    def test_long_loop_contract_names_validator_fix_plan_and_fresh_context(self) -> None:
-        command = (REPO_ROOT / "commands" / "long-loop.md").read_text(encoding="utf-8")
+    def test_long_loop_contract_names_v2_files(self) -> None:
+        skill = (REPO_ROOT / "skills" / "dev-long-loop" / "SKILL.md").read_text(encoding="utf-8")
 
-        self.assertIn("fix_plan.md", command)
-        self.assertIn("validator.md", command)
-        self.assertIn("Fresh Iteration", command)
-        self.assertIn("events.jsonl", command)
+        self.assertIn("SPEC_OVERVIEW.md", skill)
+        self.assertIn("fix_plan.md", skill)
+        self.assertIn("qa.md", skill)
+        self.assertIn("logs.md", skill)
+        self.assertNotIn("validator-results.json", skill)
+        self.assertNotIn("events.jsonl", skill)
+
+    def test_long_loop_skill_documents_hands_off_runtime_contract(self) -> None:
+        skill = (REPO_ROOT / "skills" / "dev-long-loop" / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("hands-off", skill)
+        self.assertIn("runtime.log", skill)
+        self.assertIn("idle timeout", skill)
+        self.assertIn("pending / in_progress / done / blocked", skill)
 
 
 if __name__ == "__main__":
