@@ -29,9 +29,9 @@ argument-hint: <branch|uncommitted|history|文件/目录/符号名>
 
 **触发**：范围 = `history`，或用户希望"找该重构的地方"而非指定具体文件。
 
-### 委派子 agent
+### 派发只读子任务
 
-调用 `researcher` 子 agent（只读，不修改文件），契约如下：
+派发**只读子任务**（subagent / parallel agent / sub-call，按当前 agent 平台能力命名；纯 LLM 模式可降级为主流程顺序执行）。契约如下：
 
 ```
 Goal: 在 <scope=仓库或子路径> 的 <window=最近 N 提交 / M 个月> 内，找出 refactor hotspots。
@@ -51,7 +51,7 @@ Return（固定格式）:
 
 #### Token / 工具调用预算（硬约束）
 
-子 agent 必须在以下预算内完成，否则截断输出：
+子任务必须在以下预算内完成，否则截断输出：
 
 - 工具调用 ≤ 5 次（git log 命令 + 必要的 Read/Grep，超过即收尾）
 - 输出 ≤ 800 tokens（超过用 top-K 截断 + 省略号）
@@ -70,7 +70,7 @@ Return（固定格式）:
 
 ### 主流程裁决
 
-子 agent 的输出**只是证据**，不是结论。主流程必须：
+子任务的输出**只是证据**，不是结论。主流程必须：
 
 1. 读 hotspot 文件代码，确认 smell 真实存在
 2. 排除"高 churn 但本来就该频繁改"的文件（如 i18n 资源、配置中心）
@@ -253,7 +253,16 @@ refactor(billing): Replace Conditional with Polymorphism (PaymentMethod)
 - 命名、提取、删除死代码前必须全局搜索引用
 - 改完验证成本反而更高，通常不是好重构
 - history 模式下 churn ≠ 一定要改；hotspot 是**候选**，主流程裁决才是结论
-- 子 agent 的输出永远是证据不是判断；不要直接采纳为重构计划
+- 子任务的输出永远是证据不是判断；不要直接采纳为重构计划
+
+## 跨 agent 适配
+
+派发子任务的具体形式按当前 agent 平台能力命名：
+
+- 有只读子任务能力的平台：把上述契约作为完整 prompt 派发给只读分析单元
+- 无并行子任务能力的平台：主流程顺序执行（先跑 git log 概览，再选择性 Read）
+- 子任务命名、调用方式、工具白名单由当前 agent 平台决定，不在 skill 内硬编码
+- 任何模式下"只读 + 预算 + 固定输出格式"三条不可降级
 
 ## 扩展阅读
 
@@ -281,7 +290,7 @@ refactor(billing): Replace Conditional with Polymorphism (PaymentMethod)
 - 为"优雅"引入不必要的抽象
 - dirty working directory 上重构（先 commit/stash）
 - 在 hotspot 之外做美化式重构
-- 直接执行子 agent 输出的"重构清单"，跳过主流程裁决
+- 直接执行子任务输出的"重构清单"，跳过主流程裁决
 
 ## 关联技能
 

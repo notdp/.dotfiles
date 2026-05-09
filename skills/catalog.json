@@ -227,6 +227,18 @@
       "path": "skills/think-survey",
       "domain": "think",
       "role": "canonical"
+    },
+    {
+      "name": "dev-simplify",
+      "path": "skills/dev-simplify",
+      "domain": "dev",
+      "role": "canonical"
+    },
+    {
+      "name": "guard-threat-model",
+      "path": "skills/guard-threat-model",
+      "domain": "guard",
+      "role": "canonical"
     }
   ]
 }

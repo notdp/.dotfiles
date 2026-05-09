@@ -1,7 +1,7 @@
 ---
 name: guard-review
 description: 当存在未 review 的代码变更或需要在合并前把关时使用；产出分级问题清单与 merge 裁决。
-argument-hint: <分支名|commit-range|--deep|留空=未提交变更>
+argument-hint: <分支名|commit-range|--deep|--two-pass|留空=未提交变更>
 ---
 
 # Review
@@ -13,6 +13,7 @@ argument-hint: <分支名|commit-range|--deep|留空=未提交变更>
 - 分支名 → `git diff $(git merge-base HEAD <branch>)..HEAD`
 - diff 范围（如 `a1b2c3..HEAD`）→ 使用指定 commit range
 - `--deep` → 启用多模型对抗性审查
+- `--two-pass` → 启用候选生成 + 二次验证流水线；可与分支名 / commit range 组合（如 `main --two-pass`）
 - 留空 → 审查未提交变更
 
 ### 工具化前置
@@ -29,7 +30,7 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
 
 ## 2. Simple Review（默认）
 
-派发单个 subagent 审查 diff，输出结构化报告：
+派发单个只读子任务审查 diff，输出结构化报告：
 
 ### 默认聚焦策略
 
@@ -114,9 +115,46 @@ Ready to merge? Yes / No / With fixes
 （命中 Hard Stop → 必须 No；命中 Drift Signal → 不能 Yes）
 ```
 
-## 3. Deep Review（--deep）
+## 3. Two-pass Review（--two-pass，大 PR 推荐）
 
-多个 subagent（不同模型）独立审查相同 diff，汇总为：
+**触发**：diff > 15 文件，或包含安全 / 数据库 / 认证模块。借鉴两阶段流水线，提高召回 + 控制误报。
+
+### Pass 1：候选生成（按文件分组并行）
+
+1. **分组**：按模块/职责把改动文件聚成 3-6 组（同模块的代码 + 测试一起；安全敏感文件独立成组；migrations 独立成组）
+2. **并行派发**：每组派发独立的只读 review 子任务，prompt 包含该组的 file list + diff 切片 + Reporting Gate + Bug Patterns（见第 2 节）
+3. **收集**：每个子任务返回 JSON findings 数组：`{priority, path, line, title, why, suggestion?}`
+
+跨 agent 适配：有并行子任务能力的平台按其原生命名派发；无并行子任务能力的平台降级为顺序处理（保留分组，但顺序跑）。
+
+### Pass 2：验证 + 去重
+
+主流程对所有候选做二次过滤：
+
+- **Reporting Gate 复检**：拒绝速度性 / 风格性 / 锚点失效 / 已报告过的 finding
+- **Confidence-based 过滤**：
+  - **P0**：trigger path 验证通过即放行
+  - **P1**：能独立验证逻辑或安全错误才放行
+  - **P2**：默认拒绝；只有同时满足三条件才放行——(1) 可独立验证 bug 真实存在；(2) 有具体触发路径；(3) 不是 edge case / defensive coding / 风格
+- **严格去重**：
+  - 候选间：同一 root cause 即使锚点不同，只保留 anchor 最佳 + 解释最清晰的一条，其余标 `duplicate of #N`
+  - 与已有 PR 评论：重复的剔除
+  - 同 file + 重叠 line range + 同 issue = duplicate（即使措辞不同）
+
+### Pass 1 + Pass 2 输出格式
+
+沿用第 2 节的输出格式，在 `### Diff Overview` 后追加：
+
+```markdown
+### Two-pass 统计
+- 分组数：N
+- Pass 1 候选总数：M
+- Pass 2 通过：K（拒绝 M-K：去重 X / 证据不足 Y / 锚点失效 Z）
+```
+
+## 4. Deep Review（--deep）
+
+多个独立子任务（不同模型或独立 prompt）审查相同 diff，汇总为：
 
 - **Agreed Strengths** — 2+ reviewer 都提到的优点
 - **Agreed Concerns** — 2+ reviewer 都提到的问题（最高优先级）
@@ -124,7 +162,20 @@ Ready to merge? Yes / No / With fixes
 
 每个 reviewer 的独立报告附在后面供参考。
 
-## 4. 接收反馈
+## 5. Confidence Calibration
+
+严重度认定标准（与第 2 节"严重度证据门槛"配套使用）：
+
+| 级别 | 认定条件 | 报告倾向 |
+|---|---|---|
+| **P0 (Hard Stop / Critical)** | 确定 crash / exploit / data loss，trigger path 已验证 | 必报 |
+| **P1 (Important)** | 高置信度的逻辑或安全错误，触发路径清晰 | 必报 |
+| **P2 (Minor)** | 真实 bug 但影响有限，或可疑但无法完全验证 trigger path | 默认拒绝；满足三条件才报：可独立验证 + 具体触发路径 + 非 edge case |
+| **P3** | 真实但极小影响 | 仅作 backlog 项，不阻塞 merge |
+
+宁可漏报 P2，不要误报 P0/P1。
+
+## 6. 接收反馈
 
 对审查发现的问题：
 
@@ -133,7 +184,7 @@ Ready to merge? Yes / No / With fixes
 3. 不合理 → 带理由推回（破坏现有功能 / 违反 YAGNI / 技术不适用）
 4. 不明确 → 全部澄清后再动手
 
-## 5. Anti-Rationalization Guard
+## 7. Anti-Rationalization Guard
 
 review 时常见的"放行借口"，命中即拒绝放行：
 
@@ -145,7 +196,7 @@ review 时常见的"放行借口"，命中即拒绝放行：
 | "agent 应该知道我意图" | 沉默选边禁止；意图必须在 PR 描述/commit message 显式表达 |
 | "审过类似的 PR 这次也行" | 每个 diff 独立审，不能继承上一次结论 |
 
-## 6. Gotchas
+## 8. Gotchas
 
 - 没有明确失败路径、触发条件和影响面，不要上升到 `Critical` / `Important`
 - review 的对象默认是当前 diff，不是借题发挥做全仓库猎巫

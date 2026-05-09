@@ -88,20 +88,32 @@
 ### Skill 路由总览
 
 - `think-*`：理解问题、调研、综述、架构、规划、结构判断、卡住排查
-- `dev-*`：调试、TDD、重构
-- `guard-*`：review、secure、verify、ship、close、check（交付前总入口）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
+- `dev-*`：调试、TDD、重构、实现后清理（simplify）
+- `guard-*`：review、secure、threat-model、verify、ship、close、check（交付前总入口）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
 - `readable-*`：可读性重写、最终答案/过程播报体裁、指标表达
 - `assist-*`：经验沉淀；`fe-*` / `web-*` / `agent-*` / `hive` / `react-doctor` 处理专项能力
 
 常见工作流：
 
-- 新需求 / 大改动：`/think-map` → `/think-plan` → `/dev-tdd` → `/guard-verify` → `/guard-ship`
-- Bug / 异常：`/dev-debug` → （必要时 `/dev-tdd` / `/dev-refactor`）→ `/guard-verify`
+- 新需求 / 大改动：`/think-map` → `/think-plan` → `/dev-tdd` → `/dev-simplify` → `/guard-verify` → `/guard-ship`
+- Bug / 异常：`/dev-debug` → （必要时 `/dev-tdd` / `/dev-refactor`）→ `/dev-simplify` → `/guard-verify`
 - 交付前总检查：`/guard-check` → 按需路由到 `/guard-review` / `/guard-secure` / `/guard-verify` / `/guard-ship`
+- 安全审查首跑：`/guard-threat-model`（建立 `docs/threat-model.md` SSOT）→ `/guard-secure` → `/guard-ship`
+- 安全例行审查：`/guard-secure`（自动读取 `docs/threat-model.md`）
 - 外链调研（决策导向）：`/web-read` → `/think-research` → `/think-plan`
 - 主题综述（开放调研）：`/web-read` → `/think-survey` →（如需决策）`/think-research`
 - 资料消化（多源汇总）：`/think-survey` →（如需沉淀规则）`/assist-learn`
 - 表达太绕 / 整理最终答案 / PR 描述：`/readable-final-answer`；指标展示：`/readable-metrics`
+
+### 跨 agent 兼容
+
+本 skill 体系设计为可在 droid / Claude Code / Cursor / Aider 等多种 coding agent 中使用。约定：
+
+- 子任务派发用通用描述（"派发只读子任务"），不绑定特定 subagent 名
+- 工具引用使用通用名（Read / Grep / Glob / WebSearch / Edit），不引用 droid 专属 `Task` 调用语法或 `/missions` 概念
+- 路径默认相对仓库根（`docs/threat-model.md`、`scripts/`），不依赖 `~/.factory` 或 `.factory/`
+- 派发并行子任务在不支持的平台降级为主流程顺序执行（每个 skill 内部已声明降级策略）
+- 例外：`hive` skill 是 droid 专属能力，不要求跨 agent 兼容
 
 ### 行为准则
 

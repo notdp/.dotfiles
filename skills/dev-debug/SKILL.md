@@ -62,14 +62,15 @@ argument-hint: <bug 描述|错误信息|复现步骤>
 | 并发 | 竞态、死锁、时序依赖 |
 | 数据 | 脏数据、空值、编码问题 |
 
-### 复杂 bug → 子 agent 隔离分析
+### 复杂 bug → 派发只读子任务隔离分析
 
-当假设超过 3 个或涉及大量代码探索时，派发 researcher/worker droid 做隔离分析：
+当假设超过 3 个或涉及大量代码探索时，派发**只读子任务**（subagent / parallel agent / sub-call，按当前 agent 平台能力命名）做隔离分析：
 
-- 将收集的 bug 信息作为 prompt 传给子 agent
-- 子 agent 在独立 context 中做假设排查（grep、读代码、git bisect）
-- 子 agent 返回根因分析报告
-- 主 session 基于报告执行修复
+- 将收集的 bug 信息作为 prompt 传给子任务
+- 子任务在独立 context 中做假设排查（grep、读代码、git bisect）
+- 子任务返回根因分析报告
+- 主流程基于报告执行修复
+- 跨 agent 适配：有子任务能力的平台按其原生命名派发；无子任务能力的平台降级为主流程顺序排查
 
 ## 4. 定位
 
@@ -178,6 +179,6 @@ Handoff 输出后必须显式切到 `/think-unstuck`，不要在原 skill 内继
 ## 关联技能
 
 - 修复完成后 → `/guard-verify` 验证修复有效且无回归
-- 需要大范围探索代码 → 派发 researcher/worker subagent
+- 需要大范围探索代码 → 派发只读子任务（按 agent 平台命名）
 - 修复后如需重构 → `/dev-refactor`
 - 连续失败 2 次 → `/think-unstuck`

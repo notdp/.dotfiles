@@ -42,6 +42,24 @@ argument-hint: <原文|用途|读者>
 | 抽象负担 | 只说原则，不说对象/条件/动作 | 补充主语、动作、结果 |
 | 数字负担 | 只有数字，没有语义和上下文 | 解释基线、变化、影响 |
 | 结构负担 | 没有层级、列表、标题 | 改成可扫描结构 |
+| AI 味（见下） | 千篇一律的句式、空话填充 | 按 AI 写作信号 checklist 逐条修 |
+
+#### AI 写作信号 quick checklist
+
+诊断时同时扫这些信号；命中 ≥ 2 条说明文本带 AI 味，需要重写：
+
+- **em dash 过载**：每段 ≥ 2 个 em dash，或用 em dash 串接整段
+- **rule of three**：每段都用三件事并列结构（"不是 X，不是 Y，而是 Z"）
+- **negative parallelism**：反复用 "not just X, but Y" / "不仅是…更是…" 套娃
+- **AI 词汇命中**：delve / leverage / navigate / unlock / embark / tapestry / robust / seamless / cutting-edge / 赋能 / 助力 / 打造 / 重塑 / 生态
+- **千篇一律的句长**：连续 5 句以上句长接近，节奏单调
+- **无"我"视角**：通篇第三人称中性叙述，无观点、无立场、无情感色彩
+- **通用 "-ing" 转折**：每段开头 "Building on..." / "Looking at..." / "随着…的不断深化"
+- **空泛承诺**：`prevent` / `ensure` / `guarantee` / `eliminate` / `seamlessly` 出现而无证据
+- **过度对仗**：每段两两对仗，结构对称到刻意
+- **元叙述堆叠**："In this article, we will explore..." / "本文将带你深入了解…"
+
+修复方向：句长变化、加观点、削掉空话、用具体对象代替抽象、保留必要不确定性。
 
 ### 3. 重写原则
 
