@@ -46,9 +46,9 @@ def _mod_cycle_custom_model_detect():
 results['mod-cycle-custom-model'] = _mod_cycle_custom_model_detect()
 
 # mod-fix-multiline-history-down: 多行历史记录按↓修复
-# 修改后: V(),!0 → spaces + !1
-mod_fix_multiline_history_down_modified = re.search(rb'\),!0\}if\(' + V + rb'\)return\s+!1\}return!1', data)
-mod_fix_multiline_history_down_original = re.search(rb'\),!0\}if\((' + V + rb')\)return \1\(\),!0\}return!1', data)
+# 修改后: V(),!0 → spaces + !1 (返回 false 让外层接管)
+mod_fix_multiline_history_down_modified = re.search(rb'downArrow&&' + V + rb'&&' + V + rb'\)return\s+!1;return!1', data)
+mod_fix_multiline_history_down_original = re.search(rb'downArrow&&' + V + rb'&&(' + V + rb')\)return \1\(\),!0;return!1', data)
 if mod_fix_multiline_history_down_modified:
     results['mod-fix-multiline-history-down'] = 'modified'
 elif mod_fix_multiline_history_down_original:
