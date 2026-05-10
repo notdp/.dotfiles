@@ -9,15 +9,34 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "notify-tmux-title.sh"
 
 
-def _make_fake_tmux(bindir: Path, window_title: str, pane_title: str = "海獭") -> None:
+def _make_fake_tmux(
+    bindir: Path,
+    window_title: str,
+    pane_title: str = "海獭",
+    pane_rows: list[tuple[str, str]] | None = None,
+    pane_options: dict[str, str] | None = None,
+) -> None:
     bindir.mkdir(parents=True, exist_ok=True)
     tmux = bindir / "tmux"
+    panes_output = "".join(f"{pane}\t{index}\n" for pane, index in (pane_rows or []))
+    option_cases = "".join(
+        f"    '{pane}') printf '{name}\\n' ;;\n" for pane, name in (pane_options or {}).items()
+    )
     tmux.write_text(
         "#!/bin/sh\n"
         "if [ \"$1\" = \"display-message\" ]; then\n"
         "  case \"$5\" in\n"
         f"    '#W') printf '{window_title}\\n' ;;\n"
         f"    '#{{pane_title}}') printf '{pane_title}\\n' ;;\n"
+        "    *) printf '\\n' ;;\n"
+        "  esac\n"
+        "elif [ \"$1\" = \"list-panes\" ]; then\n"
+        "  cat <<'EOF'\n"
+        f"{panes_output}"
+        "EOF\n"
+        "elif [ \"$1\" = \"show-option\" ]; then\n"
+        "  case \"$3\" in\n"
+        f"{option_cases}"
         "    *) printf '\\n' ;;\n"
         "  esac\n"
         "elif [ \"$1\" = \"select-pane\" ]; then\n"
@@ -70,7 +89,7 @@ class NotifyTmuxTitleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:auto-test 海獭"])
 
-    def test_default_pane_name_pool_uses_water_margin_names(self) -> None:
+    def test_default_pane_name_pool_uses_randomized_water_margin_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             _make_fake_tmux(tmp_path / "bin", "auto-test", "ignored")
@@ -81,12 +100,53 @@ class NotifyTmuxTitleTests(unittest.TestCase):
                 env={
                     "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
                     "TMUX_PANE": "%1",
+                    "NOTIFY_TMUX_TITLE_RANDOM_SEED": "1",
                     "NOTIFY_TMUX_TITLE_PANE_NAMES": "",
                 },
             )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(result.stdout.strip().splitlines(), ["pane-name:%1:及时雨宋江", "say:auto-test 及时雨宋江"])
+        lines = result.stdout.strip().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].startswith("pane-name:%1:"))
+        pane_name = lines[0].removeprefix("pane-name:%1:")
+        self.assertNotEqual(pane_name, "及时雨宋江")
+        self.assertEqual(lines[1], f"say:auto-test {pane_name}")
+
+    def test_assigns_random_unused_names_without_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            fake_log = tmp_path / "tmux.log"
+            _make_fake_tmux(
+                tmp_path / "bin",
+                "",
+                pane_rows=[("%1", "1"), ("%2", "2"), ("%3", "3")],
+                pane_options={"%1": "玉麒麟卢俊义"},
+            )
+
+            result = self.run_hook(
+                "--app", "cc",
+                "--event", "stop",
+                env={
+                    "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+                    "TMUX_PANE": "%2",
+                    "TMUX_FAKE_LOG": str(fake_log),
+                    "NOTIFY_TMUX_TITLE_DRY_RUN": "0",
+                    "NOTIFY_TMUX_TITLE_RANDOM_SEED": "1",
+                    "NOTIFY_TMUX_TITLE_PANE_NAMES": "及时雨宋江 玉麒麟卢俊义 智多星吴用",
+                },
+            )
+
+            logged = fake_log.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assigned = [
+            line.rsplit(" ", 1)[-1]
+            for line in logged
+            if line.startswith("set-option:set-option -qpt")
+        ]
+        self.assertEqual(len(assigned), 2)
+        self.assertEqual(len({"玉麒麟卢俊义", *assigned}), 3)
 
     def test_falls_back_to_droid_notification_sound_without_tmux_pane(self) -> None:
         result = self.run_hook(
