@@ -10,6 +10,13 @@ argument-hint: <任务目标或需求>
 
 本仓库不再提供 long-loop command；本 skill 是唯一用户入口。底层 harness 与本 skill 同目录：`skills/dev-long-loop/long_loop.py`，跨项目使用时不依赖目标仓库自带 harness。验证优先使用目标仓库脚本，缺失时使用 dotfiles 自带 fallback。
 
+## Decision Principles
+
+- long-loop 优化的是跨阶段任务的连续性、可观测性和状态沉淀，不是替代正常的短循环开发。
+- 只有当任务目标明确、影响面大、需要多轮验证或用户无法持续盯盘时才值得启动；普通单文件修复、小重构、一次性调研不应升级。
+- token budget 是风险和成本边界：任务越大越需要阶段验收和停止点，不能用更大预算掩盖需求不清。
+- 文件系统 workspace 是 SSOT，因为长流程最容易丢失上下文；所有状态、证据和阻塞都必须落到文件里，不能依赖模型记忆。
+
 ## 工作流
 
 1. 明确任务目标，不接受只有一句话的模糊目标直接开跑。
@@ -33,8 +40,9 @@ argument-hint: <任务目标或需求>
    - `phases/*/research.md`
    - `phases/*/plan.md`
 8. 让用户 review 后，再运行：
-   - `python3 "$LONG_LOOP_HARNESS" run --dir .long-loop/<workspace> --repo-root "$PWD" --max-iterations 3 --idle-timeout-seconds 300 --agent-cmd '<agent command>'`
+   - `python3 "$LONG_LOOP_HARNESS" run --dir .long-loop/<workspace> --repo-root "$PWD" --max-iterations 3 --idle-timeout-seconds 1800 --agent-cmd '<agent command>'`
    - 需要本地回滚点时，用户明确同意后追加 `--checkpoint-commits`；它只在 phase 完成且验证通过后创建本地 checkpoint commit，不 push。
+   - run 启动后必须输出可复制的 `observe` 命令和 `observe.html` 打开命令，方便在新窗口观察。
 
 ## 文件契约
 
@@ -45,6 +53,7 @@ argument-hint: <任务目标或需求>
 | `qa.md` | 整体端到端验收方案 |
 | `logs.md` | append-only 日志，记录每轮工作、验证证据、风险和下一步 |
 | `runtime.log` | agent 命令 stdout/stderr；用于 hands-off 监控和 idle timeout 诊断 |
+| `observe.html` | 浏览器观测页，展示状态、当前目标、agent 对话 tail 和 logs tail |
 | `phases/*/research.md` | 按 `/think-research` 思路写阶段代码事实 |
 | `phases/*/plan.md` | 按 `/think-plan` 思路写阶段实施计划 |
 | `phases/*/qa.md` | 阶段验收标准 |
@@ -65,7 +74,8 @@ argument-hint: <任务目标或需求>
 
 - hands-off 前必须先由 harness `plan` 生成 workspace；禁止手写 `state.json` 或手拼 `.long-loop/` 冒充成功。
 - hands-off 不等于无人监管的后台 loop。运行时必须依赖 `runtime.log`、`state.json.last_heartbeat_at`、`stop_reason` 判断是否继续。
-- `idle timeout` 是主要卡死保护：agent 命令超过 `--idle-timeout-seconds` 没有 stdout/stderr 增量时，harness 必须停止并写入 `runtime.log`。
+- hands-off run 启动后必须提示：`python3 .../long_loop.py observe --dir <workspace> --interval 2` 与 `open <workspace>/observe.html`。
+- `idle timeout` 是卡死保护：agent 命令超过 `--idle-timeout-seconds` 没有 stdout/stderr 增量时，harness 必须停止并写入 `runtime.log`；传 `0` 可关闭该保护，适合已由外部系统记录进度的长任务。
 - checkpoint 只在用户明确授权 `--checkpoint-commits` 时启用；启用前如果目标 repo 已有非本轮脏改动，必须停止，不得 `git add -A` 混入未知修改。
 
 ## Gotchas

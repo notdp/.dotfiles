@@ -39,6 +39,8 @@ class CommandEntryTests(unittest.TestCase):
 
         self.assertIn("hands-off", skill)
         self.assertIn("runtime.log", skill)
+        self.assertIn("observe", skill)
+        self.assertIn("observe.html", skill)
         self.assertIn("idle timeout", skill)
         self.assertIn("pending / in_progress / done / blocked", skill)
 

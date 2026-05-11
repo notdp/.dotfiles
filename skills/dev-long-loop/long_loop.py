@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import os
 import re
 import secrets
 import selectors
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -125,6 +128,32 @@ class AgentRunResult:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def iso_age(raw: str | None) -> str:
+    if not raw:
+        return "unknown"
+    try:
+        then = datetime.fromisoformat(raw)
+    except ValueError:
+        return "invalid"
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=timezone.utc)
+    seconds = max(0, int((datetime.now(timezone.utc) - then).total_seconds()))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m {seconds}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m"
+
+
+def tail_file(path: Path, line_count: int) -> str:
+    if not path.exists():
+        return ""
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    return "\n".join(lines[-line_count:])
 
 
 def today_log_path(paths: LoopPaths) -> Path:
@@ -729,7 +758,15 @@ def run_agent_command(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            start_new_session=True,
         )
+        state = read_state(paths)
+        state["agent_pid"] = process.pid
+        state["last_output_at"] = started
+        state["last_heartbeat_at"] = state.get("last_heartbeat_at") or started
+        write_state(paths, state)
+        v2_render_observe_html(paths)
+        last_observe_render_at = time.monotonic()
         selector = selectors.DefaultSelector()
         try:
             if process.stdout is not None:
@@ -754,20 +791,38 @@ def run_agent_command(
                         runtime.flush()
                         last_output_at = time.monotonic()
                         state = read_state(paths)
-                        state["last_heartbeat_at"] = now_iso()
+                        output_at = now_iso()
+                        state["last_heartbeat_at"] = output_at
+                        state["last_output_at"] = output_at
                         write_state(paths, state)
+                        if time.monotonic() - last_observe_render_at >= 1:
+                            v2_render_observe_html(paths)
+                            last_observe_render_at = time.monotonic()
                     continue
                 if idle_timeout_seconds > 0 and time.monotonic() - last_output_at > idle_timeout_seconds:
-                    process.kill()
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
                     process.wait()
                     message = f"\nagent command idle timeout after {idle_timeout_seconds}s\n"
                     output_chunks.append(message)
                     runtime.write(message)
                     runtime.flush()
+                    state = read_state(paths)
+                    state["agent_pid"] = None
+                    state["last_output_at"] = now_iso()
+                    write_state(paths, state)
+                    v2_render_observe_html(paths)
                     return AgentRunResult(returncode=124, output="".join(output_chunks), timed_out=True)
         finally:
             input_handle.close()
             selector.close()
+            state = read_state(paths)
+            state["agent_pid"] = None
+            state["updated_at"] = now_iso()
+            write_state(paths, state)
+            v2_render_observe_html(paths)
     return AgentRunResult(returncode=process.returncode or 0, output="".join(output_chunks), timed_out=False)
 
 
@@ -1047,6 +1102,11 @@ def v2_initial_state(goal: str, token_budget: str) -> dict:
         "updated_at": now_iso(),
         "iteration_started_at": None,
         "last_heartbeat_at": None,
+        "last_output_at": None,
+        "agent_pid": None,
+        "current_item": None,
+        "current_phase": None,
+        "observe_command": None,
         "last_exit_code": None,
         "last_validation": None,
         "stop_reason": None,
@@ -1191,7 +1251,7 @@ def v2_format_review_bundle(paths: LoopPaths) -> str:
     sections.extend(
         [
             "",
-            f"Next: `{harness_invocation()} run --dir {paths.root} --repo-root {shlex.quote(str(Path.cwd().resolve()))} --max-iterations 3 --idle-timeout-seconds 300 --agent-cmd \"...\"`",
+            f"Next: `{harness_invocation()} run --dir {paths.root} --repo-root {shlex.quote(str(Path.cwd().resolve()))} --max-iterations 3 --idle-timeout-seconds 1800 --agent-cmd \"...\"`",
             "",
         ]
     )
@@ -1289,6 +1349,7 @@ def v2_status_workspace(args: argparse.Namespace) -> int:
     v2_require_harness_state(state)
     require_valid_plan_statuses(paths)
     remaining, done = count_todos(paths)
+    item, phase = v2_current_target(paths, state)
     sys.stdout.write(
         "\n".join(
             [
@@ -1302,6 +1363,10 @@ def v2_status_workspace(args: argparse.Namespace) -> int:
                 f"- token_budget: {state.get('token_budget')}",
                 f"- remaining_todo: {remaining}",
                 f"- done_todo: {done}",
+                f"- current_item: {item or 'none'}",
+                f"- current_phase: {phase or 'none'}",
+                f"- last_heartbeat_at: {state.get('last_heartbeat_at')}",
+                f"- heartbeat_age: {iso_age(state.get('last_heartbeat_at'))}",
                 f"- last_exit_code: {state.get('last_exit_code')}",
                 f"- last_validation: {state.get('last_validation')}",
                 f"- stop_reason: {state.get('stop_reason')}",
@@ -1319,6 +1384,123 @@ def v2_tail_workspace(args: argparse.Namespace) -> int:
     lines = paths.logs_md.read_text(encoding="utf-8").splitlines()
     output = "\n".join(lines[-args.lines :])
     sys.stdout.write(output + ("\n" if output else ""))
+    return 0
+
+
+def v2_current_target(paths: LoopPaths, state: dict) -> tuple[str | None, str | None]:
+    item_title = state.get("current_item")
+    item = v2_item_by_title(paths, item_title) if item_title else None
+    if item is None:
+        item = v2_next_actionable_item(paths)
+    phase = state.get("current_phase") or (item.phase if item else None)
+    return item_title or (item.title if item else None), phase
+
+
+def v2_observe_command(paths: LoopPaths) -> str:
+    return f"{harness_invocation()} observe --dir {shlex.quote(str(paths.root))} --interval 2"
+
+
+def v2_open_observe_command(paths: LoopPaths) -> str:
+    return f"open {shlex.quote(str(paths.root / 'observe.html'))}"
+
+
+def v2_observe_text(paths: LoopPaths, *, runtime_lines: int, log_lines: int) -> str:
+    state = read_state(paths)
+    item, phase = v2_current_target(paths, state)
+    runtime_tail = tail_file(paths.runtime_log, runtime_lines)
+    logs_tail = tail_file(paths.logs_md, log_lines)
+    sections = [
+        "## Long Loop Observe",
+        "",
+        f"- workspace: `{paths.root}`",
+        f"- goal: {state.get('goal')}",
+        f"- status: {state.get('status')}",
+        f"- iterations: {state.get('iterations')}",
+        f"- current_item: {item or 'none'}",
+        f"- current_phase: {phase or 'none'}",
+        f"- agent_pid: {state.get('agent_pid')}",
+        f"- last_heartbeat_at: {state.get('last_heartbeat_at')}",
+        f"- heartbeat_age: {iso_age(state.get('last_heartbeat_at'))}",
+        f"- last_output_at: {state.get('last_output_at')}",
+        f"- last_exit_code: {state.get('last_exit_code')}",
+        f"- last_validation: {state.get('last_validation')}",
+        f"- stop_reason: {state.get('stop_reason')}",
+        "",
+        "## Agent Dialogue: runtime.log",
+        "",
+        runtime_tail or "(no runtime output)",
+        "",
+        "## Curated Progress: logs.md",
+        "",
+        logs_tail or "(no log output)",
+        "",
+    ]
+    return "\n".join(sections)
+
+
+def v2_render_observe_html(paths: LoopPaths, *, runtime_lines: int = 160, log_lines: int = 120) -> None:
+    state = read_state(paths)
+    item, phase = v2_current_target(paths, state)
+    runtime_tail = html.escape(tail_file(paths.runtime_log, runtime_lines) or "(no runtime output)")
+    logs_tail = html.escape(tail_file(paths.logs_md, log_lines) or "(no log output)")
+    title = "Long Loop Observe"
+    body = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="2">
+<title>{title}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; background: #f8fafc; color: #111827; }}
+section {{ background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 16px; }}
+pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 12px; border-radius: 8px; }}
+dl {{ display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; }}
+dt {{ font-weight: 700; color: #475569; }}
+dd {{ margin: 0; }}
+</style>
+</head>
+<body>
+<h1>{title}</h1>
+<section>
+<h2>Status</h2>
+<dl>
+<dt>Workspace</dt><dd>{html.escape(str(paths.root))}</dd>
+<dt>Goal</dt><dd>{html.escape(str(state.get("goal")))}</dd>
+<dt>Status</dt><dd>{html.escape(str(state.get("status")))}</dd>
+<dt>Iterations</dt><dd>{html.escape(str(state.get("iterations")))}</dd>
+<dt>Current item</dt><dd>{html.escape(item or "none")}</dd>
+<dt>Current phase</dt><dd>{html.escape(phase or "none")}</dd>
+<dt>Heartbeat age</dt><dd>{html.escape(iso_age(state.get("last_heartbeat_at")))}</dd>
+<dt>Last validation</dt><dd>{html.escape(str(state.get("last_validation")))}</dd>
+<dt>Stop reason</dt><dd>{html.escape(str(state.get("stop_reason")))}</dd>
+</dl>
+</section>
+<section>
+<h2>Agent Dialogue</h2>
+<pre>{runtime_tail}</pre>
+</section>
+<section>
+<h2>Curated Progress</h2>
+<pre>{logs_tail}</pre>
+</section>
+</body>
+</html>
+"""
+    (paths.root / "observe.html").write_text(body, encoding="utf-8")
+
+
+def v2_observe_workspace(args: argparse.Namespace) -> int:
+    paths = LoopPaths(resolve_workspace_root(args.dir))
+    v2_require_workspace(paths)
+    v2_require_harness_state(read_state(paths))
+    require_valid_plan_statuses(paths)
+    index = 0
+    while args.iterations is None or index < args.iterations:
+        if index:
+            time.sleep(args.interval)
+        v2_render_observe_html(paths, runtime_lines=args.runtime_lines, log_lines=args.log_lines)
+        sys.stdout.write(v2_observe_text(paths, runtime_lines=args.runtime_lines, log_lines=args.log_lines))
+        index += 1
     return 0
 
 
@@ -1479,8 +1661,8 @@ def v2_run_loop(args: argparse.Namespace) -> int:
         raise RuntimeError("run requires --agent-cmd")
     if args.max_iterations < 1:
         raise RuntimeError("--max-iterations must be >= 1")
-    if args.idle_timeout_seconds < 1:
-        raise RuntimeError("--idle-timeout-seconds must be >= 1")
+    if args.idle_timeout_seconds < 0:
+        raise RuntimeError("--idle-timeout-seconds must be >= 0")
     v2_require_ready_workspace(paths)
     state = read_state(paths)
     v2_require_harness_state(state)
@@ -1498,34 +1680,54 @@ def v2_run_loop(args: argparse.Namespace) -> int:
     state["status"] = "running"
     state["stop_reason"] = None
     state["updated_at"] = now_iso()
+    state["observe_command"] = v2_observe_command(paths)
     write_state(paths, state)
+    v2_render_observe_html(paths)
+    sys.stdout.write(
+        "\n".join(
+            [
+                "# observe this run in another terminal:",
+                v2_observe_command(paths),
+                v2_open_observe_command(paths),
+                "",
+            ]
+        )
+    )
 
     for _ in range(args.max_iterations):
         item = v2_next_actionable_item(paths)
         if item is None:
             state = read_state(paths)
             state["status"] = "done"
+            state["current_item"] = None
+            state["current_phase"] = None
             state["stop_reason"] = "plan complete"
             state["updated_at"] = now_iso()
             write_state(paths, state)
+            v2_render_observe_html(paths)
             sys.stdout.write("plan complete\n")
             return 0
         if item.status == "blocked":
             state = read_state(paths)
             state["status"] = "stopped"
             state["current_item"] = item.title
+            state["current_phase"] = item.phase
             state["stop_reason"] = "blocked item requires user action"
             state["updated_at"] = now_iso()
             write_state(paths, state)
+            v2_render_observe_html(paths)
             sys.stdout.write("blocked item requires user action\n")
             return 0
         iteration = int(state.get("iterations", 0)) + 1
         state = read_state(paths)
         state["current_item"] = item.title
+        state["current_phase"] = item.phase
         state["iteration_started_at"] = now_iso()
         state["last_heartbeat_at"] = state["iteration_started_at"]
+        state["last_output_at"] = state["iteration_started_at"]
         state["updated_at"] = now_iso()
         write_state(paths, state)
+        v2_render_observe_html(paths)
         logs_offset = v2_logs_size(paths)
         previous_status = item.status
         result = run_agent_command(
@@ -1546,6 +1748,7 @@ def v2_run_loop(args: argparse.Namespace) -> int:
             state["failure_count"] = int(state.get("failure_count", 0)) + 1
             state["stop_reason"] = f"agent command idle timeout after {args.idle_timeout_seconds}s"
             write_state(paths, state)
+            v2_render_observe_html(paths)
             sys.stdout.write(result.output)
             return 1
         if result.returncode != 0:
@@ -1553,6 +1756,7 @@ def v2_run_loop(args: argparse.Namespace) -> int:
             state["failure_count"] = int(state.get("failure_count", 0)) + 1
             state["stop_reason"] = "agent command failed"
             write_state(paths, state)
+            v2_render_observe_html(paths)
             sys.stdout.write(result.output)
             return result.returncode or 1
 
@@ -1562,6 +1766,7 @@ def v2_run_loop(args: argparse.Namespace) -> int:
             state["failure_count"] = int(state.get("failure_count", 0)) + 1
             state["stop_reason"] = progress_message
             write_state(paths, state)
+            v2_render_observe_html(paths)
             sys.stdout.write(progress_message + "\n")
             return 1
 
@@ -1572,6 +1777,7 @@ def v2_run_loop(args: argparse.Namespace) -> int:
             state["failure_count"] = int(state.get("failure_count", 0)) + 1
             state["stop_reason"] = "validation failed"
             write_state(paths, state)
+            v2_render_observe_html(paths)
             if validation_output:
                 sys.stdout.write(validation_output + "\n")
             return 1
@@ -1585,17 +1791,20 @@ def v2_run_loop(args: argparse.Namespace) -> int:
                 state["failure_count"] = int(state.get("failure_count", 0)) + 1
                 state["stop_reason"] = "checkpoint commit failed"
                 write_state(paths, state)
+                v2_render_observe_html(paths)
                 return 1
 
         state["failure_count"] = 0
         state["status"] = "running"
         write_state(paths, state)
+        v2_render_observe_html(paths)
 
     state = read_state(paths)
     state["status"] = "stopped"
     state["stop_reason"] = "max iterations reached"
     state["updated_at"] = now_iso()
     write_state(paths, state)
+    v2_render_observe_html(paths)
     sys.stdout.write("max iterations reached\n")
     return 0
 
@@ -1624,10 +1833,18 @@ def build_parser() -> argparse.ArgumentParser:
     add_workspace_arg(tail)
     tail.set_defaults(func=v2_tail_workspace)
 
+    observe = subparsers.add_parser("observe", help="Print live workspace status and tails; refresh observe.html.")
+    observe.add_argument("--interval", type=float, default=2.0)
+    observe.add_argument("--iterations", type=int)
+    observe.add_argument("--runtime-lines", type=int, default=120)
+    observe.add_argument("--log-lines", type=int, default=80)
+    add_workspace_arg(observe)
+    observe.set_defaults(func=v2_observe_workspace)
+
     run = subparsers.add_parser("run", help="Run one or more bounded iterations.")
     run.add_argument("--agent-cmd")
     run.add_argument("--max-iterations", type=int, default=1)
-    run.add_argument("--idle-timeout-seconds", type=int, default=300)
+    run.add_argument("--idle-timeout-seconds", type=int, default=1800)
     run.add_argument("--repo-root")
     run.add_argument("--checkpoint-commits", action="store_true")
     add_workspace_arg(run)

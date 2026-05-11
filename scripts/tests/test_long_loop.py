@@ -1,6 +1,7 @@
 import json
 import subprocess
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -155,6 +156,47 @@ class LongLoopTests(unittest.TestCase):
             self.assertEqual(tail.returncode, 0, tail.stderr)
             self.assertIn("plan-created", tail.stdout)
 
+    def test_observe_prints_status_dialogue_logs_and_html(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            workspace = self.workspace(cwd)
+            self.make_workspace_ready(workspace, status="in_progress")
+            state = json.loads((workspace / "state.json").read_text(encoding="utf-8"))
+            state["status"] = "running"
+            state["current_item"] = "P0: Ship concrete feature"
+            state["last_heartbeat_at"] = "2026-05-10T00:00:00+00:00"
+            (workspace / "state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            (workspace / "runtime.log").write_text("agent dialogue <needs escaping>\n", encoding="utf-8")
+            with (workspace / "logs.md").open("a", encoding="utf-8") as handle:
+                handle.write("\n## agent-log\n\n- curated progress\n")
+
+            result = self.run_script(
+                cwd,
+                "observe",
+                "--dir",
+                str(workspace),
+                "--iterations",
+                "1",
+                "--runtime-lines",
+                "5",
+                "--log-lines",
+                "5",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("## Long Loop Observe", result.stdout)
+            self.assertIn("current_item: P0: Ship concrete feature", result.stdout)
+            self.assertIn("current_phase: phases/01_initial", result.stdout)
+            self.assertIn("heartbeat_age:", result.stdout)
+            self.assertIn("agent dialogue <needs escaping>", result.stdout)
+            self.assertIn("curated progress", result.stdout)
+            html = (workspace / "observe.html").read_text(encoding="utf-8")
+            self.assertIn("Long Loop Observe", html)
+            self.assertIn("P0: Ship concrete feature", html)
+            self.assertIn("phases/01_initial", html)
+            self.assertIn("agent dialogue &lt;needs escaping&gt;", html)
+
     def test_run_builds_rich_context_and_prints_logs_delta(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cwd = Path(tmp)
@@ -188,11 +230,15 @@ class LongLoopTests(unittest.TestCase):
             self.assertIn("qa.md", context)
             self.assertIn("logs.md", context)
             self.assertIn("logs.md delta", result.stdout)
+            self.assertIn("observe this run in another terminal", result.stdout)
+            self.assertIn("observe.html", result.stdout)
             self.assertIn("validation evidence", result.stdout)
             state = json.loads((workspace / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(state["iterations"], 1)
             self.assertEqual(state["last_validation"], "pass")
             self.assertEqual(state["current_item"], "P0: Ship concrete feature")
+            self.assertEqual(state["current_phase"], "phases/01_initial")
+            self.assertTrue((workspace / "observe.html").exists())
 
     def test_run_rejects_starter_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -359,6 +405,81 @@ class LongLoopTests(unittest.TestCase):
             self.assertIn("idle timeout", state["stop_reason"])
             self.assertTrue((workspace / "runtime.log").exists())
             self.assertIn("agent-start", (workspace / "runtime.log").read_text(encoding="utf-8"))
+
+    def test_idle_timeout_kills_child_process_group(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            scripts = cwd / "scripts"
+            scripts.mkdir()
+            agent = scripts / "agent.sh"
+            marker = cwd / "orphan-marker.txt"
+            agent.write_text(
+                "#!/usr/bin/env bash\n"
+                "python3 - <<'PY'\n"
+                "import pathlib, time\n"
+                "time.sleep(2)\n"
+                f"pathlib.Path({str(marker)!r}).write_text('orphan still ran', encoding='utf-8')\n"
+                "PY\n",
+                encoding="utf-8",
+            )
+            agent.chmod(0o755)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            workspace = self.workspace(cwd)
+            self.make_workspace_ready(workspace)
+
+            result = self.run_script(
+                cwd,
+                "run",
+                "--dir",
+                str(workspace),
+                "--max-iterations",
+                "1",
+                "--idle-timeout-seconds",
+                "1",
+                "--agent-cmd",
+                "scripts/agent.sh",
+            )
+            time.sleep(2)
+
+            self.assertEqual(result.returncode, 1)
+            self.assertFalse(marker.exists(), "idle timeout must not leave orphan child processes running")
+
+    def test_run_can_disable_idle_timeout_for_quiet_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.install_passing_validators(cwd)
+            scripts = cwd / "scripts"
+            agent = scripts / "agent.py"
+            agent.write_text(
+                "import pathlib, time\n"
+                "time.sleep(1)\n"
+                "fix_plan = pathlib.Path('.long-loop/2026-PLACEHOLDER/fix_plan.md')\n"
+                "fix_plan.write_text(fix_plan.read_text(encoding='utf-8').replace('- Status: pending', '- Status: done'), encoding='utf-8')\n"
+                "with open('.long-loop/2026-PLACEHOLDER/logs.md', 'a', encoding='utf-8') as f:\n"
+                "    f.write('\\n## quiet-agent-log\\n\\n- validation evidence\\n')\n",
+                encoding="utf-8",
+            )
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            workspace = self.workspace(cwd)
+            self.make_workspace_ready(workspace)
+            agent.write_text(agent.read_text(encoding="utf-8").replace(".long-loop/2026-PLACEHOLDER", str(workspace)), encoding="utf-8")
+
+            result = self.run_script(
+                cwd,
+                "run",
+                "--dir",
+                str(workspace),
+                "--max-iterations",
+                "1",
+                "--idle-timeout-seconds",
+                "0",
+                "--agent-cmd",
+                "python3 scripts/agent.py",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = json.loads((workspace / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["last_validation"], "pass")
 
     def test_checkpoint_commits_when_phase_is_done(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
