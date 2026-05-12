@@ -60,6 +60,23 @@ argument-hint: <技术问题|方案对比|可行性评估>
 [文档链接、代码示例]
 ```
 
+## 4. Output Surface / 输出介质
+
+默认输出 Markdown，并在 Markdown 中直接给出推荐方案、理由、风险与参考；这份 Markdown 是调研结论的 SSOT。
+
+当调研需要被非实现者阅读，或内容包含复杂方案矩阵、架构图、代码片段注释、PR explainer、领导层报告时，可以追加 HTML companion artifact。HTML 负责视觉化、浏览体验、标注和交互，不承载唯一结论。
+
+HTML companion 必须：
+
+- 引用对应 Markdown source。
+- 保留 Markdown 中的推荐结论，不另起一套相互竞争的结论。
+- 在调研结论变化时，以 Markdown 为准先更新 source，再刷新 HTML。
+- 生成后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+
+参考：
+- `refs/trq212/unreasonable-effectiveness-of-html.md`
+- `refs/danielmiessler/text-is-thought-holy.md`
+
 ## 规则
 
 - 每条结论标注置信度（确认/推断/未验证）

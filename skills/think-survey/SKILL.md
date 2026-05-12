@@ -129,7 +129,24 @@ Return（固定格式卡片集）:
 - 共识强度：High / Med / Low
 ```
 
-## 6. 中立性与硬约束
+## 6. Output Surface / 输出介质
+
+默认输出 Markdown，作为可编辑、可 diff、可继续推理的权威综述。
+
+仅在满足以下任一条件时，追加 HTML companion artifact：
+
+- 综述明显超过约 100 行，用户或团队大概率不会通读原始 Markdown。
+- 需要横向比较多个流派、时间线、玩家地图或证据矩阵。
+- 目标读者是跨职能团队、领导层或异步分享场景。
+- 需要交互式筛选、折叠、排序或复制摘要。
+
+HTML 只能作为 presentation companion，不得替代 Markdown 综述。HTML 文件必须引用对应 Markdown source；若两者冲突，以 Markdown source 为准，先更新 Markdown 再刷新 HTML。生成 HTML 后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+
+参考：
+- `refs/trq212/unreasonable-effectiveness-of-html.md`
+- `refs/danielmiessler/text-is-thought-holy.md`
+
+## 7. 中立性与硬约束
 
 - 每条结论标置信度（确认 / 推断 / 未验证），不要把推断当事实
 - 矛盾来源显式列出，不擅自调和

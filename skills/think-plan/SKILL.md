@@ -101,6 +101,23 @@ UI / 前端视觉任务必须额外锁定：
 
 根据任务规模自适应粒度：
 
+### Output Surface / 输出介质
+
+Markdown spec 是审批与实现的 SSOT；在 Droid spec mode 中，`ExitSpecMode` 提交的 Markdown plan 仍是用户批准入口。
+
+仅在以下场景追加 HTML companion artifact：
+
+- 多方向 / 多组件 spec 太长，用户需要先看地图再看细节。
+- 需要 mockup、data flow、状态图、关键代码片段注释或 diff explainer。
+- 读者包含跨职能团队、评审者或领导层，需要浏览器可读版本。
+- 需要交互式比较方案、调参、复制 prompt / JSON / Markdown。
+
+HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。生成 HTML 后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+
+参考：
+- `refs/trq212/unreasonable-effectiveness-of-html.md`
+- `refs/danielmiessler/text-is-thought-holy.md`
+
 ### 图示触发条件
 
 出现以下任一情况时，spec 必须附 Mermaid 图：

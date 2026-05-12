@@ -147,6 +147,22 @@ argument-hint: <原文|用途|读者>
 - 不写"我做了 X 而不是 Y"这种自夸式对照
 - 单/双文件改动用 prose 收尾，不默认上 bullet
 
+### HTML Companion
+
+最终答案默认用 Markdown，保持可复制、可审查、可 diff。只有长报告、PR explainer、跨职能分享、领导层简报、复杂视觉说明或交互式审阅需要时，才建议生成 HTML companion artifact。
+
+HTML companion 规则：
+
+- Markdown 仍是最终结论和事实边界的 SSOT。
+- HTML 只负责 presentation：层级、图示、注释、交互、分享。
+- HTML 必须引用对应 Markdown source 或对话结论。
+- 生成后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+- 短最终答复、单文件改动总结、验证摘要不要生成 HTML 文件。
+
+参考：
+- `refs/trq212/unreasonable-effectiveness-of-html.md`
+- `refs/danielmiessler/text-is-thought-holy.md`
+
 ### Markdown 规则
 
 - GitHub-flavored Markdown

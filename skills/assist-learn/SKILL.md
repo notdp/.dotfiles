@@ -27,6 +27,11 @@ argument-hint: <主题|变更|经验点>
 - `templates/learning-note.md`
 - `scripts/scaffold_note.py`
 
+## 边界
+
+- 工作失误、判断偏差、协作问题或流程事故的多轮复盘 → 先用 `/assist-retrospect`
+- 复盘后需要把可迁移经验沉淀为模板 / 操作卡 → 回到 `/assist-learn`
+
 ## Gotchas
 
 - 不要把时间线复述当成学习沉淀；重点是可复用模式

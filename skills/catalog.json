@@ -193,6 +193,12 @@
       "role": "canonical"
     },
     {
+      "name": "assist-retrospect",
+      "path": "skills/assist-retrospect",
+      "domain": "assist",
+      "role": "canonical"
+    },
+    {
       "name": "think-ask-context",
       "path": "skills/think-ask-context",
       "domain": "think",
