@@ -11,10 +11,11 @@ My Droid skills/scripts
 | `/cvim` | 打开外部编辑器，以当前会话内容为基础编辑并返回 diff |
 | `/droid-mod` | 修改/检查/恢复 droid 二进制 |
 | `/fe-audit` | 前端设计质量审计（设计原则 + 反模式 + 可访问性 + 代码健康） |
+| `/design-md` | 建立、使用、诊断和验证项目 DESIGN.md |
 
 ## Skills
 
-按域前缀组织：`think-*` 思考 / `dev-*` 开发 / `guard-*` 护栏 / `readable-*` 可读性 / `assist-*` 沉淀，其余为专项能力。
+按域前缀组织：`think-*` 思考 / `dev-*` 开发 / `guard-*` 护栏 / `readable-*` 可读性 / `assist-*` 沉淀，其余为专项能力。完整权威清单以 `skills/catalog.json` 为准，下面只保留常用入口。
 
 | Skill | Description |
 |-------|-------------|
@@ -22,14 +23,24 @@ My Droid skills/scripts
 | `think-research` | 实现前技术调研（选型、最佳实践、风险） |
 | `think-plan` | 需求分析→设计→执行计划（多粒度 spec） |
 | `think-architecture` | 架构思考与成文（先对话后成文档） |
+| `think-refine` | 需求模糊、边界不清时交互式澄清 |
+| `think-survey` | 开放主题综述、资料汇总 |
+| `think-compare` | 多个明确候选路径之间做取舍 |
+| `think-context-map` | 单次任务影响面不明时画文件地图 |
+| `think-ask-context` | 回答复杂问题前识别缺失上下文 |
 | `think-quality` | 结构质量评估；判断代码/架构/diff 是否适合继续修改 |
 | `think-unstuck` | 结构化排查；连续失败 2 次、卡壳时触发 |
 | `dev-debug` | 系统化调试（科学方法，子 agent 隔离分析） |
 | `dev-tdd` | TDD 工作流；新功能/bug 修复时使用 |
 | `dev-refactor` | 代码重构（分支比较、未提交变更、自定义范围） |
+| `dev-simplify` | 实现后从复用/质量/效率角度轻量清理 |
+| `dev-long-loop` | 长任务多轮执行、状态沉淀和阶段验收 |
+| `dev-operational-task` | 长耗时、数据任务、复杂 CLI、dry-run/apply 合同 |
 | `guard-check` | 交付前总入口；编排 review/secure/verify/ship/gitops |
 | `guard-review` | 代码审查（simple/deep 两种模式） |
 | `guard-secure` | 安全审查（STRIDE 威胁建模） |
+| `guard-threat-model` | 首次安全审查或架构变更时生成威胁模型 |
+| `guard-diff-scan` | 交付前扫描 diff 中的调试残留 |
 | `guard-verify` | 完成前验证；要求提供验证证据 |
 | `guard-ship` | 交付（PR 模式或直接发布模式） |
 | `guard-close` | 完成裁决；区分 Blocking / Risk / Polish / Adjacent |
@@ -37,6 +48,7 @@ My Droid skills/scripts
 | `readable-final-answer` | 重写内容降低认知负担 + 最终答案/PR 描述/过程播报体裁规范 |
 | `readable-metrics` | 终端可扫描的指标表达 |
 | `assist-learn` | 经验沉淀为规则 / 模板 / 操作卡 |
+| `assist-retrospect` | 工作失误或流程事故后的结构化复盘 |
 | `fe-ui-design` | 前端设计约束；创建 web 组件、页面或应用时使用 |
 | `fe-ui-critique` | UI 设计诊断；已有页面、截图或实现需要判断视觉质量时使用 |
 | `fe-ui-design-system` | 轻量设计系统；提取或生成 DESIGN.md 风格视觉契约 |
@@ -46,6 +58,7 @@ My Droid skills/scripts
 | `web-read` | 把远程 URL / GitHub / PDF 读成干净 Markdown |
 | `agent-browser` | 浏览器与 Electron 应用自动化；交互、截图、表单、提取 |
 | `agent-health` | 审计 agent 配置栈 / skills wiring / hooks / MCP / 全局规则 |
+| `workflow-helper` | 多步骤工作流不清时生成路线和停止条件 |
 | `hive` | Hive 协作运行时；多 agent 通信、team 上下文与消息传递 |
 
 ## 指令分工
@@ -99,10 +112,10 @@ guard-gitops ─→ 触碰线上/远程/部署产物前的前置门禁（被 gua
 
 ### 方案
 
-将工程流程拆为独立 Skill（`se-` 前缀），用户按需 `/se-*` 触发，不污染 idle context：
+将工程流程拆为独立 Skill（`think-*` / `dev-*` / `guard-*` 等当前前缀），用户按需触发，不污染 idle context：
 
 - **AGENTS.md 保持权威** — 全局准则不受干扰
-- **用户控制粒度** — 快速修复直接改，严谨开发时 `/think-plan` → `/dev-tdd`
+- **用户控制粒度** — 纯文档、样式、配置等非行为类小改可直接改；新功能、bug 修复和行为变更仍按 `/dev-tdd`
 - **零 idle 开销** — Skill 仅在触发时加载（agent 也可主动调用）
 - **渐进式披露** — skill 主文件只保留高信号规则，细节优先下沉到 `refs/`、`examples/`、`scripts/`
 - **description 当触发器** — 让模型知道“什么时候该调用”，而不是只看到功能摘要
@@ -122,7 +135,7 @@ guard-gitops ─→ 触碰线上/远程/部署产物前的前置门禁（被 gua
 
 ## Refs
 
-`refs/` 以 git submodule 形式收集第三方 Agent Skills 项目，按 `refs/{owner}/{repo}` 组织。
+`refs/` 主要以 git submodule 形式收集第三方 Agent Skills 项目，按 `refs/{owner}/{repo}` 组织；少量本地参考快照可能不是 submodule，权威状态以 `.gitmodules` 和实际目录共同判断。
 
 ### 目录结构
 

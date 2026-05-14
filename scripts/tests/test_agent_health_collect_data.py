@@ -29,6 +29,25 @@ class AgentHealthCollectDataTests(unittest.TestCase):
             self.assertIn("[WARN] Missing hook configuration", result.stdout)
             self.assertIn("[WARN] Missing MCP configuration", result.stdout)
 
+    def test_collect_data_accepts_factory_settings_hooks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            (repo / "agents").mkdir(parents=True)
+            (repo / "skills").mkdir(parents=True)
+            (repo / ".factory").mkdir(parents=True)
+            (repo / "agents" / "AGENTS.md").write_text("# rules\n")
+            (repo / "skills" / "catalog.json").write_text('{"skills": []}\n')
+            (repo / ".factory" / "settings.json").write_text('{"hooks": {"Stop": []}}\n')
+
+            result = subprocess.run(
+                ["bash", str(COLLECT_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("[WARN] Missing hook configuration", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

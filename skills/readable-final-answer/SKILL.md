@@ -149,15 +149,31 @@ argument-hint: <原文|用途|读者>
 
 ### HTML Companion
 
-最终答案默认用 Markdown，保持可复制、可审查、可 diff。只有长报告、PR explainer、跨职能分享、领导层简报、复杂视觉说明或交互式审阅需要时，才建议生成 HTML companion artifact。
+最终答案默认用 Markdown，保持可复制、可审查、可 diff。HTML companion 是同步交付物，不是事后口头建议。
 
-HTML companion 规则：
+以下任一条件命中时，触发 HTML companion artifact：
+
+- 用户显式要求 HTML / companion / artifact / 可视化版本。
+- 用户在一段已有最终答复后手动触发本 skill，且原答复包含多层标题、表格、指标、路线判断、风险判断或行动计划。
+- 内容属于长报告、PR explainer、跨职能分享、领导层简报、复杂视觉说明或交互式审阅。
+
+以下情况不要生成 HTML 文件，但必须在最终答复末尾用一句话说明未生成原因：
+
+- 短最终答复。
+- 单文件改动总结。
+- 验证摘要。
+- 用户只要求改写一小段文本，且没有可视化或分享需求。
+
+HTML companion 硬约束：
 
 - Markdown 仍是最终结论和事实边界的 SSOT。
 - HTML 只负责 presentation：层级、图示、注释、交互、分享。
+- 一旦触发 HTML companion，不要只口头说明或只给 Markdown；若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后再实际生成 `.html` 文件。
 - HTML 必须引用对应 Markdown source 或对话结论。
-- 生成后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
-- 短最终答复、单文件改动总结、验证摘要不要生成 HTML 文件。
+- HTML 必须结构化：TL;DR、目录 / 导航、关键结论卡片、证据区、风险区、行动区分层清楚，避免把 Markdown 原文整段搬进页面。
+- 复杂内容优先图表化：能用矩阵、时间线、流程图、状态图、对比柱状图、风险热力图、指标卡、证据表说明的内容，不只用段落解释；图表数量以降低理解成本为准，不为凑数量堆图。
+- 批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+- 最终回复必须同步给出 Markdown 结论和 HTML 文件路径；不要只说"可以生成"。
 
 参考：
 - `refs/trq212/unreasonable-effectiveness-of-html.md`

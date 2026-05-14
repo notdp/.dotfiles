@@ -131,16 +131,20 @@ Return（固定格式卡片集）:
 
 ## 6. Output Surface / 输出介质
 
-默认输出 Markdown，作为可编辑、可 diff、可继续推理的权威综述。
+默认输出 Markdown，作为可编辑、可 diff、可继续推理的权威综述。HTML companion 是同步交付物，不是事后建议。
 
-仅在满足以下任一条件时，追加 HTML companion artifact：
+仅在满足以下任一条件时，追加 HTML companion artifact；命中任一条件时，不要只输出 Markdown 综述。若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后再实际生成 `.html` 文件：
 
 - 综述明显超过约 100 行，用户或团队大概率不会通读原始 Markdown。
 - 需要横向比较多个流派、时间线、玩家地图或证据矩阵。
 - 目标读者是跨职能团队、领导层或异步分享场景。
 - 需要交互式筛选、折叠、排序或复制摘要。
 
-HTML 只能作为 presentation companion，不得替代 Markdown 综述。HTML 文件必须引用对应 Markdown source；若两者冲突，以 Markdown source 为准，先更新 Markdown 再刷新 HTML。生成 HTML 后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+HTML 只能作为 presentation companion，不得替代 Markdown 综述。HTML 文件必须引用对应 Markdown source；若两者冲突，以 Markdown source 为准，先更新 Markdown 再刷新 HTML。
+
+HTML companion 必须结构化为 TL;DR、流派 / 观点地图、时间线、证据矩阵、分歧点、适用场景、开放问题。复杂综述优先图表化：流派关系用地图，历史演进用 timeline，多源证据用矩阵，玩家 / 工具生态用象限或表格，风险与不确定性用 heatmap；图表数量以降低理解成本为准，不为凑数量堆图。
+
+批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。最终回复必须同步给出 Markdown 综述结论和 HTML 文件路径；不要只说"可以生成"。
 
 参考：
 - `refs/trq212/unreasonable-effectiveness-of-html.md`

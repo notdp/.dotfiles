@@ -32,6 +32,17 @@ argument-hint: <指标主题|数据来源|时间范围|目标问题>
 
 在 Droid rich terminal 中，优先使用 `<json-render>` 做可视化；没有 rich terminal 时，退回 Markdown 表格/列表。
 
+当指标输出超过单屏、需要异步分享、包含多维趋势 / 对比 / 异常定位，或目标读者不是只看终端的工程师时，同步生成 HTML companion artifact。HTML companion 是同步交付物，不是事后建议。命中这些条件时，不要只输出 `<json-render>` 或 Markdown。若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后再实际生成 `.html` 文件。Markdown / 终端输出仍是结论 SSOT，HTML 只负责结构化展示、图表、筛选和分享。
+
+HTML companion 硬约束：
+
+- 引用对应 Markdown source 或对话结论。
+- 结构化为 TL;DR、核心指标卡、趋势区、对比区、异常 / 风险区、行动区。
+- 优先把可视化信息做成图表：趋势用折线 / sparkline，横向比较用柱状图，构成占比用堆叠 / 分组图，阈值风险用热力图或状态矩阵，明细用可排序表格。
+- 每个图表只回答一个问题，并紧跟一句“这说明什么”。
+- 批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+- 最终回复必须同步给出终端 / Markdown 结论和 HTML 文件路径；不要只说"可以生成"。
+
 ### 组件选择建议
 
 | 场景 | 推荐组件 |

@@ -60,6 +60,10 @@ if [[ -f pyproject.toml ]] || [[ -d tests ]] && ls tests/test_*.py >/dev/null 2>
   fi
 fi
 
+if [[ -d scripts/tests ]] && ls scripts/tests/test_*.py >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+  run_check "tests (scripts unittest)" "python3 -m unittest discover -s scripts/tests -p \"test_*.py\""
+fi
+
 if [[ -f Cargo.toml ]]; then
   run_check "tests (cargo)" "cargo test --quiet"
 fi

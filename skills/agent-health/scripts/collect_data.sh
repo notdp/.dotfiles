@@ -14,6 +14,7 @@ catalog_file="$repo_root/skills/catalog.json"
 hook_candidates=(
   "$repo_root/hooks"
   "$repo_root/hooks.json"
+  "$repo_root/.factory/settings.json"
   "$repo_root/.factory/hooks.json"
   "$repo_root/.droid/hooks.json"
 )
@@ -42,6 +43,20 @@ find_first_existing() {
   return 1
 }
 
+find_hook_config() {
+  for candidate in "${hook_candidates[@]}"; do
+    if [[ ! -e "$candidate" ]]; then
+      continue
+    fi
+    if [[ "$candidate" == */settings.json ]] && ! grep -q '"hooks"' "$candidate"; then
+      continue
+    fi
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  return 1
+}
+
 status="PASS"
 issues=()
 
@@ -55,7 +70,7 @@ if [[ ! -f "$catalog_file" ]]; then
   issues+=("[WARN] Missing skills/catalog.json")
 fi
 
-hook_path="$(find_first_existing "${hook_candidates[@]}" || true)"
+hook_path="$(find_hook_config || true)"
 if [[ -z "$hook_path" ]]; then
   [[ "$status" == "PASS" ]] && status="WARN"
   issues+=("[WARN] Missing hook configuration")

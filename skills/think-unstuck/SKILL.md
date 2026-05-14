@@ -103,4 +103,4 @@ think-unstuck 的工作是在这份 Handoff 上继续推进：补充 Evidence、
 
 ## 关联技能
 
-本 skill 是跨技能的元能力，任何 se-* 技能执行中卡住都可触发。排查完成后返回原技能继续执行。
+本 skill 是跨技能的元能力，任何 `think-*` / `dev-*` / `guard-*` / `readable-*` / `assist-*` / `fe-*` 技能执行中卡住都可触发。排查完成后返回原技能继续执行。

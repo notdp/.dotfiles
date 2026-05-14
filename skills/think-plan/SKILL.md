@@ -21,6 +21,8 @@ argument-hint: <需求描述|范围|方案问题>
 - 不做什么？（显式排除项）
 - 有没有已有方案可以参考？
 - 对于特定技术问题，考虑是否可以形式化建模（利用已有求解工具）
+- acceptance verifier 是什么？完成后用什么端到端路径、真实输入、holdout/unseen cases、回归样例或人工可观察证据证明用户目标达成？
+- inner-loop verifier 是什么？哪些 unit test / lint / typecheck / 局部 pass-fail signal 只证明实现局部正确性，不能替代最终验收？
 
 UI / 前端视觉任务必须额外锁定：
 
@@ -49,7 +51,7 @@ UI / 前端视觉任务必须额外锁定：
 | Structure | 改哪些文件 / 组件 / 边界，不改哪些 |
 | Operations | 步骤是否可执行、可测试、顺序合理 |
 | Norms | 项目命名、测试、日志、错误处理等规范 |
-| Safeguards | 安全、兼容性、性能、不变量和回退点 |
+| Safeguards | 安全、兼容性、性能、不变量、acceptance verifier 和回退点 |
 
 当后续实现、验证或 review 发现现实与 plan 不一致时，优先更新 plan/spec artifact，再继续实现；不要只在代码上 patch，导致意图记录漂移。
 
@@ -60,6 +62,7 @@ UI / 前端视觉任务必须额外锁定：
 - 每次只问一个问题，等用户回答后再问下一个
 - 提出 2-3 个方案并附取舍分析和推荐
 - 先锁定读者、产物、验收标准，再拆方案
+- 验收标准必须区分 inner-loop verifier 与 acceptance verifier；如果只能做代码层验证，必须说明为什么足够以及剩余风险
 - 在 spec 中显式区分：`已锁定` / `待决策` / `可自由裁量`
 - 遇到技术不确定点，建议用户触发 `/think-research`
 - 需要设计/成文架构时，转 `/think-architecture`
@@ -103,16 +106,20 @@ UI / 前端视觉任务必须额外锁定：
 
 ### Output Surface / 输出介质
 
-Markdown spec 是审批与实现的 SSOT；在 Droid spec mode 中，`ExitSpecMode` 提交的 Markdown plan 仍是用户批准入口。
+Markdown spec 是审批与实现的 SSOT；在 Droid spec mode 中，`ExitSpecMode` 提交的 Markdown plan 仍是用户批准入口。HTML companion 是同步交付物，不是事后建议。
 
-仅在以下场景追加 HTML companion artifact：
+仅在以下场景追加 HTML companion artifact；命中任一条件时，不要只输出 Markdown spec。若当前处于禁止写文件的审批/spec mode，先在 plan 中声明批准后生成 HTML；用户批准后再实际生成 `.html` 文件：
 
 - 多方向 / 多组件 spec 太长，用户需要先看地图再看细节。
 - 需要 mockup、data flow、状态图、关键代码片段注释或 diff explainer。
 - 读者包含跨职能团队、评审者或领导层，需要浏览器可读版本。
 - 需要交互式比较方案、调参、复制 prompt / JSON / Markdown。
 
-HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。生成 HTML 后默认立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
+HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。
+
+HTML companion 必须结构化为 TL;DR、范围边界、系统 / 文件地图、阶段计划、风险与回滚、验证门、待决问题。复杂 spec 优先图表化：组件关系用架构图，数据流用 flow，状态变化用 state diagram，阶段推进用 timeline，取舍用对比矩阵，风险用 heatmap；图表数量以降低理解成本为准，不为凑数量堆图。
+
+批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。最终回复必须同步给出 Markdown spec 结论和 HTML 文件路径；不要只说"可以生成"。
 
 参考：
 - `refs/trq212/unreasonable-effectiveness-of-html.md`
