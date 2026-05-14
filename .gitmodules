@@ -91,3 +91,9 @@
 [submodule "refs/nexu-io/open-design"]
 	path = refs/nexu-io/open-design
 	url = https://github.com/nexu-io/open-design
+[submodule "refs/K-Dense-AI/scientific-agent-skills"]
+	path = refs/K-Dense-AI/scientific-agent-skills
+	url = https://github.com/K-Dense-AI/scientific-agent-skills
+[submodule "refs/Owl-Listener/designer-skills"]
+	path = refs/Owl-Listener/designer-skills
+	url = https://github.com/Owl-Listener/designer-skills

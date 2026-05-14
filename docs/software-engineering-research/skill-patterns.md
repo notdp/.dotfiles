@@ -322,6 +322,56 @@ description: 当 ... 时使用；<能力摘要>。
 
 ---
 
+## 模式 H：领域分册型 Skill
+
+把知识密集型能力拆成短入口和多个分册：`SKILL.md` 负责触发、边界、流程和风险门；`references/` 或 `refs/` 负责 API、标准、分类表、示例；`scripts/` 负责可确定性检查或转换。
+
+### 用它的场景
+
+- 科学计算、医学/临床、合规、安全、设计系统等领域知识密集
+- 单个 skill 需要覆盖多个库、API、标准或文件格式
+- 需要保留示例脚本，但不希望每次触发都加载所有细节
+
+### 参考样例
+
+- `refs/K-Dense-AI/scientific-agent-skills/scientific-skills/rdkit/SKILL.md`
+- `refs/K-Dense-AI/scientific-agent-skills/scientific-skills/scanpy/references/standard_workflow.md`
+- `refs/K-Dense-AI/scientific-agent-skills/scientific-skills/database-lookup/references/pubchem.md`
+- `refs/K-Dense-AI/scientific-agent-skills/scientific-skills/hugging-science/scripts/fetch_catalog.py`
+
+### 在本仓库的映射
+
+- 新增领域 skill 时优先采用 `SKILL.md + refs/references + scripts`，不要把长手册塞进正文。
+- 涉及 network、secrets、外部 API、医疗/临床或数据写入时，必须写 Risk / Evidence / Guardrails，并让 `verify_skills.py` 风险提示可见。
+- 外部安全报告只能作为对应提交的历史证据；当前引入仍需本仓库自己的验证。
+
+---
+
+## 模式 I：Command 编排型 Workflow
+
+Command 只负责把多个 skill 串成高频动作，不复制每个 skill 的知识正文。这个模式来自 `refs/Owl-Listener/designer-skills`：skills 是名词型知识单元，commands 是动词型工作流。
+
+### 用它的场景
+
+- 多个 skill 经常按固定顺序一起使用
+- 用户需要短命令入口，而不是记住多个 skill 名称
+- 工作流本身稳定，但各 skill 的知识正文需要独立演进
+
+### 参考样例
+
+- `refs/Owl-Listener/designer-skills/design-research/commands/discover.md`
+- `refs/Owl-Listener/designer-skills/design-research/skills/user-persona/SKILL.md`
+- `refs/Owl-Listener/designer-skills/scripts/build-gemini.sh`
+
+### 在本仓库的映射
+
+- `commands/` 可以保留高频 inner-loop 编排，例如先调研、再计划、再验证。
+- `commands/` 不应复制 `skills/` 的长规则，只引用 skill 名称和执行顺序。
+- 外部 prompt 中的自然语言澄清要改成 `AskUser`；默认保存文档要改成用户明确授权后再写。
+- 本仓库不采用“禁止跨插件引用”作为硬规则；跨域编排由风险、复用性和可 review 性决定。
+
+---
+
 ## 模式汇总表
 
 | 模式 | 代表样例 | 行数 | 何时用 |
@@ -333,6 +383,8 @@ description: 当 ... 时使用；<能力摘要>。
 | E 交互式 Refinement | `first-ask` | 30-60 | 需求模糊需对话澄清 |
 | F Task Contract | `guard-verify` / 工作流型 skills | 40-160 | 需要目标、证据、停止条件而非固定 SOP |
 | G Progressive Disclosure | `write-a-skill` / 本仓库 tool-backed skills | 混入 | 主流程要短，细节按需加载 |
+| H 领域分册型 Skill | `scientific-agent-skills` | 80-200 + 分册 | 知识密集、引用多、示例脚本多 |
+| I Command 编排型 Workflow | `designer-skills` commands | 10-80 | 高频串联多个 skill |
 
 ---
 
@@ -342,3 +394,4 @@ description: 当 ... 时使用；<能力摘要>。
 2. **正文反复说"何时调用"**——触发语义已经在 description 里硬约束，正文再写就重复
 3. **自由叙述伪装成表格**（表格列都叫"说明"）——不如不用表格
 4. **`{{var}}` 用太多**（5 个以上占位符）——会变成填空题，退化成 mad libs
+5. **照搬外部 agent 行为**——如“Ask for clarification”“save as markdown document”，必须先适配本仓库 AskUser 和文档创建纪律

@@ -16,6 +16,26 @@ REFERENCE_PATTERN = re.compile(
     r"(?<![/.])\b(?:refs|references|examples|scripts|agents|templates)/[\w./-]+\b"
 )
 BOUNDARY_REFERENCE_PATTERN = re.compile(r"与\s*/?([a-z]+-[a-z0-9-]+)\s*(?:的)?区别")
+RISK_PATTERNS = {
+    "secrets": re.compile(
+        r"\b(?:read|collect|use|access|load|store|write)\b.{0,60}\b(?:api[-_ ]?keys?|secrets?|tokens?|env(?:ironment)?(?: vars?)?)\b"
+        r"|\b(?:api[-_ ]?keys?|secrets?|tokens?)\b.{0,60}\b(?:from env|environment variables?)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "network": re.compile(
+        r"\b(?:call|query|fetch|request|send|download|upload|scrape|access)\b.{0,60}\b(?:https?|rest api|api|webhooks?)\b"
+        r"|\b(?:curl|requests\.\w+|fetch\()\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "data-side-effects": re.compile(
+        r"\b(?:write|modify|delete|migrate|backfill|apply|overwrite)\b.{0,60}\b(?:databases?|migrations?|files?|data|records?|results?)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    "medical-clinical-lab": re.compile(
+        r"\b(?:generate|process|analyze|handle|write|create)\b.{0,60}\b(?:clinical|medical|patient|laboratory|lab automation|hipaa|treatment)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+}
 WORKFLOW_QUALITY_TERMS = (
     "证据",
     "验收",
@@ -293,7 +313,21 @@ def validate_executable_bit(skill_file: Path, resolved: Path) -> None:
         )
 
 
-def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_names: set[str]) -> None:
+def collect_high_risk_capability_warnings(entry: SkillEntry, text: str) -> list[str]:
+    categories = [
+        category
+        for category, pattern in RISK_PATTERNS.items()
+        if pattern.search(text)
+    ]
+    if not categories:
+        return []
+    return [
+        f"RISK WARNING: {entry.name} declares high-risk capability categories: "
+        + ", ".join(categories)
+    ]
+
+
+def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_names: set[str]) -> list[str]:
     skill_file = entry.path / "SKILL.md"
     frontmatter = parse_frontmatter(skill_file)
     content = content_without_frontmatter(skill_file)
@@ -304,13 +338,15 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
 
     validate_trigger_prefix(entry, frontmatter["description"])
     validate_workflow_quality(entry, skill_file, content)
-    validate_boundary_references(entry, frontmatter["description"] + "\n" + content, skill_names)
+    full_text = frontmatter["description"] + "\n" + content
+    validate_boundary_references(entry, full_text, skill_names)
 
     for relative_path in sorted(collect_references(skill_file)):
         resolved = resolve_reference(entry, context, relative_path)
         if resolved is None:
             fail(f"BROKEN REFERENCE: {skill_file} -> {relative_path}")
         validate_executable_bit(skill_file, resolved)
+    return collect_high_risk_capability_warnings(entry, full_text)
 
 
 def main() -> int:
@@ -319,8 +355,12 @@ def main() -> int:
         context = ValidationContext(repo_root=repo_root)
         entries = load_catalog(context)
         skill_names = {entry.name for entry in entries}
+        warnings: list[str] = []
         for entry in entries:
-            validate_skill_entry(context, entry, skill_names)
+            warnings.extend(validate_skill_entry(context, entry, skill_names))
+            for warning in warnings:
+                sys.stdout.write(f"{warning}\n")
+            warnings.clear()
             print(f"ok: {entry.name} -> {entry.path.relative_to(context.repo_root)}")
         print(f"validated {len(entries)} skills")
     except ValidationError as error:

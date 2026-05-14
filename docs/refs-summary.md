@@ -1,5 +1,11 @@
 # refs 研究汇总
 
+## 吸收方法论
+
+- refs 吸收裁决的 SSOT：[`docs/software-engineering-research/refs-absorption-methodology.md`](./software-engineering-research/refs-absorption-methodology.md)
+- 后续拉取 refs 最新改动、判断是否吸收到本仓库时，必须按该方法论输出 commit range、候选吸收项、吸收层级、风险和证据。
+- 最近一次全量 refs 更新吸收分析：[`docs/refs-update-absorption-2026-05-14.md`](./refs-update-absorption-2026-05-14.md)
+
 ## 分类说明
 
 - **浏览器自动化与前端调试**：围绕浏览器控制、前端诊断、性能分析、页面抓取与 UI 调试。 代表项目：`ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser`
@@ -7,6 +13,7 @@
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
 - **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
+- **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`automazeio/ccpm`、`gsd-build/get-shit-done`、`obra/superpowers`
 - **最佳实践 / 知识库**：围绕 Claude Code 概念地图、目录约定、功能导航与实践经验整理。 代表项目：`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
@@ -29,6 +36,7 @@
 | [`google-labs-code/stitch-skills`](./refs-details/google-labs-code/stitch-skills.md) | 前端 UI / 设计系统 | 围绕 Stitch MCP 的 Agent Skills 库，用于 UI 设计生成、设计系统提炼、React 转换和演示视频生成。 |
 | [`gsd-build/get-shit-done`](./refs-details/gsd-build/get-shit-done.md) | 研发流程 / 项目管理 | 跨多种 AI 运行时的 spec-driven development / context engineering 系统，覆盖立项、规划、执行、验证、交付全流程。 |
 | [`HughYau/qiushi-skill`](./refs-details/HughYau/qiushi-skill.md) | 行为协议 / 提示工程 | 从毛泽东思想中提炼"实事求是"总原则和九大方法论工具，系统性武装 AI Agent 的分析与决策能力，附带工作流编排和多平台插件。 |
+| [`K-Dense-AI/scientific-agent-skills`](./refs-details/K-Dense-AI/scientific-agent-skills.md) | 科研 / 数据分析 / 领域技能 | 大型科学研究 skill 集合，把科研数据库、科学 Python 包、实验平台、医学/临床工作流、科学写作和可视化整理成多 Agent 可读的能力包。 |
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
@@ -39,6 +47,7 @@
 | [`notdp/hive`](./refs-details/notdp/hive.md) | 多智能体协作与工作流编排 | 基于 tmux 的多 agent 协作运行时/CLI，围绕 Factory Droid 工作流构建。 |
 | [`nyldn/claude-octopus`](./refs-details/nyldn/claude-octopus.md) | 多智能体协作与工作流编排 | 超大体量的多模型编排插件，把 Claude Code/Droid 扩展成带工作流、角色、hooks、MCP 和兼容层的协作系统。 |
 | [`obra/superpowers`](./refs-details/obra/superpowers.md) | 研发流程 / 项目管理 | 强调纪律化开发流程的技能包，让 coding agent 按“先规格、后计划、再实现与复核”的方式工作。 |
+| [`Owl-Listener/designer-skills`](./refs-details/Owl-Listener/designer-skills.md) | 前端 UI / 设计系统 | 面向设计工作的 Claude Code / Gemini CLI skill collection，提供 8 个设计插件、87 个 skills 和 27 个 commands。 |
 | [`pbakaus/impeccable`](./refs-details/pbakaus/impeccable.md) | 前端 UI / 设计系统 | 面向前端设计质量的跨平台技能/命令打包仓库，附带官网、下载 API 和构建系统。 |
 | [`shanraisshan/claude-code-best-practice`](./refs-details/shanraisshan/claude-code-best-practice.md) | 最佳实践 / 知识库 | Claude Code 生态知识库，系统整理 commands、skills、subagents、memory、hooks 与工作流最佳实践，并给出对应实现入口。 |
 | [`tanweai/pua`](./refs-details/tanweai/pua.md) | 行为协议 / 提示工程 | 面向多种 AI 编码代理的“高压/高主动性”技能包，核心是 PUA/PIP 风格提示、命令、hooks 和多平台分发素材。 |
@@ -104,6 +113,9 @@
 
 ## 补充观察
 
+- **吸收裁决（2026-05-14）**：
+  - `Owl-Listener/designer-skills`：吸收“名词型 skill + 动词型 command + 多平台打包”的组织方式；不吸收 8 个设计插件和 87 个 skills 本体。其自然语言澄清和默认保存文档行为需要按本仓库 `AskUser` 与文档创建纪律改写。
+  - `K-Dense-AI/scientific-agent-skills`：吸收“短入口 `SKILL.md` + `references/` + `scripts/`”的领域分册结构和安全扫描门禁；不整包安装到默认 skills。触及网络、secrets、医疗/临床、实验室自动化或数据写入的能力必须先经过安全/运行时副作用护栏。
 - `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行，验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
 - `travisvn/awesome-claude-Skills`、`libukai/awesome-agent-Skills` 更偏导航/市场/索引；适合找来源，不适合直接当能力实现。
 - `ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser` 是浏览器自动化/前端调试类的两条重要主线，前者偏 DevTools MCP，后者偏 agent-browser CLI/runtime。
@@ -113,5 +125,7 @@
 - `tw93/Waza` 是更轻的工程习惯技能包：不追求重型 runtime 或全流程治理，而是把 think/check/hunt/design/read/write/learn/health 八类高频动作压成可安装 skill。
 - `shanraisshan/claude-code-best-practice` 更像 Claude Code 生态知识库/导航站，适合提炼 skill 触发器、command 路由与全局记忆压缩原则，不适合整套照搬为团队规范。
 - `google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`pbakaus/impeccable`、`vercel-labs/agent-skills` 更偏前端 UI / 设计系统。
+- `Owl-Listener/designer-skills` 属于前端 UI / 设计系统中的设计工作流样本，值得借鉴“名词型 skill + 动词型 command + 多平台打包”的结构，但其自然语言澄清和默认写文档行为需要按本仓库纪律适配。
+- `K-Dense-AI/scientific-agent-skills` 属于科研 / 数据分析 / 领域技能的大型样本，适合参考 taxonomy、`SKILL.md` + `scripts/` + `references/` 的重型 skill 结构和安全扫描门禁；不适合整包安装到默认 skills。
 - `millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph` 都属于代码质量/审查范畴：前者偏 React 代码体检，第二个偏 Lighthouse / CWV / a11y / SEO 的 Web 质量审查，后者偏本地结构图谱、blast radius 与 token-efficient review context。
 - `tanweai/pua` 和 `HughYau/qiushi-skill` 都属于行为协议/提示工程类，前者偏高压激励/行为约束，后者偏哲学方法论/分析框架，二者互补。

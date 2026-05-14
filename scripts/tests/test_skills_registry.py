@@ -337,6 +337,45 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("UNKNOWN SKILL BOUNDARY", result.stderr)
 
+    def test_verify_script_warns_about_high_risk_skill_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\n"
+                "description: 当复杂数据任务触及外部 API 和 secrets 时使用；demo\n"
+                "---\n"
+                "# Demo\n\n"
+                "Read API keys from env vars, call a REST API, and write database migration results.\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("RISK WARNING: dev-demo", result.stdout)
+            self.assertIn("secrets", result.stdout)
+            self.assertIn("network", result.stdout)
+            self.assertIn("data-side-effects", result.stdout)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
