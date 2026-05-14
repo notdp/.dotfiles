@@ -14,6 +14,8 @@ argument-hint: <功能点|bug 描述|行为变更>
 
 TDD 的单位是 vertical slice / tracer bullet：一个可观察行为对应一轮 RED→GREEN。不要把 RED 理解成“先批量写完所有测试”。
 
+TDD 是 inner-loop verifier：它证明局部实现行为正确，不等于用户最终目标已经达成。用户可见功能、数据任务、模型/评测任务、复杂 Agent 流程在 TDD 通过后，仍必须用 `/guard-verify` 给出 acceptance verifier 证据。
+
 ```
 RED    → 写一个失败测试（一个行为、名字说清行为）
        → 跑测试，确认失败原因是"功能缺失"而非 typo
@@ -78,7 +80,7 @@ RED→GREEN: test3→impl3
 | "代码太简单不用测" | 简单代码也会坏，写一个测试只要 30 秒 |
 | "先实现再补测试更快" | 那叫 "test-after"，不叫 TDD |
 | "这只是 spike，不需要 TDD" | 把它标成 spike，不要混进 main |
-| "测试通过了 = 任务完成" | 还没 refactor 这一步 |
+| "测试通过了 = 任务完成" | TDD 只完成 inner-loop；还需要 refactor 和 acceptance verifier |
 | "外部接口我控不了，没法测" | mock 边界即可，不要让"难"代替"不做" |
 
 发现自己在用以上句式说服自己跳过 RED，停一步：要么诚实标记 spike（隔离分支、不进 main），要么按 RED→GREEN→REFACTOR 走完。
@@ -88,6 +90,7 @@ RED→GREEN: test3→impl3
 - 先写实现、再补测试，不叫 TDD
 - 先批量写完所有测试、再批量实现，也不叫有效 TDD
 - 红灯必须因为“行为缺失/不符合预期”，不能只是 typo 或测试本身坏掉
+- 不允许用“新增单元测试通过”直接替代端到端、holdout/unseen 或人工可观察验收
 - UI 探索、样式调整、纯配置改动不要生搬硬套 TDD
 - GREEN 阶段只做让测试过的最小实现，不顺手优化、不顺手重构
 

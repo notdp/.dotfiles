@@ -32,6 +32,7 @@ argument-hint: <diff 范围|留空=当前未提交变更>
 - 需要 PR / 发布动作时切到 `guard-ship`
 - 改动会影响仓库外可见状态（远程机器、部署产物、数据库、secrets、运行时配置、仓库外二进制、第三方面板）时追加 `guard-gitops`；发现存在"绕过 git"的副作用一律升 Critical
 - diff 或 PR 描述引用 spec / plan / prompt artifact 时，在 review 摘要里增加 intent alignment：目标、边界、Non-goals、验证策略是否仍与 artifact 一致
+- diff 触及批处理、数据脚本、迁移、复杂 CLI、`dry-run/apply` 命令时，追加 `/dev-operational-task` contract 检查，并运行 `scripts/scan_operational_task_contract.py --strict` 作为 advisory evidence
 
 ## 边界
 

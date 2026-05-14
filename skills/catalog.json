@@ -175,6 +175,12 @@
       "role": "canonical"
     },
     {
+      "name": "dev-operational-task",
+      "path": "skills/dev-operational-task",
+      "domain": "dev",
+      "role": "canonical"
+    },
+    {
       "name": "think-unstuck",
       "path": "skills/think-unstuck",
       "domain": "think",

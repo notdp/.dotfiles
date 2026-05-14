@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import textwrap
@@ -13,6 +14,14 @@ class ScanDiffResidueTests(unittest.TestCase):
     def run_scan(self, diff: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SCAN_SCRIPT), "--stdin"],
+            input=diff,
+            text=True,
+            capture_output=True,
+        )
+
+    def run_hook_scan(self, diff: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["python3", str(SCAN_SCRIPT), "--stdin", "--hook"],
             input=diff,
             text=True,
             capture_output=True,
@@ -59,6 +68,25 @@ class ScanDiffResidueTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("命中 0 条", result.stdout)
 
+    def test_hook_mode_returns_additional_context_without_blocking(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/src/app.py b/src/app.py
+            --- a/src/app.py
+            +++ b/src/app.py
+            @@ -1,1 +1,2 @@
+             keep()
+            +print("debug")
+            """
+        )
+
+        result = self.run_hook_scan(diff)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("hookSpecificOutput", payload)
+        self.assertIn("Diff residue scan", payload["hookSpecificOutput"]["additionalContext"])
+
     def test_scans_untracked_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -86,6 +114,9 @@ class ScanDiffResidueTests(unittest.TestCase):
             (repo / "scripts" / "tests").mkdir(parents=True)
             (repo / "scripts" / "tests" / "fixture.py").write_text('print("fixture")\n', encoding="utf-8")
             (repo / "scripts" / "scan_diff_residue.py").write_text('print("usage")\n', encoding="utf-8")
+            (repo / "scripts" / "scan_operational_task_contract.py").write_text('print("json output")\n', encoding="utf-8")
+            (repo / ".factory" / "hooks").mkdir(parents=True)
+            (repo / ".factory" / "hooks" / "context_capsule.py").write_text('print("hook output")\n', encoding="utf-8")
 
             result = subprocess.run(
                 ["python3", str(SCAN_SCRIPT)],

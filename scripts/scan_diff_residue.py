@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -45,7 +46,9 @@ def is_default_excluded(file_path: str) -> bool:
     return (
         path.suffix.lower() in {".md", ".markdown"}
         or parts[:2] == ("scripts", "tests")
+        or parts[:2] == (".factory", "hooks")
         or file_path == "scripts/scan_diff_residue.py"
+        or file_path == "scripts/scan_operational_task_contract.py"
     )
 
 
@@ -187,18 +190,40 @@ def render_findings(findings: list[Finding]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_hook_output(findings: list[Finding]) -> str:
+    if not findings:
+        return json.dumps({"suppressOutput": True})
+    return json.dumps(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": "Diff residue scan found possible cleanup issues:\n\n" + render_findings(findings),
+            },
+            "suppressOutput": True,
+        },
+        ensure_ascii=False,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Scan added diff lines for debug residue.")
     parser.add_argument("--stdin", action="store_true", help="Read unified diff from stdin.")
+    parser.add_argument("--hook", action="store_true", help="Emit hook JSON and never block by exit code.")
     args = parser.parse_args()
 
     try:
         diff_text = sys.stdin.read() if args.stdin else git_diff()
     except RuntimeError as exc:
+        if args.hook:
+            print(json.dumps({"suppressOutput": True}))
+            return 0
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
     findings = scan_added_lines(parse_added_lines(diff_text))
+    if args.hook:
+        print(render_hook_output(findings))
+        return 0
     print(render_findings(findings), end="")
     return 1 if findings else 0
 

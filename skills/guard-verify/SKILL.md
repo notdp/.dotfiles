@@ -18,6 +18,26 @@ argument-hint: <交付物|验证范围>
 4. **回归检查** — 确认没有破坏已有功能
 5. **结构性验证** — 若本次改动涉及架构/重构/大 diff，补充说明影响面是否合理、验证护栏是否足够；必要时引用 `/think-quality` 结论
 
+## 验证证据分层
+
+测试通过不等于用户目标达成。验证报告必须区分以下层级：
+
+| 层级 | 作用 | 示例 | 是否可单独宣称完成 |
+|---|---|---|---|
+| Inner-loop | 实现局部正确性 | unit test、lint、typecheck、mocked test | 仅适合纯局部改动 |
+| Integration | 模块协作正确性 | API + DB、CLI dry-run、服务间调用 | 视任务边界而定 |
+| Acceptance | 用户目标达成 | E2E、真实输入、holdout、人工观察、回归样例 | 复杂任务必须有 |
+| Regression | 未破坏已有能力 | 历史样例、关键路径、快照对比 | 重要任务必须考虑 |
+
+复杂任务、用户可见功能、数据任务、模型/评测任务、Agent 流程不能只列 inner-loop evidence 就标 verified。若 acceptance verifier 不适用，必须说明原因和剩余风险。
+
+最终报告必须显式列出：
+
+- `Inner-loop evidence`
+- `Acceptance evidence`
+- `Holdout / unseen evidence`（不适用则说明）
+- `Known gaps`
+
 ## UI 任务额外门禁
 
 当交付物涉及 UI、CSS、React/Vue/Svelte 组件、页面、设计系统或视觉调整时，自动验证不够。必须补充视觉证据：
@@ -35,6 +55,27 @@ argument-hint: <交付物|验证范围>
 | Reference diff | 有参考图时引用 `/fe-ui-visual-iterate` 差异表 |
 
 禁止把“测试通过”“肉眼看了下”当成 UI verified。缺截图或 overflow 证据时，UI 交付物状态只能是 `partial`。
+
+## Data / Operational 任务额外门禁
+
+当交付物涉及长耗时批处理、数据同步/回填/修复、迁移脚本、复杂 CLI、`dry-run/apply` 时，必须补充 operational evidence：
+
+| Check | 必需证据 |
+|---|---|
+| dry-run data accuracy | planned count、sample、diff/aggregation、invariants、failure examples、holdout/unseen sample |
+| progress observability | phase、current/total、percent、rate 或 ETA、heartbeat |
+| resumability | checkpoint/cursor/state file/idempotency key；中断后 resume 命令 |
+| robustness | retry/backoff、timeout、failed set 或 partial failure summary |
+| CLI UX | preset/default/wizard/help；复杂 wizard 必须打印底层可复制命令 |
+| apply safety | apply confirmation、post-apply verification、必要时 `/guard-gitops` evidence |
+
+禁止把“dry-run 能跑通”当成数据任务 verified。dry-run 缺少数据准确性证据时，只能写：
+
+```text
+dry-run: smoke only -- data accuracy not verified
+```
+
+数据、模型、推荐、分类、生成质量、评测类任务必须区分 tuning/dev cases 与 holdout/unseen cases。没有 holdout 时，必须提供替代证据：随机抽样、边界样例、历史回归样例或人工复核记录。
 
 ## 工具化步骤
 
@@ -101,6 +142,15 @@ verification: none -- structural gap
 
 （若 exit=2 / 未探测到测试命令 / 无 characterization：在此节末尾追加 `verification: none -- structural gap`）
 
+### 验证证据分层
+| 层级 | Result | Evidence |
+|------|--------|----------|
+| Inner-loop evidence | pass/partial/none | unit/lint/typecheck/mock 等证据 |
+| Integration evidence | pass/partial/none | 模块协作、CLI、API、DB 等证据 |
+| Acceptance evidence | pass/partial/none | E2E、真实输入、用户路径、人工观察等证据 |
+| Holdout / unseen evidence | pass/partial/not applicable | 未参与调试的样例、随机样本、边界样本、历史回归样例；不适用时说明原因 |
+| Known gaps | none/list | 未覆盖风险、无法验证项、需人工验收项 |
+
 ### UI 视觉验证（仅 UI 任务）
 | Check | Result | Evidence |
 |-------|--------|----------|
@@ -110,6 +160,16 @@ verification: none -- structural gap
 | text overflow | pass/partial | selector / screenshot region |
 | interaction states | pass/partial | selector / screenshot / snapshot |
 | DESIGN.md adherence | pass/partial | `DESIGN.md` path + token/direction evidence |
+
+### Data / Operational 验证（仅长任务 / 数据任务 / 复杂 CLI）
+| Check | Result | Evidence |
+|-------|--------|----------|
+| dry-run data accuracy | pass/partial | count / sample / diff / invariants |
+| progress observability | pass/partial | phase / current / total / percent / ETA / heartbeat |
+| resumability | pass/partial | checkpoint / cursor / resume command |
+| robustness | pass/partial | retry / failed set / timeout behavior |
+| CLI UX | pass/partial | preset / wizard / copyable command |
+| apply safety | pass/partial | confirmation / post-apply verification / guard-gitops |
 
 ### 结构性评估
 - 影响面: ...

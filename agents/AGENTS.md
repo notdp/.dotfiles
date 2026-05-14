@@ -40,6 +40,7 @@
 ### 可观测性
 
 - 日志规范：日志要详细清晰；长流程需打印开始、进度和 ETA；关键数据标红
+- 长耗时、批处理、数据变更、复杂 CLI、dry-run/apply 任务先走 `/dev-operational-task`
 
 ### 命名与设计
 
@@ -83,7 +84,9 @@
 - **TDD 强制**：新功能、bug 修复、行为变更时，必须先调用 `/dev-tdd` skill，走 Red→Green→Refactor 循环。先写失败测试再写实现，不是"写完实现补测试"。纯配置/文档/样式变更除外。
 - 开发后思考是否需要小范围重构，重构的基础是良好的测试
 - 验证比生成贵：定义"什么是正确的"是核心工作，写代码不是
+- 验证必须区分 inner-loop verifier 与 acceptance verifier；TDD/lint/unit test 不能单独替代最终用户目标验收。复杂任务、数据任务、模型任务、Agent 流程必须提供端到端、holdout/unseen、抽样复核或人工可观察证据；不适用时说明原因
 - 故障导向安全：校验失败应阻止而非放行，错误不应静默传递
+- dry-run 必须证明数据准确性，不只证明命令能跑
 
 ### Skill 路由总览
 
@@ -97,6 +100,7 @@
 
 - 新需求 / 大改动：`/think-map` → `/think-plan` → `/dev-tdd` → `/dev-simplify` → `/guard-verify` → `/guard-ship`
 - Bug / 异常：`/dev-debug` → （必要时 `/dev-tdd` / `/dev-refactor`）→ `/dev-simplify` → `/guard-verify`
+- 长任务 / 数据任务 / 复杂 CLI：`/dev-operational-task` → `/dev-tdd` → `/guard-verify` → `/guard-check`
 - 交付前总检查：`/guard-check` → 按需路由到 `/guard-review` / `/guard-secure` / `/guard-verify` / `/guard-ship`
 - 安全审查首跑：`/guard-threat-model`（建立 `docs/threat-model.md` SSOT）→ `/guard-secure` → `/guard-ship`
 - 安全例行审查：`/guard-secure`（自动读取 `docs/threat-model.md`）
@@ -135,6 +139,7 @@
 验证纪律：
 - 先小成本验证，再扩大范围
 - 验证时不只看直接相关指标，还要检查是否引入了新问题（回归）
+- 自动化测试通过只是 inner-loop 证据；交付前还要证明 acceptance verifier 覆盖用户目标，或说明为什么该任务不适用
 
 - 用户要求完成且验证通过后，默认停止，不主动扩 scope
 - 未被用户请求的相邻工作，只能列为可选 backlog，不能默认继续执行
