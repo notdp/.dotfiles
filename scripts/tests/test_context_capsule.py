@@ -42,6 +42,38 @@ class ContextCapsuleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
+    def test_boundary_prompt_injects_boundary_capsule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), "帮我封装这个服务，并确认 response_model 和 metric label")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Boundary-Decision Capsule", context)
+        self.assertIn("Boundary decisions:", context)
+
+    def test_post_tool_runs_boundary_scanner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            src = repo / "src"
+            src.mkdir()
+            (src / "service.py").write_text(
+                "from fastapi import HTTPException\nraise HTTPException(status_code=422)\n",
+                encoding="utf-8",
+            )
+            env = {**os.environ, "FACTORY_PROJECT_DIR": str(repo)}
+            result = subprocess.run(
+                ["python3", str(SCRIPT), "--event", "post-tool"],
+                text=True,
+                capture_output=True,
+                cwd=repo,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Boundary decision scan found", context)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,6 +15,9 @@ VALIDATION_RE = re.compile(
     re.I,
 )
 VISUAL_RE = re.compile(r"(screenshot|ui-visual-capture|agent-browser|playwright|overflow|visual)", re.I)
+BOUNDARY_SCAN_RE = re.compile(r"Boundary decision scan found", re.I)
+BOUNDARY_MANIFEST_RE = re.compile(r"^Boundary decisions:\s*(?P<body>.*?)(?:\n\n|\Z)", re.I | re.M | re.S)
+EMPTY_MANIFEST_RE = re.compile(r"^\s*(?:none|无|n/a|not applicable)\s*$", re.I)
 CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".rb", ".php", ".cs", ".swift", ".kt"}
 UI_SUFFIXES = {".tsx", ".jsx", ".css", ".scss", ".vue", ".svelte"}
 
@@ -58,6 +61,60 @@ def transcript_text(path: str | None) -> str:
     return transcript.read_text(encoding="utf-8", errors="replace")[-120000:]
 
 
+def record_text(record: dict) -> str:
+    message = record.get("message", record)
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts)
+    return str(content or "")
+
+
+def transcript_records(transcript: str) -> list[dict]:
+    records: list[dict] = []
+    for raw_line in transcript.splitlines():
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def boundary_findings_in_transcript(transcript: str) -> bool:
+    return bool(BOUNDARY_SCAN_RE.search(transcript))
+
+
+def is_assistant_record(record: dict) -> bool:
+    message = record.get("message")
+    return record.get("role") == "assistant" or record.get("type") == "assistant" or (
+        isinstance(message, dict) and message.get("role") == "assistant"
+    )
+
+
+def assistant_boundary_manifest_present(transcript: str) -> bool:
+    for record in reversed(transcript_records(transcript)):
+        if not is_assistant_record(record):
+            continue
+        text = record_text(record)
+        match = BOUNDARY_MANIFEST_RE.search(text)
+        if not match:
+            continue
+        body = match.group("body").strip()
+        if not body or EMPTY_MANIFEST_RE.fullmatch(body):
+            return False
+        return True
+    return False
+
+
 def is_code_file(path: str) -> bool:
     return Path(path).suffix.lower() in CODE_SUFFIXES
 
@@ -75,6 +132,10 @@ def stop_message(files: list[str], transcript: str) -> str | None:
         problems.append("code changes exist but no validation evidence was found; run /guard-verify before claiming completion")
     if any(is_ui_file(path) for path in code_files) and not VISUAL_RE.search(transcript):
         problems.append("UI files changed but no visual/screenshot/overflow evidence was found")
+    if boundary_findings_in_transcript(transcript) and not assistant_boundary_manifest_present(transcript):
+        problems.append(
+            "boundary decision patterns were detected, but no assistant-authored `Boundary decisions:` manifest was found"
+        )
     if not problems:
         return None
     return (

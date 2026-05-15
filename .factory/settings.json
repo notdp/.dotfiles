@@ -57,6 +57,16 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "ApplyPatch|Create|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_boundary_gate.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Execute",
         "hooks": [
           {

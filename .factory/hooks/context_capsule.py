@@ -33,6 +33,15 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "planning-task.md",
         re.compile(r"(方案|计划|架构|设计|怎么做|approach|architecture|plan|options|phase|spec)", re.I),
     ),
+    (
+        "boundary-decision.md",
+        re.compile(
+            r"(封装|wrap|wrapper|包装|包一层|接入|对接|集成|adapter|integration|service\s+wrap|"
+            r"schema|response_model|metric|metrics|埋点|指标|data source|数据源|canonical|snapshot|"
+            r"sampling|limit|prod|生产|context|hook|CLAUDE\.md|AGENTS\.md)",
+            re.I,
+        ),
+    ),
 )
 MAX_PROMPT_CONTEXT_CHARS = 2200
 
@@ -93,7 +102,7 @@ def prompt_context(hook_input: dict) -> str:
 
 def post_tool_context(root: Path) -> str:
     contexts: list[str] = []
-    for script_name in ["scan_operational_task_contract.py", "scan_diff_residue.py"]:
+    for script_name in ["scan_operational_task_contract.py", "scan_diff_residue.py", "scan_boundary_decisions.py"]:
         scanner = config_root() / "scripts" / script_name
         if not scanner.exists():
             continue
