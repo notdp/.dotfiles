@@ -1,3 +1,5 @@
+> 项目硬约束见 ~/.dotfiles/agents/AGENTS.md
+
 # Global Agent Configuration
 
 ## Basic Requirements
@@ -57,6 +59,7 @@
 - 调研沉淀、refs 分析、背景材料放 `docs/`
 - 能靠配置、脚本、hook、测试强制的规则，不要只写成自然语言提醒
 - 不要继续把解释性内容堆进 `AGENTS.md`；细则优先下沉，避免全局上下文膨胀
+- 项目硬约束写 `agents/AGENTS.md`；`~/.claude/CLAUDE.md` 只放纯 cc 全局偏好，不放项目硬约束
 
 ### Skill 编写规范
 
