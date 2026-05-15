@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boundary Decision Guard 原理说明</title>
+  <style>
+    :root {
+      --bg: #f8faf7;
+      --card: #ffffff;
+      --ink: #1f2933;
+      --muted: #5f6b7a;
+      --line: #d8ddd6;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #7c3aed;
+      --code: #eef2f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(37,99,235,.08), transparent 32rem),
+        var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 32px 20px 70px; }
+    h1 { font-size: 36px; line-height: 1.12; margin: 0 0 10px; }
+    h2 { font-size: 25px; margin: 36px 0 14px; }
+    h3 { font-size: 18px; margin: 18px 0 8px; }
+    p { margin: 8px 0; }
+    code {
+      background: var(--code);
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-size: .92em;
+    }
+    .subtitle { color: var(--muted); max-width: 860px; }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-top: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .big { font-size: 22px; font-weight: 750; }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 6px;
+      background: #e5e7eb;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .blue { background: #dbeafe; color: #1d4ed8; }
+    .green { background: #ccfbf1; color: #115e59; }
+    .orange { background: #ffedd5; color: #9a3412; }
+    .red { background: #fee2e2; color: #991b1b; }
+    .purple { background: #ede9fe; color: #6d28d9; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, 1fr); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 10px 0 18px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+    }
+    th { background: #eef2f0; }
+    tr:last-child td { border-bottom: 0; }
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin: 16px 0;
+    }
+    .pipe-step {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      position: relative;
+    }
+    .pipe-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -18px;
+      top: 38%;
+      color: var(--muted);
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .callout {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 12px;
+      margin: 16px 0;
+    }
+    .callout.warn { border-left-color: var(--orange); background: #fff7ed; }
+    .callout.bad { border-left-color: var(--red); background: #fef2f2; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 12px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    ul { margin-top: 8px; padding-left: 22px; }
+    li { margin: 5px 0; }
+    .score {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin: 9px 0;
+    }
+    .score-track { height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+    .score-fill { height: 100%; background: var(--green); }
+    .score-fill.warn { background: var(--orange); }
+    .score-fill.bad { background: var(--red); }
+    @media (max-width: 900px) {
+      .hero, .grid, .grid.two, .pipeline { grid-template-columns: 1fr; }
+      .pipe-step:not(:last-child)::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Boundary Decision Guard 原理说明</h1>
+  <p class="subtitle">这份文档解释“我们自己做的防护”为什么存在、如何工作、哪些地方会帮助 coding agent、哪些地方会拖慢或误导 agent。它不是 Hook API 文档。</p>
+
+  <section class="hero">
+    <div class="card">
+      <div class="badge red">问题本质</div>
+      <p class="big">AI coding agent 最危险的失败，不是报错，而是“替你决定了边界”。</p>
+      <p>典型表现：spec 没说拒绝输入，agent 加了 422；只要求接增量埋点，agent 接到了共享路径；只要求采样，agent 默认把 limit 当成全局。</p>
+    </div>
+    <div class="card">
+      <div class="badge green">防护目标</div>
+      <p class="big">让边界决策从“隐形默认”变成“可见事实”。</p>
+      <p>不追求让 agent 永远不犯错，而是让它在动手前、动手后、收尾前留下可 review 的证据。</p>
+    </div>
+  </section>
+
+  <h2>1. 什么叫 Boundary Decision</h2>
+  <div class="callout">
+    <strong>定义：</strong>凡是会改变“系统接受什么、拒绝什么、默认怎么填、走哪条路径、用哪个数据源、算到哪个指标、影响哪些 caller”的决定，都是 boundary decision。它们通常不在函数内部显得复杂，但会改变产品行为或运营结果。
+  </div>
+
+  <table>
+    <thead><tr><th>类别</th><th>例子</th><th>为什么危险</th></tr></thead>
+    <tbody>
+      <tr><td>input / rejection</td><td>新增 <code>status_code=422</code>、新增参数校验</td><td>把“可处理”变成“拒绝”，用户体验和 API contract 变了。</td></tr>
+      <tr><td>default / fallback</td><td><code>or []</code>、fallback 到另一来源</td><td>看起来更稳，实际可能掩盖数据缺失。</td></tr>
+      <tr><td>shared path</td><td>改了被多个 caller 共用的函数</td><td>一个场景正确，其他路径被污染。</td></tr>
+      <tr><td>metric routing</td><td>新增 label、StatsStore route、metric name</td><td>数据可能落到错误桶里，线上看不到真实变化。</td></tr>
+      <tr><td>schema contract</td><td>改 response envelope、字段语义、<code>response_model</code></td><td>前后端、调用方、监控全部依赖这个边界。</td></tr>
+      <tr><td>data / sampling</td><td>canonical vs raw snapshot、global limit vs per-platform limit</td><td>会直接改变召回、覆盖面和成本判断。</td></tr>
+      <tr><td>context surface</td><td>hook、prompt、capsule、CLAUDE.md、AGENTS.md</td><td>这些会改变后续 agent 的输入和行为偏置。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. 我们的防护不是一个 hook，而是一条流水线</h2>
+  <div class="pipeline">
+    <div class="pipe-step">
+      <span class="badge blue">1 识别风险</span>
+      <p>从 prompt 关键词判断是否是 wrapper、schema、metric、data source、prod、context surface 等高风险任务。</p>
+    </div>
+    <div class="pipe-step">
+      <span class="badge purple">2 注入清单</span>
+      <p>通过 boundary capsule 告诉 agent：这些边界不能默默自决，要列事实或问用户。</p>
+    </div>
+    <div class="pipe-step">
+      <span class="badge orange">3 写前检查</span>
+      <p>PreTool gate 看 transcript 里是否已有 Boundary decisions、Callers、Data source、Metric route 等证据。</p>
+    </div>
+    <div class="pipe-step">
+      <span class="badge red">4 写后扫描</span>
+      <p>PostTool scanner 从 diff 中找高信号边界变化，例如拒绝逻辑、默认值、schema、metric route。</p>
+    </div>
+    <div class="pipe-step">
+      <span class="badge green">5 收尾交代</span>
+      <p>Stop check 要求 assistant 自己写非空 <code>Boundary decisions:</code> manifest。</p>
+    </div>
+  </div>
+
+  <h2>3. 每一层防护解决什么问题</h2>
+  <table>
+    <thead><tr><th>防护层</th><th>它解决的问题</th><th>它不能解决的问题</th><th>失败时怎么看</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Boundary capsule</td>
+        <td>让 agent 在高风险任务开始时看到“不要自决边界”的 checklist。</td>
+        <td>模型可能忽略提示；关键词可能漏召回。</td>
+        <td>如果 transcript 里没出现 capsule，说明 prompt 没命中关键词或 hook 未生效。</td>
+      </tr>
+      <tr>
+        <td>PreTool gate</td>
+        <td>把“你先列事实了吗？”前移到写代码前。</td>
+        <td>当前默认 advisory，不是硬阻断；也不理解代码语义。</td>
+        <td>如果看到 advisory 但 agent 继续改，说明需要考虑 block 模式。</td>
+      </tr>
+      <tr>
+        <td>Boundary scanner</td>
+        <td>捕捉 diff 里的高信号边界变化。</td>
+        <td>只能扫模式，不能判断业务是否正确；宽泛规则会误报。</td>
+        <td>误报多就收窄 regex 或加排除；漏报就补高信号 fixture。</td>
+      </tr>
+      <tr>
+        <td>Stop manifest</td>
+        <td>让边界变化在最终交付前被显式列出。</td>
+        <td>当前 systemMessage 不保证 agent 自动补救。</td>
+        <td>如果你想强制闭环，升级为 Stop <code>decision:block</code>。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. 为什么不直接上最强阻断</h2>
+  <section class="grid two">
+    <div class="card">
+      <h3>强阻断的好处</h3>
+      <ul>
+        <li>agent 必须处理，不能忽略。</li>
+        <li>更接近“安全门”，适合 secrets、危险命令、生产写入。</li>
+        <li>Stop block 能强制 final 前补 manifest。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>强阻断的代价</h3>
+      <ul>
+        <li>误报会直接打断 flow。</li>
+        <li>agent 可能为了过门写模板化废话。</li>
+        <li>边界判断本身需要语义，硬阻断太早可能降低效率。</li>
+      </ul>
+    </div>
+  </section>
+  <div class="callout warn">
+    <strong>当前 P1 取舍：</strong>先用 advisory 观察噪音和召回，再决定是否把某些路径升级为 block。换句话说，P1 是“可见化和测量”，P2 才是“强制执行”。
+  </div>
+
+  <h2>5. 对 coding agent 的正负影响</h2>
+  <table>
+    <thead><tr><th>影响维度</th><th>正面</th><th>负面</th><th>如何 review</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>质量</td>
+        <td>更容易发现 silent validation、metric path 污染、schema drift。</td>
+        <td>无法证明业务正确，只能暴露可疑点。</td>
+        <td>看 finding 是否能对应真实风险；不能对应就算噪音。</td>
+      </tr>
+      <tr>
+        <td>速度</td>
+        <td>高风险任务少返工。</td>
+        <td>普通任务可能多看一段 capsule 或 advisory。</td>
+        <td>统计一周：误触发次数 / 真有用次数。</td>
+      </tr>
+      <tr>
+        <td>上下文</td>
+        <td>把关键规则按需注入，而不是常驻 AGENTS.md。</td>
+        <td>PostTool finding 会进上下文，占 token 和注意力。</td>
+        <td>capsule 要短；scanner 只保留高信号。</td>
+      </tr>
+      <tr>
+        <td>行为偏置</td>
+        <td>鼓励先列 caller、contract、data source、metric route。</td>
+        <td>agent 可能过度保守，频繁问用户。</td>
+        <td>如果小改也频繁问，收窄 high-risk 关键词。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>6. 当前状态评分</h2>
+  <div class="card">
+    <div class="score"><div>召回覆盖</div><div class="score-track"><div class="score-fill warn" style="width:70%"></div></div></div>
+    <p class="muted">覆盖 input/rejection/default/metric/schema/data/context 等主类，但仍靠 regex 和关键词。</p>
+    <div class="score"><div>误报控制</div><div class="score-track"><div class="score-fill warn" style="width:65%"></div></div></div>
+    <p class="muted">已排除 docs/html/scanner 自身等噪音，但新增规则仍需观察。</p>
+    <div class="score"><div>强制闭环</div><div class="score-track"><div class="score-fill bad" style="width:35%"></div></div></div>
+    <p class="muted">Stop 当前是 advisory，不是强制。若目标是必须补 manifest，需要 P2 block。</p>
+    <div class="score"><div>效率影响</div><div class="score-track"><div class="score-fill" style="width:75%"></div></div></div>
+    <p class="muted">大部分检查只在写文件或 stop 时运行，成本可控；最大风险来自上下文噪音。</p>
+  </div>
+
+  <h2>7. Review 时只看这 5 个问题</h2>
+  <div class="card">
+    <ol>
+      <li><strong>这次任务是否属于高风险边界？</strong> wrapper、schema、metric、data source、prod、context surface。</li>
+      <li><strong>agent 写代码前有没有列事实？</strong> Callers、Contract cases、Data source、Metric route、Schema contract。</li>
+      <li><strong>diff scanner 命中是否是真风险？</strong> 如果不是，应该收窄规则或加排除。</li>
+      <li><strong>最终有没有 Boundary decisions manifest？</strong> 必须是 assistant 自己写的非空块。</li>
+      <li><strong>是否应该从 advisory 升级到 block？</strong> 只有重复事故或 agent 持续忽略时升级。</li>
+    </ol>
+  </div>
+
+  <h2>8. Manifest 长什么样</h2>
+  <div class="mono">Boundary decisions:
+- schema-contract: kept existing {success,data,error} envelope; no response shape change (src/api.py:42, evidence: existing client contract)
+- observability-routing: metric goes to creator.incremental.path, not shared path (src/metrics.py:18, evidence: synthetic emit verified)
+- sampling-boundary: --limit is per-platform, not global (cmd/run.py:55, evidence: user approved)</div>
+
+  <h2>9. 什么时候该升级到 P2</h2>
+  <table>
+    <thead><tr><th>信号</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td>agent 多次忽略 Stop advisory</td><td>Stop 改 <code>decision:block</code>。</td></tr>
+      <tr><td>非 Droid/Claude 工具也要覆盖</td><td>加 git pre-commit / commit-msg hook。</td></tr>
+      <tr><td>regex 误报率高</td><td>收窄规则或迁移少数规则到 AST/Semgrep。</td></tr>
+      <tr><td>manifest 出现模板化糊弄</td><td>要求 manifest file:line 与 scanner finding 交叉验证。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>10. 关键文件地图</h2>
+  <div class="mono">Prompt checklist:
+  agents/context-capsules/boundary-decision.md
+  agents/context-capsules/agent-discipline.md
+
+Routing:
+  .factory/hooks/context_capsule.py
+  .factory/settings.json
+  ~/.claude/settings.json
+
+Pre-action:
+  scripts/hook_boundary_gate.py
+
+Post-action:
+  scripts/scan_boundary_decisions.py
+  scripts/scan_diff_residue.py
+  scripts/scan_operational_task_contract.py
+
+Close-out:
+  scripts/hook_stop_check.py
+
+Tests:
+  scripts/tests/test_scan_boundary_decisions.py
+  scripts/tests/test_hook_boundary_gate.py
+  scripts/tests/test_hook_stop_check.py
+  scripts/tests/test_context_capsule.py</div>
+
+  <div class="callout">
+    <strong>一句话总结：</strong>这套防护的原理是“不要指望 agent 自觉停下来问”，而是在高风险任务的入口、写入、写后、收尾四个时点，把隐形边界决策变成可见证据。
+  </div>
+</main>
+</body>
+</html>

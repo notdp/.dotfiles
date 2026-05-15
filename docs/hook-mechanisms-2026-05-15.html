@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hook 机制速览 2026-05-15</title>
+  <style>
+    :root {
+      --bg: #f7f7f4;
+      --card: #ffffff;
+      --ink: #1f2933;
+      --muted: #5f6b7a;
+      --line: #d8ddd6;
+      --good: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --info: #2563eb;
+      --code: #eef2f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 34px; line-height: 1.12; margin: 0 0 8px; }
+    h2 { margin: 34px 0 14px; font-size: 24px; }
+    h3 { margin: 22px 0 10px; font-size: 18px; }
+    p { margin: 8px 0; }
+    code {
+      background: var(--code);
+      padding: 2px 5px;
+      border-radius: 5px;
+      font-size: 0.92em;
+    }
+    .subtitle { color: var(--muted); margin-bottom: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, 1fr); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .metric { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .info { color: var(--info); }
+    .callout {
+      border-left: 5px solid var(--info);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin: 18px 0;
+    }
+    .callout.warn { border-left-color: var(--warn); background: #fff7ed; color: var(--ink); }
+    .callout.bad { border-left-color: var(--bad); background: #fef2f2; color: var(--ink); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 10px 0 18px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th { background: #eef2f0; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #e5e7eb;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .tag.good { background: #ccfbf1; color: #115e59; }
+    .tag.warn { background: #ffedd5; color: #9a3412; }
+    .tag.bad { background: #fee2e2; color: #991b1b; }
+    .flow { display: grid; gap: 10px; margin-top: 8px; }
+    .step {
+      display: grid;
+      grid-template-columns: 150px 1fr 180px;
+      gap: 12px;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .step .when { font-weight: 700; }
+    .step .agent { font-size: 13px; color: var(--muted); }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 14px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    ul { margin-top: 8px; padding-left: 22px; }
+    li { margin: 5px 0; }
+    @media (max-width: 850px) {
+      .grid, .grid.two { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Hook 机制速览</h1>
+  <p class="subtitle">更新时间：2026-05-15。目标：用最少心智负担 review 当前 Droid / Claude Code hooks、影响和风险。</p>
+
+  <div class="callout bad">
+    <strong>最重要结论：</strong>当前 <code>hook_stop_check.py</code> 的 <code>systemMessage</code> 是用户可见提示，不是可靠的 agent 可执行反馈通道。Factory 文档说明：Stop hook 若要让 Droid 继续并看到原因，应返回 <code>{"decision":"block","reason":"..."}</code>，或用 exit code 2 stderr。当前实现是 P1 advisory，不是 hard gate。
+  </div>
+
+  <section class="grid">
+    <div class="card">
+      <div class="metric">当前策略</div>
+      <div class="value">轻阻断 + 强提醒</div>
+      <p>PreTool boundary gate 默认 advisory；Stop 只提醒，不阻断。</p>
+    </div>
+    <div class="card">
+      <div class="metric">主要收益</div>
+      <div class="value good">减少 silent boundary drift</div>
+      <p>封装、schema、metric、data source 等场景会被提前或事后提醒。</p>
+    </div>
+    <div class="card">
+      <div class="metric">主要代价</div>
+      <div class="value warn">上下文噪音</div>
+      <p>PostTool scanner 会给 agent 注入 finding；误报会消耗注意力。</p>
+    </div>
+  </section>
+
+  <h2>1. 一眼看懂当前链路</h2>
+  <div class="flow">
+    <div class="step">
+      <div class="when">SessionStart</div>
+      <div>注入短纪律 capsule：验证、GitOps、边界决策提醒。</div>
+      <div class="agent">agent 看到</div>
+    </div>
+    <div class="step">
+      <div class="when">UserPromptSubmit</div>
+      <div>按关键词注入 capsule：security、operational、debug、UI、planning、boundary。</div>
+      <div class="agent">agent 看到 additionalContext</div>
+    </div>
+    <div class="step">
+      <div class="when">PreToolUse</div>
+      <div>写文件前跑 boundary gate；跑 shell 前跑 command guard。</div>
+      <div class="agent">仅 block/deny reason 可靠可见</div>
+    </div>
+    <div class="step">
+      <div class="when">PostToolUse</div>
+      <div>编辑后跑 operational、diff residue、boundary scanners。</div>
+      <div class="agent">agent 看到 additionalContext</div>
+    </div>
+    <div class="step">
+      <div class="when">Stop</div>
+      <div>检查是否有验证证据、UI 视觉证据、Boundary decisions manifest。</div>
+      <div class="agent">当前 systemMessage 主要给用户看</div>
+    </div>
+  </div>
+
+  <h2>2. Droid 当前 hooks</h2>
+  <table>
+    <thead>
+      <tr><th>事件</th><th>Matcher</th><th>脚本</th><th>目的</th><th>agent 是否看到</th><th>影响</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>SessionStart</td>
+        <td>无</td>
+        <td><code>hook_context_state.py</code><br><code>context_capsule.py --event session-start</code></td>
+        <td>恢复上下文状态；注入 agent discipline capsule。</td>
+        <td><span class="tag good">看到</span></td>
+        <td>正面：减少遗忘。负面：每个 session 增加基础上下文。</td>
+      </tr>
+      <tr>
+        <td>PreCompact</td>
+        <td>无</td>
+        <td><code>hook_context_state.py</code><br><code>context_capsule.py --event pre-compact</code></td>
+        <td>compact 前保存/补充关键状态。</td>
+        <td><span class="tag good">看到</span></td>
+        <td>正面：降低压缩丢失状态风险。负面：compact 前多一次 hook 开销。</td>
+      </tr>
+      <tr>
+        <td>UserPromptSubmit</td>
+        <td>无</td>
+        <td><code>context_capsule.py --event prompt</code></td>
+        <td>按 prompt 关键词注入专项 capsule。</td>
+        <td><span class="tag good">看到</span></td>
+        <td>正面：按需加载规则。负面：关键词过宽会注入多余 context。</td>
+      </tr>
+      <tr>
+        <td>PreToolUse</td>
+        <td><code>ApplyPatch|Create|Edit</code></td>
+        <td><code>hook_boundary_gate.py</code></td>
+        <td>高风险 prompt 后，写文件前检查是否已有边界事实。</td>
+        <td><span class="tag warn">当前 advisory 不可靠</span></td>
+        <td>正面：减少无事实开改。负面：高风险关键词可能误触发。</td>
+      </tr>
+      <tr>
+        <td>PreToolUse</td>
+        <td><code>Execute</code></td>
+        <td><code>hook_command_guard.py</code></td>
+        <td>拦截危险 shell、提醒用更合适命令。</td>
+        <td><span class="tag good">block 时看到</span></td>
+        <td>正面：命令安全。负面：可能阻断合理但复杂的命令。</td>
+      </tr>
+      <tr>
+        <td>PostToolUse</td>
+        <td><code>ApplyPatch|Create|Edit</code></td>
+        <td><code>context_capsule.py --event post-tool</code></td>
+        <td>统一跑三个 scanner 并通过 additionalContext 注入结果。</td>
+        <td><span class="tag good">看到</span></td>
+        <td>正面：编辑后即时反馈。负面：scanner 误报会打断 flow。</td>
+      </tr>
+      <tr>
+        <td>Stop</td>
+        <td>无</td>
+        <td><code>hook_stop_check.py</code></td>
+        <td>收尾前检查验证证据和 boundary manifest。</td>
+        <td><span class="tag warn">systemMessage 主要用户可见</span></td>
+        <td>正面：用户能看到遗漏。负面：不保证 agent 自动修正。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Claude Code 当前 hooks</h2>
+  <table>
+    <thead>
+      <tr><th>事件</th><th>Matcher</th><th>脚本</th><th>与 Droid 差异</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>SessionStart / PreCompact / UserPromptSubmit</td><td>对应 Claude matcher</td><td>同 Droid 主脚本</td><td>使用绝对路径 <code>/Users/zhenninglang/.dotfiles/...</code>。</td></tr>
+      <tr><td>PostToolUse</td><td><code>Edit|Write|MultiEdit</code></td><td><code>context_capsule.py --event post-tool</code></td><td>Claude 写文件工具名是 <code>Write/MultiEdit</code>，Droid 是 <code>ApplyPatch/Create/Edit</code>。</td></tr>
+      <tr><td>PreToolUse</td><td><code>Edit|Write|MultiEdit</code></td><td><code>hook_boundary_gate.py</code></td><td>同样是 boundary gate。</td></tr>
+      <tr><td>PreToolUse</td><td><code>Bash</code></td><td><code>hook_command_guard.py</code></td><td>Droid 对应工具名是 <code>Execute</code>。</td></tr>
+      <tr><td>Stop / Notification</td><td>无</td><td><code>hook_stop_check.py</code><br><code>notify-tmux-title.sh</code></td><td>Claude 额外保留 tmux title / notification 声音提示。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. 哪些输出进入 agent 上下文</h2>
+  <table>
+    <thead>
+      <tr><th>输出方式</th><th>是否进入 agent</th><th>当前用在哪里</th><th>review 重点</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>hookSpecificOutput.additionalContext</code></td>
+        <td><span class="tag good">是</span></td>
+        <td>SessionStart、UserPromptSubmit、PostToolUse scanners</td>
+        <td>要短、准、低误报，因为会占用上下文并影响行为。</td>
+      </tr>
+      <tr>
+        <td><code>systemMessage</code></td>
+        <td><span class="tag warn">主要给用户</span></td>
+        <td>boundary gate advisory、stop check advisory</td>
+        <td>不能把它当作可靠的 agent 自动修复机制。</td>
+      </tr>
+      <tr>
+        <td><code>decision:block</code> + <code>reason</code></td>
+        <td><span class="tag good">是</span></td>
+        <td>当前 P1 未默认使用</td>
+        <td>需要 agent 必须继续处理时再启用；会提高阻断感。</td>
+      </tr>
+      <tr>
+        <td>exit code 2 + stderr</td>
+        <td><span class="tag good">PreTool/Stop 可见</span></td>
+        <td><code>hook_command_guard.py</code> 风格</td>
+        <td>适合强阻断；错误文案必须告诉 agent 下一步怎么改。</td>
+      </tr>
+      <tr>
+        <td>exit code 0 stdout</td>
+        <td><span class="tag bad">通常否</span></td>
+        <td>普通 hooks 的日志/JSON</td>
+        <td>Factory 文档说除 UserPromptSubmit / SessionStart 外，Droid 不看 exit 0 stdout。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>当前 Stop advisory 的含义：</strong>你会在 UI 里看到 <code>{"systemMessage": ...}</code>，但这不是 P1 的 hard gate。若希望 agent 必须继续并补写 <code>Boundary decisions:</code>，应把 Stop hook 改为 <code>{"decision":"block","reason":"..."}</code>。
+  </div>
+
+  <h2>5. 新增 boundary 机制拆解</h2>
+  <section class="grid two">
+    <div class="card">
+      <h3>Boundary capsule</h3>
+      <p><code>agents/context-capsules/boundary-decision.md</code></p>
+      <ul>
+        <li>触发：wrapper、integration、schema、metric、data source、prod、context hook 等关键词。</li>
+        <li>作用：提醒先问、列 caller、写 contract cases、记录 manifest。</li>
+        <li>风险：关键词宽，可能在普通讨论 hook/schema 时注入。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Boundary gate</h3>
+      <p><code>scripts/hook_boundary_gate.py</code></p>
+      <ul>
+        <li>触发：高风险 prompt 后的首次文件写操作。</li>
+        <li>放行证据：<code>Boundary decisions:</code>、<code>Callers:</code>、<code>Data source:</code>、<code>Metric route:</code> 等。</li>
+        <li>当前模式：advisory；可用 <code>BOUNDARY_GATE_MODE=block</code> 升级。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Boundary scanner</h3>
+      <p><code>scripts/scan_boundary_decisions.py</code></p>
+      <ul>
+        <li>扫描新增 diff：rejection、silent catch、implicit branch、default、retry、metric routing、schema contract。</li>
+        <li>通过 PostToolUse additionalContext 注入给 agent。</li>
+        <li>风险：会命中 hook 自身或测试时的合理边界，已排除部分脚本。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Stop manifest check</h3>
+      <p><code>scripts/hook_stop_check.py</code></p>
+      <ul>
+        <li>检测 transcript 是否有 boundary scanner finding。</li>
+        <li>只接受 assistant 自己写的非空 <code>Boundary decisions:</code>。</li>
+        <li>当前只 <code>systemMessage</code> 提醒，不阻断。</li>
+      </ul>
+    </div>
+  </section>
+
+  <h2>6. 对效率和效果的影响</h2>
+  <table>
+    <thead>
+      <tr><th>机制</th><th>正面影响</th><th>负面影响</th><th>建议阈值</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Session / prompt capsules</td>
+        <td>按需给 agent 正确工作流，减少靠记忆。</td>
+        <td>关键词误触发会污染上下文。</td>
+        <td>保持 capsule 短；发现频繁误触发就收窄关键词。</td>
+      </tr>
+      <tr>
+        <td>PreTool boundary gate</td>
+        <td>把“先想边界”前移到写代码前。</td>
+        <td>可能让简单任务多一步。</td>
+        <td>P1 advisory；连续事故再切 block。</td>
+      </tr>
+      <tr>
+        <td>PostTool scanners</td>
+        <td>即时发现 silent additions、debug residue、operational gaps。</td>
+        <td>误报会打断实现节奏。</td>
+        <td>只保留高信号规则；误报先加排除或收窄。</td>
+      </tr>
+      <tr>
+        <td>Stop check</td>
+        <td>收尾前暴露没有验证或没有 manifest 的问题。</td>
+        <td>当前不保证 agent 自动处理。</td>
+        <td>如果你希望强制闭环，升级为 Stop block。</td>
+      </tr>
+      <tr>
+        <td>Command guard</td>
+        <td>降低 shell 误用和破坏性命令风险。</td>
+        <td>可能阻断复杂但合理命令。</td>
+        <td>保留强阻断；对误报补 allow / 更精确规则。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>7. 快速 review checklist</h2>
+  <div class="card">
+    <ul>
+      <li><strong>想知道 agent 一定看见什么：</strong>找 <code>additionalContext</code>、<code>decision:block reason</code>、exit code 2 stderr。</li>
+      <li><strong>想知道只是你能看见什么：</strong>找 <code>systemMessage</code>、普通 exit 0 stdout、notification。</li>
+      <li><strong>想减少噪音：</strong>先看 <code>CAPSULE_RULES</code> 和 scanner 排除项。</li>
+      <li><strong>想增强强制力：</strong>把 Stop advisory 改为 <code>decision:block</code>，把 PreTool advisory 改为 permission deny/block。</li>
+      <li><strong>想保持效率：</strong>不要把所有规则都放 PostTool scanner；广覆盖放 capsule，硬规则只扫高信号。</li>
+    </ul>
+  </div>
+
+  <h2>8. 当前配置源</h2>
+  <div class="mono">Droid project settings: .factory/settings.json
+Claude Code user settings: ~/.claude/settings.json
+Shared hook dispatcher: .factory/hooks/context_capsule.py
+Session state: scripts/hook_context_state.py
+Command safety: scripts/hook_command_guard.py
+Boundary pre-gate: scripts/hook_boundary_gate.py
+Stop checks: scripts/hook_stop_check.py
+PostTool scanners:
+  - scripts/scan_operational_task_contract.py
+  - scripts/scan_diff_residue.py
+  - scripts/scan_boundary_decisions.py
+Capsules:
+  - agents/context-capsules/agent-discipline.md
+  - agents/context-capsules/boundary-decision.md
+  - agents/context-capsules/security-gitops.md
+  - agents/context-capsules/operational-task.md
+  - agents/context-capsules/debug-task.md
+  - agents/context-capsules/ui-task.md
+  - agents/context-capsules/planning-task.md</div>
+
+  <h2>9. 推荐下一步</h2>
+  <div class="callout">
+    <p><strong>如果目标是“用户能 review 风险”：</strong>保持当前 P1 advisory。</p>
+    <p><strong>如果目标是“agent 必须补救后才能结束”：</strong>把 <code>hook_stop_check.py</code> 的 boundary manifest 问题改成 Stop <code>decision:block</code> + <code>reason</code>。这是更强但更打断的 P2。</p>
+  </div>
+
+  <p class="subtitle">资料依据：Factory Hooks reference、当前 `.factory/settings.json`、`~/.claude/settings.json` 和本仓库 hook scripts。若 Factory hook 语义变更，应先重新核对官方 hooks reference。</p>
+</main>
+</body>
+</html>
