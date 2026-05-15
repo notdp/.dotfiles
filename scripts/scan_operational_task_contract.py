@@ -171,6 +171,7 @@ def is_excluded(file_path: str) -> bool:
         path.suffix.lower() in {".md", ".markdown", ".json", ".lock"}
         or parts[:2] == ("scripts", "tests")
         or file_path == "scripts/scan_operational_task_contract.py"
+        or file_path == "scripts/scan_boundary_decisions.py"
     )
 
 

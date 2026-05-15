@@ -103,6 +103,27 @@ class OperationalTaskContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("命中 0 条", result.stdout)
 
+    def test_ignores_boundary_scanner_source(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/scripts/scan_boundary_decisions.py b/scripts/scan_boundary_decisions.py
+            --- /dev/null
+            +++ b/scripts/scan_boundary_decisions.py
+            @@ -0,0 +1,8 @@
+            +import argparse
+            +parser = argparse.ArgumentParser()
+            +parser.add_argument("--hook", action="store_true")
+            +pattern = "retry|backoff|asyncio.sleep|time.sleep"
+            +suggestion = "concurrency/worker cue without bound"
+            +print("hook output")
+            """
+        )
+
+        result = self.run_scan(diff, "--strict")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("命中 0 条", result.stdout)
+
     def test_hook_mode_returns_additional_context_without_blocking(self) -> None:
         diff = textwrap.dedent(
             """\

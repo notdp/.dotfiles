@@ -49,6 +49,7 @@ def is_default_excluded(file_path: str) -> bool:
         or parts[:2] == (".factory", "hooks")
         or file_path == "scripts/scan_diff_residue.py"
         or file_path == "scripts/scan_operational_task_contract.py"
+        or file_path == "scripts/scan_boundary_decisions.py"
     )
 
 
