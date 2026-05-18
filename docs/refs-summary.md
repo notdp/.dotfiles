@@ -10,27 +10,34 @@
 
 - **浏览器自动化与前端调试**：围绕浏览器控制、前端诊断、性能分析、页面抓取与 UI 调试。 代表项目：`ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser`
 - **技能集合与市场**：以 skills 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
+- **LLM 应用模板 / Agent 示例库**：围绕可运行 LLM app、RAG、MCP、语音、多智能体、微调和 Agent Skills 示例。 代表项目：`Shubhamsaboo/awesome-llm-apps`
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
 - **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
 - **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
-- **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`automazeio/ccpm`、`gsd-build/get-shit-done`、`obra/superpowers`
+- **AWS / 云 Agent 平台**：围绕 AWS Agent 插件、Bedrock AgentCore、云部署、身份、记忆、网关、观测、评估与 IaC 样例。 代表项目：`awslabs/agent-plugins`、`awslabs/agentcore-samples`
+- **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`addyosmani/agent-skills`、`automazeio/ccpm`、`garrytan/gstack`、`gsd-build/get-shit-done`、`obra/superpowers`
 - **最佳实践 / 知识库**：围绕 Claude Code 概念地图、目录约定、功能导航与实践经验整理。 代表项目：`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
 - **MCP / 工具链 / 安装分发**：围绕 MCP、CLI、安装器、技能包管理、多 Agent 兼容与基础设施。 代表项目：`vercel-labs/skills`
-- **行为协议 / 提示工程**：围绕提示协议、行为约束、激励/约束机制、触发词和 hook 协同。 代表项目：`tanweai/pua`
+- **行为协议 / 提示工程**：围绕提示协议、行为约束、激励/约束机制、触发词和 hook 协同。 代表项目：`HughYau/qiushi-skill`、`multica-ai/andrej-karpathy-skills`、`tanweai/pua`
 - **Agent 配置管理 / 工具链**：围绕跨 Agent 统一配置、安装分发、二进制修改与工具增强。 代表项目：`notdp/.dotfiles`
+- **Agent 角色库 / 多工具 Agent 资产**：围绕 agent prompt catalog、角色分工、多工具格式转换和 handoff 模板。 代表项目：`msitarzewski/agency-agents`
 
 ## 项目总表
 
 | 项目 | 分类 | 一句话总结 |
 |---|---|---|
 | [`affaan-m/everything-claude-code`](./refs-details/affaan-m/everything-claude-code.md) | 技能集合与市场 | 超大号跨 harness agent-performance 系统，整合 agents、skills、commands、hooks、rules 和安装器。 |
+| [`addyosmani/agent-skills`](./refs-details/addyosmani/agent-skills.md) | 研发流程 / Agent Skill 工作流 | 面向 AI coding agent 的生产级软件工程 skill 包，把 spec、plan、build、test、review、simplify、ship 串成带验证门禁的生命周期工作流。 |
 | [`addyosmani/web-quality-skills`](./refs-details/addyosmani/web-quality-skills.md) | 代码质量 / 审查 / 调试 | 面向 Web 质量审查与优化的技能仓库，围绕 Lighthouse、Core Web Vitals、可访问性、SEO 和现代最佳实践组织。 |
 | [`anthropics/skills`](./refs-details/anthropics/skills.md) | 技能集合与市场 | Anthropic 官方示例 skills 仓库，附带规范、模板，以及文档处理与开发类技能示例。 |
 | [`automazeio/ccpm`](./refs-details/automazeio/ccpm.md) | 研发流程 / 项目管理 | 单技能形态的项目管理与交付编排系统，把 PRD、Epic、Issues、并行 agents 和状态跟踪串成 spec-driven workflow。 |
+| [`awslabs/agent-plugins`](./refs-details/awslabs/agent-plugins.md) | AWS Agent 插件与云开发技能集合 | AWS Labs 的 agent 插件市场仓库，把 AWS 架构、部署、Serverless、Amplify、数据库、SageMaker、迁移现代化等工作流打包为可安装的 skills、MCP servers、hooks 与 references。 |
+| [`awslabs/agentcore-samples`](./refs-details/awslabs/agentcore-samples.md) | AWS / Bedrock AgentCore 样例库 | 覆盖 AgentCore 入门、能力专题、端到端业务用例、第三方集成、IaC 部署和完整 Blueprint 的官方样例集合。 |
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 浏览器自动化与前端调试 | 通过 MCP 控制真实 Chrome，提供自动化、调试、性能分析和配套 skills。 |
 | [`Dimillian/Skills`](./refs-details/Dimillian/Skills.md) | 技能集合与市场 | 偏精选型的 skills 集合，覆盖 Apple 平台开发、GitHub 操作、review swarm、React 性能和重构。 |
+| [`garrytan/gstack`](./refs-details/garrytan/gstack.md) | 研发流程 / 多智能体工程工作流 | 面向 Claude Code 及多种 AI 编码代理的工程工作流套件，把产品规划、架构评审、浏览器 QA、代码审查、安全审计、发布部署和跨会话记忆组织成可安装 skill 与本地浏览器运行时。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 技能集合与市场 | GitHub 官方运营的 Copilot 资源集合，统一管理 agents / instructions / skills / hooks / agentic workflows / plugins，并配套 marketplace、网站与 CLI 安装。 |
 | [`glittercowboy/taches-cc-resources`](./refs-details/glittercowboy/taches-cc-resources.md) | 技能集合与市场 | 面向 Claude Code 的资源仓库，主打技能开发、规划分层、MCP 服务生成、调试方法论与 Ralph 自治循环。 |
 | [`google-labs-code/stitch-skills`](./refs-details/google-labs-code/stitch-skills.md) | 前端 UI / 设计系统 | 围绕 Stitch MCP 的 Agent Skills 库，用于 UI 设计生成、设计系统提炼、React 转换和演示视频生成。 |
@@ -40,6 +47,8 @@
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
+| [`msitarzewski/agency-agents`](./refs-details/msitarzewski/agency-agents.md) | Agent 角色库 / 多工具 Agent 资产 | 144 个 Markdown agent + 转换/安装脚本 + NEXUS 编排方法论，适合作为 agent catalog、handoff/quality-gate 模板和多工具适配参考。 |
+| [`multica-ai/andrej-karpathy-skills`](./refs-details/multica-ai/andrej-karpathy-skills.md) | 行为协议 / 提示工程 | 轻量编码行为指南，把先澄清、少抽象、精准改动和目标驱动验证打包成 Claude Code / Cursor / skill 可复用规则。 |
 | [`muratcankoylan/Agent-Skills-for-Context-Engineering`](./refs-details/muratcankoylan/Agent-Skills-for-Context-Engineering.md) | 上下文 / 记忆管理 | 围绕 context engineering 的 Agent Skills 集合，重点讲生产级 agent 的上下文设计、记忆、工具与评测。 |
 | [`nextlevelbuilder/ui-ux-pro-max-skill`](./refs-details/nextlevelbuilder/ui-ux-pro-max-skill.md) | 前端 UI / 设计系统 | 面向 UI/UX 生成的设计情报包，结合大规模 CSV 规则库、Claude skills 与安装 CLI。 |
 | [`nexu-io/open-design`](./refs-details/nexu-io/open-design.md) | 前端 UI / 设计系统 | 本地优先的 AI 设计工作台，用 daemon 调用用户已有 Agent CLI，并把 Skills、DESIGN.md、项目文件和 sandbox 预览串成 artifact 工作流。 |
@@ -50,6 +59,7 @@
 | [`Owl-Listener/designer-skills`](./refs-details/Owl-Listener/designer-skills.md) | 前端 UI / 设计系统 | 面向设计工作的 Claude Code / Gemini CLI skill collection，提供 8 个设计插件、87 个 skills 和 27 个 commands。 |
 | [`pbakaus/impeccable`](./refs-details/pbakaus/impeccable.md) | 前端 UI / 设计系统 | 面向前端设计质量的跨平台技能/命令打包仓库，附带官网、下载 API 和构建系统。 |
 | [`shanraisshan/claude-code-best-practice`](./refs-details/shanraisshan/claude-code-best-practice.md) | 最佳实践 / 知识库 | Claude Code 生态知识库，系统整理 commands、skills、subagents、memory、hooks 与工作流最佳实践，并给出对应实现入口。 |
+| [`Shubhamsaboo/awesome-llm-apps`](./refs-details/Shubhamsaboo/awesome-llm-apps.md) | LLM 应用模板 / Agent 示例库 | 可运行的 LLM 应用 cookbook，收录 Agent、RAG、MCP、语音、多智能体、技能与微调示例模板。 |
 | [`tanweai/pua`](./refs-details/tanweai/pua.md) | 行为协议 / 提示工程 | 面向多种 AI 编码代理的“高压/高主动性”技能包，核心是 PUA/PIP 风格提示、命令、hooks 和多平台分发素材。 |
 | [`tirth8205/code-review-graph`](./refs-details/tirth8205/code-review-graph.md) | 代码质量 / 审查 / 调试 | 面向 AI 编码工具的本地代码知识图谱，用 Tree-sitter、SQLite 与 MCP 把审查上下文缩到真正相关的 blast radius。 |
 | [`travisvn/awesome-claude-Skills`](./refs-details/travisvn/awesome-claude-Skills.md) | 技能集合与市场 | 纯 curated list 仓库，汇总官方和社区 Claude Skills、教程、资源、安全建议与 FAQ。 |
@@ -62,7 +72,7 @@
 
 ## 最近 14 天更新速览（2026-03-31 ~ 2026-04-14）
 
-- [事实] 范围：顶层 `.gitmodules` 中的 29 个 submodule。
+- [事实] 当时范围：截至 2026-05-14 顶层 `.gitmodules` 中的 29 个 submodule；不包含此后新增的 refs。
 - [事实] 数据来源：各仓库默认分支最近 14 天的 `git log`；需要联网的仓库已先执行 `git fetch --all --tags --prune`。
 - [事实] 下表里的提交数按默认分支统计。
 - [推断] “新增/变化”列是根据 commit 标题与改动文件归纳，不等同于完整 release notes。
@@ -116,6 +126,13 @@
 - **吸收裁决（2026-05-14）**：
   - `Owl-Listener/designer-skills`：吸收“名词型 skill + 动词型 command + 多平台打包”的组织方式；不吸收 8 个设计插件和 87 个 skills 本体。其自然语言澄清和默认保存文档行为需要按本仓库 `AskUser` 与文档创建纪律改写。
   - `K-Dense-AI/scientific-agent-skills`：吸收“短入口 `SKILL.md` + `references/` + `scripts/`”的领域分册结构和安全扫描门禁；不整包安装到默认 skills。触及网络、secrets、医疗/临床、实验室自动化或数据写入的能力必须先经过安全/运行时副作用护栏。
+- `Shubhamsaboo/awesome-llm-apps` 是可运行 LLM app 模板库，价值不在直接迁移源码，而在用 `awesome_agent_skills/` 观察 skill 组织、规则拆分和 self-improving skill 的评测闭环。
+- `addyosmani/agent-skills` 是研发流程型 skill 包，值得吸收生命周期 taxonomy、slash command 编排、anti-rationalization、验证证据和 skill 校验脚本模式。
+- `garrytan/gstack` 是重型工程工作流套件，提供浏览器 QA、review、ship、记忆和多 host 生成思路；因安装、浏览器、telemetry、ngrok、发布部署等副作用较多，不宜整包吸收。
+- `awslabs/agent-plugins` 更适合作为 AWS 插件 packaging 样本：skills + MCP + hooks + references + marketplace manifest；AWS credentials、云资源写入和部署步骤必须重新加安全边界。
+- `awslabs/agentcore-samples` 是 Bedrock AgentCore 能力地图和样例索引，适合参考 Runtime/Gateway/Identity/Memory/Observability/Evaluation/Policy/IaC 分类；实际运行会创建 AWS 资源并可能产生费用。
+- `msitarzewski/agency-agents` 是大规模 Markdown agent 角色库，适合借鉴 agent frontmatter、转换脚本、NEXUS handoff 和 quality-gate 模板，不适合作为直接运行时依赖。
+- `multica-ai/andrej-karpathy-skills` 是轻量行为指南，适合把“每条改动可追溯到用户请求”“不为一次性代码建抽象”“成功标准先行”下沉到 `think-plan`、`dev-simplify`、`guard-close`、`guard-verify`；不适合整包追加到 `agents/AGENTS.md` 或新增 always-on skill。
 - `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行，验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
 - `travisvn/awesome-claude-Skills`、`libukai/awesome-agent-Skills` 更偏导航/市场/索引；适合找来源，不适合直接当能力实现。
 - `ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser` 是浏览器自动化/前端调试类的两条重要主线，前者偏 DevTools MCP，后者偏 agent-browser CLI/runtime。

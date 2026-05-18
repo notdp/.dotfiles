@@ -97,3 +97,24 @@
 [submodule "refs/Owl-Listener/designer-skills"]
 	path = refs/Owl-Listener/designer-skills
 	url = https://github.com/Owl-Listener/designer-skills
+[submodule "refs/Shubhamsaboo/awesome-llm-apps"]
+	path = refs/Shubhamsaboo/awesome-llm-apps
+	url = https://github.com/Shubhamsaboo/awesome-llm-apps.git
+[submodule "refs/addyosmani/agent-skills"]
+	path = refs/addyosmani/agent-skills
+	url = https://github.com/addyosmani/agent-skills.git
+[submodule "refs/garrytan/gstack"]
+	path = refs/garrytan/gstack
+	url = https://github.com/garrytan/gstack.git
+[submodule "refs/awslabs/agent-plugins"]
+	path = refs/awslabs/agent-plugins
+	url = https://github.com/awslabs/agent-plugins.git
+[submodule "refs/awslabs/agentcore-samples"]
+	path = refs/awslabs/agentcore-samples
+	url = https://github.com/awslabs/agentcore-samples.git
+[submodule "refs/msitarzewski/agency-agents"]
+	path = refs/msitarzewski/agency-agents
+	url = https://github.com/msitarzewski/agency-agents.git
+[submodule "refs/multica-ai/andrej-karpathy-skills"]
+	path = refs/multica-ai/andrej-karpathy-skills
+	url = https://github.com/multica-ai/andrej-karpathy-skills.git

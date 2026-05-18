@@ -1,6 +1,46 @@
 # dotfiles
 
-My Droid skills/scripts
+My Droid skills/scripts.
+
+## 项目定位
+
+这是我的 AI coding agent dotfiles 仓库，用来管理 Droid / Claude / Codex 等 agent 的全局规则、skills、slash commands、hooks、statusline、本地辅助脚本和第三方 refs 调研。
+
+项目目标是把软件工程工作流拆成可按需触发、可验证、可复用的能力包：理解问题、调研、规划、TDD、调试、重构、验证、审查、安全、交付、UI 设计和经验沉淀。
+
+## 目录结构
+
+| 路径 | 作用 |
+|------|------|
+| `agents/AGENTS.md` | 全局硬约束、事实纪律、验证门禁、工具纪律 |
+| `skills/` | 按需触发的领域能力和工作流能力，权威清单见 `skills/catalog.json` |
+| `commands/` | 高频 slash commands |
+| `scripts/` | hooks、验证、Droid mod、长任务、扫描器等本地工具 |
+| `.factory/settings.json` | Droid hook 配置 |
+| `statusline.sh` | Droid / Claude statusline |
+| `docs/` | 调研沉淀、refs 详情、设计取舍与可追溯背景 |
+| `refs/` | 第三方 agent skills / workflows submodules |
+
+## 本地工具与护栏
+
+- `statusline.sh`：展示 cwd、branch、PR、diff、session id、Factory usage 等状态。
+- `bin/droid-observe`：查看 long-loop workspace。
+- `bin/longrun`：启动 longrun dashboard。
+- `bin/droid-vim-command`：支持 `/vim`、`/cvim` 外部编辑器工作流。
+- `scripts/install_hooks.py`：为 Droid / Claude / Codex 生成 hook 配置。
+- `scripts/run-verify.sh`：自动探测并运行测试、lint、typecheck、build 和本仓库 skill 校验。
+
+当前 hooks 主要承担四类护栏：prompt 阶段注入 context capsule、编辑前做 boundary gate、命令执行前做 command guard、结束前检查验证证据和 boundary manifest。
+
+## 验证
+
+常用验证入口：
+
+```bash
+bash scripts/run-verify.sh
+python3 scripts/verify_skills.py
+python3 -m unittest discover -s scripts/tests -p "test_*.py"
+```
 
 ## Commands
 

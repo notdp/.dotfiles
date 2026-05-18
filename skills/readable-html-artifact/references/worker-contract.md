@@ -18,6 +18,7 @@ Generate or refresh an HTML companion artifact from a Markdown SSOT without retu
 
 - Read `source_md`.
 - Write only `output_html`.
+- Resolve repo root before invoking the renderer.
 - Run the renderer or equivalent local validation commands.
 - Report concise metadata and validation evidence.
 
@@ -31,9 +32,13 @@ Generate or refresh an HTML companion artifact from a Markdown SSOT without retu
 
 ## Preferred command
 
+Do not assume the worker's current directory is the repo root. Resolve repo root first, verify `<repo_root>/scripts/render_html_artifact.py` exists, then run:
+
 ```bash
-python3 scripts/render_html_artifact.py --source <source_md> --output <output_html> --profile <profile>
+python3 "<repo_root>/scripts/render_html_artifact.py" --source <source_md> --output <output_html> --profile <profile>
 ```
+
+If repo root cannot be resolved, report that fact. If the renderer is missing after checking the resolved absolute path, report the checked path.
 
 ## Return format
 
@@ -45,6 +50,7 @@ python3 scripts/render_html_artifact.py --source <source_md> --output <output_ht
 | Source | `<source_md>` |
 | Output | `<output_html>` |
 | Profile | `<profile>` |
+| Repo root | `<repo_root>` |
 | Validation | `<command/result>` |
 
 Summary:

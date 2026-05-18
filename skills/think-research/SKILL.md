@@ -25,8 +25,11 @@ argument-hint: <技术问题|方案对比|可行性评估>
 | 架构模式 | 推荐的架构和数据流 |
 | 不要自造轮子 | 哪些问题有成熟方案，不应手写？ |
 | 常见坑 | 已知的陷阱和踩坑经验 |
-| 代码示例 | 关键实现的参考代码 |
+| 可运行示例 | 官方示例、reference implementation、可 fork 的模板或最小 POC |
+| 证据地图 | 每条关键结论来自哪里？证据强弱如何？ |
+| 运行边界 | 是否涉及云、MCP、凭证、外部 API、部署、数据库、成本或写操作？ |
 | 当前系统映射 | 调研结论如何落到现有 skill / command / script / docs |
+| Plan Handoff | 后续 `/think-plan` 可直接复用的 Requirements / Approach / Risks / Verification |
 
 ### 来源优先级
 
@@ -39,22 +42,69 @@ argument-hint: <技术问题|方案对比|可行性评估>
 
 如果高优先级来源与低优先级来源冲突，默认以前者为准，并明确写出冲突点。
 
+### 证据地图
+
+推荐结论必须绑定证据类型，避免把经验、猜测和事实混在一起：
+
+| 证据类型 | 说明 |
+|----------|------|
+| 官方文档 / 官方仓库 | API、配置、约束、推荐路径的最高优先级来源 |
+| 官方示例 / 可运行模板 | 证明方案可落地；优先于纯概念说明 |
+| 当前项目代码 / 依赖 | 证明方案适配当前仓库，不引入平行体系 |
+| 维护者 issue / release / ADR | 解释变更背景、兼容性和已知坑 |
+| 高质量社区案例 | 只能作为补充，不能覆盖官方或当前项目事实 |
+| [推断] / [未验证] | 必须显式标注，不得包装成事实 |
+
+如果来源冲突，输出冲突点、采用哪个来源、为什么采用；不要沉默选边。
+
+### 可运行示例优先
+
+调研实现方案时，不只搜概念和博客；优先寻找官方示例、reference implementation、cookbook、template 或最小 POC。找不到可运行示例时，明确说明缺口和剩余风险。
+
+### 运行边界
+
+命中以下任一条件时，调研输出必须包含运行边界：云资源、MCP server、credentials / secrets、外部 API、部署、数据库、成本、配额、写操作、destructive 操作。
+
+运行边界至少覆盖：
+
+- 权限与 credentials：需要哪些权限、secrets、账号或本机凭据。
+- 写操作与副作用：会创建、修改、删除什么资源。
+- 成本 / 配额 / rate limit：可能产生的费用、限制和退避策略。
+- 回滚 / cleanup：失败后如何恢复或清理。
+- Acceptance verifier：怎样证明真实目标达成，而不是只证明命令能跑。
+- 当前仓库映射：是否需要转 `guard-secure`、`guard-gitops`、`dev-operational-task` 或 `guard-verify`。
+
 ## 3. 产出
 
 输出结构化调研结论：
 
 ```
+## 证据地图
+[关键结论 -> 来源类型 -> 证据强度 -> 冲突/不确定点]
+
 ## 推荐方案
-[方案描述 + 理由]
+[方案描述 + 理由 + 为什么优于备选]
+
+## 方案矩阵
+| 方案 | 适用条件 | 优点 | 代价 | 脆弱假设 | 裁决 |
 
 ## 备选方案
-[方案 + 取舍对比]
+[非推荐方案 + 放弃原因 + 什么时候可重新考虑]
 
 ## 不要自造轮子
 [应直接使用的现有库/工具]
 
+## 运行边界
+[权限 / 成本 / 写操作 / 回滚 / acceptance verifier；不适用时说明原因]
+
 ## 风险与坑
 [已知问题和规避方式]
+
+## Plan Handoff
+- Requirements: [后续 spec 应锁定的问题和验收目标]
+- Approach: [推荐实现方向]
+- Risks: [必须在 plan 里继续管理的风险]
+- Verification: [inner-loop verifier 与 acceptance verifier]
 
 ## 参考
 [文档链接、代码示例]
@@ -85,8 +135,10 @@ HTML companion 硬约束：
 
 - 每条结论标注置信度（确认/推断/未验证）
 - 不给模糊建议（"可以考虑 X 或 Y"→ 给出推荐和理由）
-- 调研结果可作为 `/think-plan` 的输入
+- 调研结果必须可作为 `/think-plan` 的输入；至少给出 Requirements / Approach / Risks / Verification
+- 方法论、平台型或多组件调研，先画能力地图，再做方案取舍
 - 方法论、工程流程或系统改造类调研，必须说明如何复用当前仓库已有能力；不要因为看到外部工具链就默认新增平行入口
+- 涉及云、MCP、credentials、部署、数据库、成本或写操作时，必须输出运行边界，并按需路由到 `guard-secure` / `guard-gitops` / `dev-operational-task`
 - 复杂任务的调研产物应能支持后续 plan 形成 Requirements / Entities / Approach / Structure / Operations / Norms / Safeguards 的轻量映射
 
 ## Gotchas

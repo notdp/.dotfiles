@@ -58,6 +58,9 @@ argument-hint: <留空=最近变更|文件/目录|--diff <range>>
 - **Stringly-typed**：用 raw string 而仓库已有 const / enum / branded type
 - **Unnecessary nesting**：JSX wrapper Box / div 没承担布局职责
 - **Magic number / 硬编码**：应来自 token / config
+- **Speculative abstraction**：为单次使用代码新增抽象、接口、配置或扩展点
+- **Unrequested flexibility**：加入用户没有要求的参数、模式、fallback 或配置
+- **Untraceable change**：改动无法映射到用户请求、必要验证或本次改动造成的 cleanup
 
 返回格式：
 
@@ -98,6 +101,7 @@ argument-hint: <留空=最近变更|文件/目录|--diff <range>>
 
 - 行为不变是默认（与 refactor 一致）；如果发现 efficiency 修复涉及行为变化（如改成异步），单独 flag 给用户决定
 - 不夹带类型重写、API 改名、新增抽象 —— 这些不是 simplify
+- 只删除/调整本次改动造成的 unused imports / vars / functions；既有 dead code 只列 backlog，不动手
 - 修完跑一次最小验证（typecheck / lint / 受影响测试）
 
 ## 4. 输出
