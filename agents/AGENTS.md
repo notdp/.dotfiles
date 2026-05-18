@@ -30,3 +30,10 @@
   - [未验证] or [推断], plus a disclaimer that behavior is not guaranteed
 - If you break this rule, say:
   > Correction: I made an unverified claim. That was incorrect.
+
+## Reports
+
+- Do not format ordinary chat replies, quick status updates, or short final answers as HTML.
+- For large reports or phase/milestone summaries, create a standalone `.html` file that I can open in a browser.
+- Make generated HTML reports pleasant to read: self-contained CSS, clear sections, concise wording, and useful visual hierarchy.
+- In the chat response, summarize briefly in Chinese and provide the local path to the generated HTML file.
