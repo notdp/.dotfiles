@@ -127,6 +127,12 @@
       "role": "canonical"
     },
     {
+      "name": "readable-rewrite",
+      "path": "skills/readable-rewrite",
+      "domain": "readable",
+      "role": "canonical"
+    },
+    {
       "name": "dev-refactor",
       "path": "skills/dev-refactor",
       "domain": "dev",

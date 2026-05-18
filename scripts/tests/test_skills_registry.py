@@ -32,7 +32,6 @@ class SkillsRegistryTests(unittest.TestCase):
         "eng-unstuck",
         "eng-verify",
         "se-rewrite-readable",
-        "readable-rewrite",
     }
 
     CANONICAL_NAMES = {
