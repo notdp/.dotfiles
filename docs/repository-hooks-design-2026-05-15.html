@@ -250,6 +250,23 @@
     <div class="callout warn">
       <strong>日常判断规则：</strong><code>additionalContext</code>、<code>permissionDecision: deny</code>、<code>decision:block</code> 更像 agent 必须处理的信号。当前默认的 <code>systemMessage</code> 更像提醒，不要把它当成稳定的 hard gate。
     </div>
+    <div class="card">
+      <h3>关键输出字段：<code>additionalContext</code></h3>
+      <p><strong>它不是脚本。</strong><code>additionalContext</code> 是 hook 返回 JSON 里的一个字段，意思是“把这段文字追加进 agent 当前上下文”。脚本负责生成它，平台负责把它塞回上下文。</p>
+      <table>
+        <thead><tr><th>生成场景</th><th>输入来源</th><th>生成脚本</th><th>输出内容</th></tr></thead>
+        <tbody>
+          <tr><td>UserPromptSubmit</td><td>hook stdin 里的用户 prompt</td><td><code>context_capsule.py --event prompt</code></td><td>匹配到的 capsule 文本，例如 security、debug、boundary 规则。</td></tr>
+          <tr><td>PostToolUse</td><td>当前 git diff 和 untracked 文件</td><td><code>context_capsule.py --event post-tool</code> 调用三个 <code>scan_*.py</code></td><td>scanner findings 表格，例如 residue、operational、boundary scan 结果。</td></tr>
+        </tbody>
+      </table>
+      <div class="mono">{
+  "hookSpecificOutput": {
+    "hookEventName": "...",
+    "additionalContext": "这里是要注入给 agent 的 Markdown 文本"
+  }
+}</div>
+    </div>
   </section>
 
   <section id="flow">
@@ -509,21 +526,62 @@ else:
       <h3>写文件后：自动复查刚改出的 diff</h3>
       <p><strong>一句话：</strong>agent 每次写完文件后，hook 会马上看一眼当前 diff，检查有没有常见收尾风险；如果有，就把提醒重新塞回 agent 上下文，让它先处理或解释，不要直接继续。</p>
       <p><strong>时机：</strong>agent 用写文件工具后触发。Droid matcher 是 <code>ApplyPatch|Create|Edit</code>；Claude 对应 <code>Edit|Write|MultiEdit</code>。</p>
-      <p><strong>命令：</strong><code>scripts/hooks/context_capsule.py --event post-tool</code>，timeout 15s。</p>
-      <p><strong>它检查什么：</strong></p>
+      <p><strong>入口命令：</strong><code>scripts/hooks/context_capsule.py --event post-tool</code>，timeout 15s。</p>
+      <p><strong>关系：</strong><code>context_capsule.py</code> 是这个 PostTool hook 的入口脚本，也是 orchestrator。它自己不负责判断每一种风险，而是读取当前 diff 后，依次调用下面三个 scanner 脚本；scanner 只返回 findings，最后由 <code>context_capsule.py</code> 合并成一段 <code>additionalContext</code> 注入回 agent。</p>
+      <p><strong>和 UserPromptSubmit 的区别：</strong>两者都用 <code>hookSpecificOutput.additionalContext</code> 这个同一个 hook 输出通道，所以都会进入 agent 上下文；但内容来源不同。<code>--event prompt</code> 注入的是按用户需求匹配到的 capsule 文本，<code>--event post-tool</code> 注入的是写文件后扫描当前 diff 得到的 findings 表格。</p>
       <table>
-        <thead><tr><th>scanner</th><th>看什么</th><th>为什么提醒</th></tr></thead>
+        <thead><tr><th>角色</th><th>脚本</th><th>负责什么</th></tr></thead>
         <tbody>
-          <tr><td><code>scan_operational_task_contract.py</code></td><td>dry-run / apply / batch / migration 这类长任务线索</td><td>提醒补进度、恢复、dry-run 数据证据、apply 安全确认。</td></tr>
-          <tr><td><code>scan_diff_residue.py</code></td><td>临时代码、调试残留、疑似 secret 或危险占位</td><td>提醒清理，不要把调试垃圾或敏感信息带出去。</td></tr>
-          <tr><td><code>scan_boundary_decisions.py</code></td><td>新增 reject/default/fallback/schema/metric/early-exit 等边界分支</td><td>提醒说明这个边界变化是否在 spec 内，必要时写 <code>Boundary decisions:</code>。</td></tr>
+          <tr><td>入口 / 调度</td><td><code>scripts/hooks/context_capsule.py --event post-tool</code></td><td>被 hook 直接执行；收集 diff；调用三个 scanner；合并输出。</td></tr>
+          <tr><td>worker scanner</td><td><code>scan_operational_task_contract.py</code></td><td>看 dry-run / apply / batch / migration 这类长任务线索。</td></tr>
+          <tr><td>worker scanner</td><td><code>scan_diff_residue.py</code></td><td>看临时代码、调试残留、疑似 secret 或危险占位。</td></tr>
+          <tr><td>worker scanner</td><td><code>scan_boundary_decisions.py</code></td><td>看新增 reject/default/fallback/schema/metric/early-exit 等边界分支。</td></tr>
         </tbody>
       </table>
-      <div class="mono">写文件
-  -> 读取当前 git diff 和 untracked 文件
-  -> 三个 scanner 只看新增内容
-  -> 没发现问题：静默
-  -> 发现问题：把 Markdown 表格注入回 agent 上下文</div>
+      <p><strong>伪代码归属：</strong>下面不是某个 scanner 的内部逻辑，而是 <code>context_capsule.py --event post-tool</code> 这个入口脚本的调度流程。</p>
+      <div class="mono">context_capsule.py --event post-tool:
+  diff = staged_diff + unstaged_diff + untracked_files
+  findings = []
+
+  for scanner in [
+    scan_operational_task_contract.py,
+    scan_diff_residue.py,
+    scan_boundary_decisions.py
+  ]:
+    findings += run(scanner, diff)
+
+  if findings is empty:
+    return suppress
+
+  return hookSpecificOutput.additionalContext(markdown_table(findings))</div>
+      <p><strong><code>markdown_table(findings)</code> 渲染后长什么样：</strong>hook 实际注入的是 Markdown 文本；这里直接按表格样式展示它的内容。真实输出是一条 finding 一行，可能有多行；下面只是多行示例。</p>
+      <table>
+        <thead><tr><th>类型</th><th>文件</th><th>行</th><th>片段</th><th>建议</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>implicit-branch</code></td>
+            <td><code>scripts/example.py</code></td>
+            <td>42</td>
+            <td><code>if not value:</code></td>
+            <td>新增边界分支后接 early exit；确认这个行为在 spec 内。</td>
+          </tr>
+          <tr>
+            <td><code>debug-residue</code></td>
+            <td><code>scripts/example.py</code></td>
+            <td>87</td>
+            <td><code>temporary_probe(payload)</code></td>
+            <td>疑似调试残留；确认是否需要移除或改成正式日志。</td>
+          </tr>
+          <tr>
+            <td><code>operational-gap</code></td>
+            <td><code>scripts/backfill.py</code></td>
+            <td>120</td>
+            <td><code>--apply</code></td>
+            <td>涉及 apply 路径；补充 dry-run 数据证据、进度和回滚说明。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted">总结：示例命中 3 条；真实数量取决于当前 diff。</p>
       <p><strong>你会看到什么：</strong>类似你刚才贴的 <code>Boundary Decision Scan</code> 表格，里面有类型、文件、行号、片段和建议。</p>
       <p><strong>不会做什么：</strong>它不会自动改代码，也不会 hard block；它只是写后复查，把可疑点重新提醒给 agent。</p>
     </div>
@@ -691,25 +749,31 @@ Changed files: scripts/...</div>
   </section>
 
   <section id="scanners">
-    <h2>6. 写后扫描</h2>
+    <h2>6. 三个写后 scanner 的明细</h2>
+    <div class="callout good">
+      <strong>和第 4 节的关系：</strong>第 4 节讲“写完文件后会触发一次复查”；本节只展开那次复查里的三个 scanner 分别抓什么、哪些情况可能是误报。
+    </div>
     <div class="grid">
       <div class="card">
         <span class="tag purple">Operational</span>
         <h3><code>scan_operational_task_contract.py</code></h3>
         <p>识别批处理、迁移、同步、回填、长任务 CLI 等 operational-looking diff。</p>
         <p><strong>检查：</strong>进度可见、可恢复、dry-run 数据证据、失败可诊断、有界并发、apply 安全确认。</p>
+        <p><strong>常见误报：</strong>普通小脚本里出现 <code>dry-run</code>、<code>batch</code> 这类词，但并没有真实长任务或数据变更。</p>
       </div>
       <div class="card">
         <span class="tag purple">Residue</span>
         <h3><code>scan_diff_residue.py</code></h3>
         <p>扫描新增 diff 中的临时残留和疑似凭据。</p>
         <p><strong>检查：</strong>待办标记、调试前缀、临时输出语句、断点调用、疑似凭据、临时变量名。</p>
+        <p><strong>常见误报：</strong>测试 fixture、文档示例或刻意保留的 diagnostic 输出。</p>
       </div>
       <div class="card">
         <span class="tag purple">Boundary</span>
         <h3><code>scan_boundary_decisions.py</code></h3>
         <p>扫描可能改变系统边界的新增代码。</p>
         <p><strong>检查：</strong>4xx/5xx rejection、assert guard、默认值、retry/backoff、schema contract、metric route、silent catch、early exit。</p>
+        <p><strong>常见误报：</strong>工具脚本里的输入校验、测试用例里的边界样例、以及已经存在但因为 untracked 文件被反复扫描到的代码。</p>
       </div>
     </div>
   </section>
