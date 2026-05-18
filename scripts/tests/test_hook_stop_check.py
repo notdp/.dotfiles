@@ -55,6 +55,24 @@ class HookStopCheckTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
+    def test_failed_validation_is_not_validation_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"role": "assistant", "content": "Ran pytest and it failed with 3 errors"}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_stop_check(repo, transcript)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("systemMessage", payload)
+            self.assertIn("guard-verify", payload["systemMessage"])
+
     def test_old_validation_before_current_prompt_does_not_satisfy_stop_check(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

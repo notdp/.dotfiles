@@ -102,6 +102,59 @@ class HookBoundaryGateTests(unittest.TestCase):
         self.assertIn("systemMessage", payload)
         self.assertIn("Schema contract", payload["systemMessage"])
 
+    def test_boundary_decisions_stub_does_not_satisfy_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(
+                transcript,
+                {"type": "user", "message": {"content": "帮我封装这个服务"}},
+                {"type": "assistant", "message": {"content": "Boundary decisions: ok"}},
+            )
+
+            result = self.run_gate(repo, transcript)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("systemMessage", payload)
+        self.assertIn("Callers", payload["systemMessage"])
+
+    def test_boundary_facts_stub_does_not_satisfy_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(
+                transcript,
+                {"type": "user", "message": {"content": "帮我改 hook prompt"}},
+                {"type": "assistant", "message": {"content": "Boundary facts: ok"}},
+            )
+
+            result = self.run_gate(repo, transcript)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("systemMessage", payload)
+        self.assertIn("Risk types", payload["systemMessage"])
+
+    def test_warns_when_transcript_window_has_no_recent_user_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "帮我封装这个服务"}})
+                + "\n"
+                + json.dumps({"type": "assistant", "message": {"content": "x" * 90000}})
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_gate(repo, transcript)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("systemMessage", payload)
+        self.assertIn("recent user prompt", payload["systemMessage"])
+
     def test_ignores_old_boundary_facts_before_current_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

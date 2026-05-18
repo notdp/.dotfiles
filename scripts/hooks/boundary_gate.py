@@ -19,7 +19,7 @@ RISK_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("operational-side-effect", re.compile(r"(prod|生产)", re.I)),
 )
 FACT_FIELD_RE = re.compile(
-    r"^\s*-?\s*(Boundary facts|Boundary decisions|Callers|Contract cases|Data source|Metric route|"
+    r"^\s*-?\s*(Boundary facts|Boundary decisions|Risk types|Callers|Contract cases|Data source|Metric route|"
     r"Schema contract|User approval)\s*:\s*(?P<value>.*)$",
     re.I,
 )
@@ -111,8 +111,14 @@ def structured_fields(records: list[dict[str, Any]]) -> set[str]:
         text = record_text(record)
         for line in text.splitlines():
             match = FACT_FIELD_RE.match(line)
+            if not match:
+                continue
+            field = match.group(1).lower()
+            if field == "boundary facts" and not field_has_value(match.group("value")):
+                fields.add(field)
+                continue
             if match and field_has_value(match.group("value")):
-                fields.add(match.group(1).lower())
+                fields.add(field)
     return fields
 
 
@@ -120,9 +126,13 @@ def user_approval_present(records: list[dict[str, Any]]) -> bool:
     return any(record_role(record) == "user" and USER_APPROVAL_RE.search(record_text(record)) for record in records)
 
 
+def complete_boundary_facts_present(fields: set[str]) -> bool:
+    return {"boundary facts", "risk types"} <= fields
+
+
 def missing_boundary_facts(risks: set[str], records_after_prompt: list[dict[str, Any]]) -> list[str]:
     fields = structured_fields(records_after_prompt)
-    if "boundary decisions" in fields or user_approval_present(records_after_prompt):
+    if user_approval_present(records_after_prompt):
         return []
 
     missing: list[str] = []
@@ -134,10 +144,10 @@ def missing_boundary_facts(risks: set[str], records_after_prompt: list[dict[str,
         missing.append("Data source")
     if "shared-path" in risks and not ({"callers", "contract cases"} & fields):
         missing.append("Callers or Contract cases")
-    if "context-surface" in risks and not ({"boundary facts", "boundary decisions"} & fields):
-        missing.append("Boundary facts or Boundary decisions")
-    if "limit-default-fallback" in risks and not ({"boundary facts", "contract cases"} & fields):
-        missing.append("Boundary facts or Contract cases")
+    if "context-surface" in risks and not complete_boundary_facts_present(fields):
+        missing.append("Boundary facts with Risk types")
+    if "limit-default-fallback" in risks and not (complete_boundary_facts_present(fields) or "contract cases" in fields):
+        missing.append("Boundary facts with Risk types or Contract cases")
     if "operational-side-effect" in risks and "user approval" not in fields:
         missing.append("User approval")
     return missing
@@ -148,6 +158,8 @@ def should_gate(tool_name: str, transcript: str) -> tuple[bool, list[str]]:
         return False, []
     records = transcript_records(transcript)
     prompt_index, prompt = recent_user_prompt_index(records)
+    if prompt_index < 0:
+        return True, ["recent user prompt"]
     risks = classify_risks(prompt)
     if not risks:
         return False, []

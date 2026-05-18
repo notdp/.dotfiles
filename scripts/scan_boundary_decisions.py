@@ -41,6 +41,7 @@ SINGLE_LINE_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
 )
 METRIC_CUE_RE = re.compile(r"\b(?:StatsStore|metrics?\.|counter\(|gauge\(|histogram\(|emit\(|labels?\s*=)", re.I)
 STRING_LITERAL_RE = re.compile(r"['\"][^'\"]+['\"]")
+CONTEXT_SURFACE_CUE_RE = re.compile(r"\b(?:AGENTS\.md|hook|prompt|capsule|fallback|default|schema|response_model)\b", re.I)
 IF_BOUNDARY_RE = re.compile(
     r"^\s*if\s+(?:not\s+|len\(.*\)\s*[<>!=]|.*(?:is\s+None|==\s*None|!=\s*None)).*:\s*(?:#.*)?$"
 )
@@ -68,6 +69,8 @@ class Finding:
 def is_default_excluded(file_path: str) -> bool:
     path = Path(file_path)
     parts = path.parts
+    if is_context_surface_file(file_path):
+        return False
     return (
         path.suffix.lower() in {".md", ".markdown", ".html", ".htm"}
         or parts[:2] == ("scripts", "tests")
@@ -77,6 +80,17 @@ def is_default_excluded(file_path: str) -> bool:
         or file_path == "scripts/scan_boundary_decisions.py"
         or file_path == "scripts/hook_boundary_gate.py"
         or file_path == "scripts/install_hooks.py"
+    )
+
+
+def is_context_surface_file(file_path: str) -> bool:
+    path = Path(file_path)
+    parts = path.parts
+    return (
+        path.name == "AGENTS.md"
+        or parts[:2] == ("agents", "context-capsules")
+        or parts[:2] == ("scripts", "hooks")
+        or parts[:2] == (".factory", "hooks")
     )
 
 
@@ -176,6 +190,16 @@ def scan_added_lines(added_lines: list[AddedLine]) -> list[Finding]:
 
 def scan_single_line(line: AddedLine) -> list[Finding]:
     findings: list[Finding] = []
+    if is_context_surface_file(line.file) and CONTEXT_SURFACE_CUE_RE.search(line.text):
+        findings.append(
+            Finding(
+                "context-surface",
+                line.file,
+                line.line_number,
+                line.text.strip(),
+                "Agent context, hook, prompt, or capsule changes need explicit boundary evidence.",
+            )
+        )
     for kind, pattern, suggestion in SINGLE_LINE_PATTERNS:
         if pattern.search(line.text):
             findings.append(Finding(kind, line.file, line.line_number, line.text.strip(), suggestion))

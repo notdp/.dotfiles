@@ -55,10 +55,10 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assertIn(reason_part, payload["systemMessage"])
         self.assertNotIn("hookSpecificOutput", payload)
 
-    def test_warns_for_git_push_with_gitops_reason(self) -> None:
+    def test_denies_git_push_with_gitops_reason(self) -> None:
         result = self.run_guard("git push origin main")
 
-        self.assert_warned(result, "guard-gitops")
+        self.assert_denied(result, "guard-gitops")
 
     def test_allows_read_only_git_status(self) -> None:
         result = self.run_guard("git status --short")
@@ -114,14 +114,36 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assert_denied(self.run_guard("ssh root@example.com"), "remote")
         self.assert_denied(self.run_guard("rm -rf /"), "cleanup")
         self.assert_denied(self.run_guard("rm -rf ~"), "cleanup")
+        self.assert_denied(self.run_guard("rm -rf /etc"), "cleanup")
+        self.assert_denied(self.run_guard("rm -rf ~/.ssh"), "cleanup")
         self.assert_denied(self.run_guard("terraform destroy"), "terraform")
         self.assert_denied(self.run_guard("kubectl delete namespace prod"), "cluster")
         self.assert_denied(self.run_guard("psql prod -c \"drop table users\""), "database")
+        self.assert_denied(self.run_guard("python3 -c \"import os; os.system('rm -rf /etc')\""), "cleanup")
+        self.assert_denied(self.run_guard("eval 'rm -rf /tmp'"), "cleanup")
+        self.assert_denied(self.run_guard("find /tmp -exec rm -rf {} +"), "cleanup")
+        self.assert_denied(self.run_guard("git reset --hard origin/main"), "reset")
+        self.assert_denied(self.run_guard("aws s3 rm s3://bucket/path --recursive"), "cloud")
+        self.assert_denied(self.run_guard("gh repo delete owner/repo"), "repository")
+        self.assert_denied(self.run_guard("xargs rm -rf /etc"), "cleanup")
+        self.assert_denied(self.run_guard("/usr/bin/env rm -rf /etc"), "cleanup")
+        self.assert_denied(self.run_guard("$(echo rm) -rf /etc"), "cleanup")
+        self.assert_denied(self.run_guard("`echo rm` -rf /etc"), "cleanup")
 
     def test_warns_for_scoped_database_write_commands(self) -> None:
         result = self.run_guard("psql prod -c \"delete from users\"")
 
         self.assert_warned(result, "database")
+
+    def test_warns_for_remote_and_database_file_writes(self) -> None:
+        self.assert_warned(self.run_guard("ssh host 'sed -i s/a/b/ /etc/app.conf'"), "remote")
+        self.assert_warned(self.run_guard("ssh host 'echo foo > /etc/app.conf'"), "remote")
+        self.assert_warned(self.run_guard("ssh host 'cat << EOF > /etc/app.conf\nfoo\nEOF'"), "remote")
+        self.assert_warned(self.run_guard("psql prod -f destructive.sql"), "database")
+        self.assert_warned(self.run_guard("mysql prod < patch.sql"), "database")
+        self.assert_warned(self.run_guard("mysql prod --file=patch.sql"), "database")
+        self.assert_warned(self.run_guard("cat patch.sql | psql prod"), "database")
+        self.assert_warned(self.run_guard("docker rm -f app"), "container")
 
 
 if __name__ == "__main__":

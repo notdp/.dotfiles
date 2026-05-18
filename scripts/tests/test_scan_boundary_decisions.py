@@ -78,7 +78,7 @@ class ScanBoundaryDecisionsTests(unittest.TestCase):
         self.assertIn("| observability-routing | src/metrics.py | 2 |", result.stdout)
         self.assertIn("| schema-contract | src/api.ts | 2 |", result.stdout)
 
-    def test_ignores_context_removed_docs_tests_and_scanner_source(self) -> None:
+    def test_ignores_docs_tests_and_scanner_source(self) -> None:
         diff = textwrap.dedent(
             """\
             diff --git a/docs/spec.md b/docs/spec.md
@@ -113,14 +113,6 @@ class ScanBoundaryDecisionsTests(unittest.TestCase):
             +except json.JSONDecodeError:
             +    return {}
             +r"schema|response_model|metric"
-            diff --git a/scripts/hooks/context_capsule.py b/scripts/hooks/context_capsule.py
-            --- a/scripts/hooks/context_capsule.py
-            +++ b/scripts/hooks/context_capsule.py
-            @@ -1,1 +1,4 @@
-             keep()
-            +if not matches:
-            +    return json.dumps({"suppressOutput": True})
-            +sys.stdout.write(render_prompt_preview(prompt))
             diff --git a/scripts/install_hooks.py b/scripts/install_hooks.py
             --- /dev/null
             +++ b/scripts/install_hooks.py
@@ -145,6 +137,46 @@ class ScanBoundaryDecisionsTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("命中 0 条", result.stdout)
+
+    def test_scans_context_surface_files(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/agents/AGENTS.md b/agents/AGENTS.md
+            --- a/agents/AGENTS.md
+            +++ b/agents/AGENTS.md
+            @@ -1,1 +1,2 @@
+             keep()
+            +新增 hook prompt fallback 默认值
+            diff --git a/agents/context-capsules/hook.md b/agents/context-capsules/hook.md
+            --- a/agents/context-capsules/hook.md
+            +++ b/agents/context-capsules/hook.md
+            @@ -1,1 +1,2 @@
+             keep()
+            +response_model envelope schema
+            diff --git a/scripts/hooks/context_capsule.py b/scripts/hooks/context_capsule.py
+            --- a/scripts/hooks/context_capsule.py
+            +++ b/scripts/hooks/context_capsule.py
+            @@ -1,1 +1,4 @@
+             keep()
+            +if not matches:
+            +    return json.dumps({"suppressOutput": True})
+            +sys.stdout.write(render_prompt_preview(prompt))
+            diff --git a/.factory/hooks/settings.json b/.factory/hooks/settings.json
+            --- a/.factory/hooks/settings.json
+            +++ b/.factory/hooks/settings.json
+            @@ -1,1 +1,2 @@
+             {}
+            +{"fallback": "default prompt"}
+            """
+        )
+
+        result = self.run_scan(diff)
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("agents/AGENTS.md", result.stdout)
+        self.assertIn("agents/context-capsules/hook.md", result.stdout)
+        self.assertIn("scripts/hooks/context_capsule.py", result.stdout)
+        self.assertIn(".factory/hooks/settings.json", result.stdout)
 
     def test_hook_mode_uses_fixed_additional_context_prefix(self) -> None:
         diff = textwrap.dedent(

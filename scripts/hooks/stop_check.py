@@ -14,6 +14,16 @@ VALIDATION_RE = re.compile(
     r"tsc\b|verify_skills\.py|cargo test|go test|## 验证结果|validated \d+ skills)",
     re.I,
 )
+VALIDATION_SUCCESS_RE = re.compile(
+    r"(\bOK\b|\bpass(?:ed)?\b|\bsuccess(?:ful|fully)?\b|succeeded|exit(?:ed)? with code 0|"
+    r"Process exited with code 0|validated \d+ skills)",
+    re.I,
+)
+VALIDATION_FAILURE_RE = re.compile(
+    r"(\bFAILED\b|(?<!0 )\bfailed\b|[1-9]\d*\s+(?:failures?|failed|errors?)|"
+    r"exit(?:ed)? with code [1-9]\d*|returncode [1-9]\d*|\bTraceback\b|\bException\b)",
+    re.I,
+)
 VISUAL_RE = re.compile(r"(screenshot|ui-visual-capture|agent-browser|playwright|overflow|visual)", re.I)
 BOUNDARY_SCAN_RE = re.compile(r"Boundary decision scan found", re.I)
 BOUNDARY_MANIFEST_RE = re.compile(r"^Boundary decisions:\s*(?P<body>.*?)(?:\n\n|\Z)", re.I | re.M | re.S)
@@ -114,6 +124,18 @@ def records_text(records: list[dict]) -> str:
     return "\n".join(record_text(record) for record in records)
 
 
+def validation_evidence_present(records: list[dict]) -> bool:
+    for record in records:
+        text = record_text(record)
+        if not VALIDATION_RE.search(text):
+            continue
+        if VALIDATION_FAILURE_RE.search(text):
+            continue
+        if VALIDATION_SUCCESS_RE.search(text):
+            return True
+    return False
+
+
 def assistant_boundary_manifest_present(records: list[dict]) -> bool:
     for record in reversed(records):
         if not is_assistant_record(record):
@@ -144,7 +166,7 @@ def stop_message(files: list[str], transcript: str) -> str | None:
     window_records = current_window_records(transcript_records(transcript))
     window_text = records_text(window_records)
     problems: list[str] = []
-    if not VALIDATION_RE.search(window_text):
+    if not validation_evidence_present(window_records):
         problems.append("code changes exist but no validation evidence was found; run /guard-verify before claiming completion")
     if any(is_ui_file(path) for path in code_files) and not VISUAL_RE.search(window_text):
         problems.append("UI files changed but no visual/screenshot/overflow evidence was found")
