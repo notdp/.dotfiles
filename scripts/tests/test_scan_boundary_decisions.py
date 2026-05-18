@@ -113,6 +113,24 @@ class ScanBoundaryDecisionsTests(unittest.TestCase):
             +except json.JSONDecodeError:
             +    return {}
             +r"schema|response_model|metric"
+            diff --git a/scripts/hooks/context_capsule.py b/scripts/hooks/context_capsule.py
+            --- a/scripts/hooks/context_capsule.py
+            +++ b/scripts/hooks/context_capsule.py
+            @@ -1,1 +1,4 @@
+             keep()
+            +if not matches:
+            +    return json.dumps({"suppressOutput": True})
+            +sys.stdout.write(render_prompt_preview(prompt))
+            diff --git a/scripts/install_hooks.py b/scripts/install_hooks.py
+            --- /dev/null
+            +++ b/scripts/install_hooks.py
+            @@ -0,0 +1,7 @@
+            +try:
+            +    data = json.loads(path.read_text())
+            +except FileNotFoundError:
+            +    return {}
+            +if not args.yes:
+            +    return 1
             diff --git a/src/app.py b/src/app.py
             --- a/src/app.py
             +++ b/src/app.py

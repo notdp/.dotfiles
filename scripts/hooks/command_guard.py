@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import re
+import shlex
+import sys
+from dataclasses import dataclass
+from typing import Literal
+
+
+@dataclass(frozen=True)
+class Rule:
+    kind: str
+    pattern: re.Pattern[str]
+    reason: str
+
+
+DecisionKind = Literal["warn", "deny"]
+
+
+@dataclass(frozen=True)
+class Decision:
+    kind: DecisionKind
+    reason: str
+
+
+SHELL_SEPARATORS = {"&&", "||", ";", "|"}
+DB_WARN_WORDS = {"delete", "insert", "update"}
+DB_DENY_WORDS = {"drop", "alter", "create", "truncate", "flush"}
+REDIS_WRITE_WORDS = {"del", "hset", "sadd", "set", "zadd"}
+REMOTE_WRITE_COMMANDS = {
+    "chmod",
+    "chown",
+    "cp",
+    "kill",
+    "mv",
+    "pkill",
+    "reboot",
+    "rm",
+    "service",
+    "systemctl",
+}
+REMOTE_READ_COMMANDS = {
+    "awk",
+    "cat",
+    "curl",
+    "df",
+    "du",
+    "echo",
+    "free",
+    "grep",
+    "head",
+    "journalctl",
+    "ps",
+    "sed",
+    "ss",
+    "supervisorctl",
+    "systemctl",
+    "tail",
+    "uptime",
+}
+SYSTEMCTL_READ_ARGS = {"is-active", "is-enabled", "show", "status"}
+SUPERVISORCTL_READ_ARGS = {"status", "tail"}
+
+
+def load_input() -> dict:
+    try:
+        raw = sys.stdin.read()
+        return json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def command_from_input(payload: dict) -> str:
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return ""
+    command = tool_input.get("command")
+    return command if isinstance(command, str) else ""
+
+
+def suppress() -> dict:
+    return {"suppressOutput": True}
+
+
+def deny(reason: str) -> dict:
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        },
+        "suppressOutput": True,
+    }
+
+
+def warn(reason: str) -> dict:
+    return {"systemMessage": f"Command guard advisory: {reason}"}
+
+
+def split_tokens(command: str) -> list[str]:
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return []
+
+
+def command_segments(tokens: list[str]) -> list[list[str]]:
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in SHELL_SEPARATORS:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def is_dry_run(args: list[str]) -> bool:
+    return any(arg in {"-n", "--dry-run"} for arg in args)
+
+
+def is_remote_ref(value: str) -> bool:
+    if value.startswith(("/", "./", "../")):
+        return False
+    return bool(re.match(r"^(?:[^@\s:]+@)?[^/\s:]+:.+", value))
+
+
+def option_operands(tokens: list[str], options_with_values: set[str]) -> list[str]:
+    operands: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            operands.extend(tokens[index + 1 :])
+            break
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        operands.append(token)
+        index += 1
+    return operands
+
+
+def ssh_remote_command(segment: list[str]) -> str:
+    tokens = segment[1:]
+    options_with_values = {"-b", "-c", "-D", "-E", "-F", "-i", "-J", "-L", "-l", "-m", "-O", "-o", "-p", "-R", "-S", "-W", "-w"}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        index += 1
+        break
+    return " ".join(tokens[index:]).strip()
+
+
+def remote_segment_is_read_only(segment: list[str]) -> bool:
+    if not segment:
+        return True
+    cmd = PathLikeCommand(segment[0])
+    args = [arg.lower() for arg in segment[1:]]
+
+    if cmd.name == "systemctl":
+        return bool(args and args[0] in SYSTEMCTL_READ_ARGS)
+    if cmd.name == "supervisorctl":
+        return bool(args and args[0] in SUPERVISORCTL_READ_ARGS)
+    if cmd.name == "curl":
+        return any("localhost" in arg or "127.0.0.1" in arg or "[::1]" in arg for arg in args)
+    if cmd.name in REMOTE_WRITE_COMMANDS:
+        return False
+    return cmd.name in REMOTE_READ_COMMANDS
+
+
+def remote_command_is_read_only(command: str) -> bool:
+    segments = command_segments(split_tokens(command))
+    return bool(segments) and all(remote_segment_is_read_only(segment) for segment in segments)
+
+
+def scp_is_read_only_fetch(segment: list[str]) -> bool:
+    operands = option_operands(segment[1:], {"-c", "-F", "-i", "-J", "-l", "-o", "-P", "-S"})
+    if len(operands) < 2:
+        return False
+    sources = operands[:-1]
+    target = operands[-1]
+    return bool(sources) and all(is_remote_ref(source) for source in sources) and not is_remote_ref(target)
+
+
+def rsync_is_read_only(segment: list[str]) -> bool:
+    args = [arg.lower() for arg in segment[1:]]
+    return "--list-only" in args or is_dry_run(args)
+
+
+def db_command_decision(cmd_name: str, args: list[str], all_words: list[str]) -> Decision | None:
+    if cmd_name == "redis-cli":
+        if any(token in REDIS_WRITE_WORDS for token in all_words):
+            return Decision("warn", "database write command; confirm scope, rollback, and validation before proceeding.")
+        return None
+    query = " ".join(args).lower()
+    if any(re.search(rf"\b{word}\b", query) for word in DB_DENY_WORDS):
+        return Decision("deny", "database destructive schema command is too risky for automatic execution.")
+    if any(re.search(rf"\b{word}\b", query) for word in DB_WARN_WORDS):
+        return Decision("warn", "database write command; confirm scope, rollback, and validation before proceeding.")
+    return None
+
+
+def segment_decision(segment: list[str]) -> Decision | None:
+    if not segment:
+        return None
+    cmd = PathLikeCommand(segment[0])
+    args = [arg.lower() for arg in segment[1:]]
+    all_words = re.findall(r"[a-z_]+", " ".join([cmd.name, *args]))
+
+    if cmd.name == "git" and args[:1] == ["push"]:
+        if any(arg in {"--force", "--force-with-lease", "-f"} for arg in args):
+            return Decision("deny", "git force push can overwrite remote history; do not run automatically.")
+        return Decision("warn", "git push modifies remote repository state; route through /guard-gitops thinking and confirm branch, remote, CI impact, and rollback before proceeding.")
+    if cmd.name == "git" and args[:1] == ["clean"] and not is_dry_run(args):
+        if any("x" in arg for arg in args if arg.startswith("-")):
+            return Decision("deny", "destructive git cleanup including ignored files is too risky for automatic execution.")
+        return Decision("warn", "destructive git cleanup requires explicit user approval and safety review.")
+    if cmd.name == "gh" and (args[:2] == ["pr", "merge"] or args[:1] == ["release"]):
+        return Decision("warn", "GitHub merge/release changes remote state; confirm target, checks, and rollback before proceeding.")
+    if cmd.name == "npm" and args[:1] == ["publish"]:
+        return Decision("warn", "publishing changes package registry state; confirm package, version, and rollback before proceeding.")
+    if cmd.name == "ssh" and not remote_command_is_read_only(ssh_remote_command(segment)):
+        remote = ssh_remote_command(segment)
+        if re.search(r"\brm\s+-[^;|&]*[rf][^;|&]*\s+(?:/|~|\$HOME|\*)", remote):
+            return Decision("deny", "remote destructive cleanup is too risky for automatic execution.")
+        if not remote:
+            return Decision("deny", "interactive ssh session has unknown remote effects; do not run automatically.")
+        return Decision("warn", "remote machine command can change non-repository state; confirm scope, rollback, and validation before proceeding.")
+    if cmd.name == "scp" and not scp_is_read_only_fetch(segment):
+        return Decision("warn", "remote file transfer can change non-repository state; confirm destination and rollback before proceeding.")
+    if cmd.name == "rsync" and not rsync_is_read_only(segment):
+        return Decision("warn", "remote sync can change non-repository state; confirm source, destination, dry-run, and rollback before proceeding.")
+    if cmd.name == "kubectl" and args[:2] == ["rollout", "status"]:
+        return None
+    if cmd.name == "kubectl" and args and args[0] == "delete":
+        return Decision("deny", "cluster delete command is too risky for automatic execution.")
+    if cmd.name == "kubectl" and args and args[0] in {"apply", "delete", "replace", "patch", "scale", "rollout", "set"}:
+        return Decision("warn", "cluster write command; confirm namespace, resources, rollback, and validation before proceeding.")
+    if cmd.name == "helm" and args and args[0] in {"upgrade", "install", "uninstall", "delete"}:
+        return Decision("warn", "helm write command; confirm release, namespace, rollback, and validation before proceeding.")
+    if cmd.name == "terraform" and args and args[0] == "destroy":
+        return Decision("deny", "terraform destroy is too risky for automatic execution.")
+    if cmd.name == "terraform" and args and args[0] == "apply":
+        return Decision("warn", "terraform apply changes infrastructure; confirm plan, scope, rollback, and validation before proceeding.")
+    if cmd.name == "rm" and any(arg.startswith("-") and "r" in arg and "f" in arg for arg in args):
+        if any(arg in {"/", "~", "$HOME", "*"} for arg in segment[1:]):
+            return Decision("deny", "wide destructive cleanup is too risky for automatic execution.")
+        return Decision("warn", "destructive file cleanup requires explicit user approval and safety review.")
+    if cmd.name == "find" and "-delete" in args:
+        if any(arg in {"/", "~", "$HOME", "."} for arg in args):
+            return Decision("deny", "wide find -delete is too risky for automatic execution.")
+        return Decision("warn", "destructive find -delete requires explicit user approval and safety review.")
+    if cmd.name in {"psql", "mysql", "redis-cli"}:
+        db_decision = db_command_decision(cmd.name, args, all_words)
+        if db_decision:
+            return db_decision
+    if cmd.name in {"bash", "sh", "zsh"} and "-c" in args:
+        index = args.index("-c")
+        if index + 1 < len(segment):
+            nested = evaluate_command(segment[index + 2])
+            if nested:
+                return nested
+    return None
+
+
+@dataclass(frozen=True)
+class PathLikeCommand:
+    raw: str
+
+    @property
+    def name(self) -> str:
+        return self.raw.rsplit("/", 1)[-1].lower()
+
+
+def evaluate_command(command: str) -> Decision | None:
+    warning: Decision | None = None
+    for segment in command_segments(split_tokens(command)):
+        decision = segment_decision(segment)
+        if not decision:
+            continue
+        if decision.kind == "deny":
+            return decision
+        warning = warning or decision
+    return warning
+
+
+def evaluate(command: str) -> dict:
+    decision = evaluate_command(command)
+    if not decision:
+        return suppress()
+    return deny(decision.reason) if decision.kind == "deny" else warn(decision.reason)
+
+
+def main() -> int:
+    sys.stdout.write(json.dumps(evaluate(command_from_input(load_input())), ensure_ascii=False) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

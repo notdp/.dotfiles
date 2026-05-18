@@ -71,10 +71,12 @@ def is_default_excluded(file_path: str) -> bool:
     return (
         path.suffix.lower() in {".md", ".markdown", ".html", ".htm"}
         or parts[:2] == ("scripts", "tests")
+        or parts[:2] == ("scripts", "hooks")
         or parts[:2] == (".factory", "hooks")
         or parts[:1] == ("tests",)
         or file_path == "scripts/scan_boundary_decisions.py"
         or file_path == "scripts/hook_boundary_gate.py"
+        or file_path == "scripts/install_hooks.py"
     )
 
 

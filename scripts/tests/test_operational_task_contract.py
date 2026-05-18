@@ -124,6 +124,48 @@ class OperationalTaskContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("命中 0 条", result.stdout)
 
+    def test_ignores_hook_runtime_source(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/scripts/hooks/context_capsule.py b/scripts/hooks/context_capsule.py
+            --- /dev/null
+            +++ b/scripts/hooks/context_capsule.py
+            @@ -0,0 +1,8 @@
+            +import argparse
+            +parser = argparse.ArgumentParser()
+            +parser.add_argument("--apply", action="store_true")
+            +parser.add_argument("--dry-run", action="store_true")
+            +while True:
+            +    run_hook()
+            """
+        )
+
+        result = self.run_scan(diff, "--strict")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("命中 0 条", result.stdout)
+
+    def test_ignores_hook_installer_source(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/scripts/install_hooks.py b/scripts/install_hooks.py
+            --- /dev/null
+            +++ b/scripts/install_hooks.py
+            @@ -0,0 +1,8 @@
+            +import argparse
+            +parser = argparse.ArgumentParser()
+            +parser.add_argument("--apply", action="store_true")
+            +parser.add_argument("--yes", action="store_true")
+            +while True:
+            +    sync_hooks()
+            """
+        )
+
+        result = self.run_scan(diff, "--strict")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("命中 0 条", result.stdout)
+
     def test_hook_mode_returns_additional_context_without_blocking(self) -> None:
         diff = textwrap.dedent(
             """\

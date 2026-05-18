@@ -46,6 +46,7 @@ def is_default_excluded(file_path: str) -> bool:
     return (
         path.suffix.lower() in {".md", ".markdown"}
         or parts[:2] == ("scripts", "tests")
+        or parts[:2] == ("scripts", "hooks")
         or parts[:2] == (".factory", "hooks")
         or file_path == "scripts/scan_diff_residue.py"
         or file_path == "scripts/scan_operational_task_contract.py"

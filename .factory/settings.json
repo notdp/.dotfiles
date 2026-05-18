@@ -1,43 +1,11 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_context_state.py --event session-start",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/.factory/hooks/context_capsule.py --event session-start",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_context_state.py --event pre-compact",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/.factory/hooks/context_capsule.py --event pre-compact",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/.factory/hooks/context_capsule.py --event prompt",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/context_capsule.py --event prompt",
             "timeout": 10
           }
         ]
@@ -49,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/.factory/hooks/context_capsule.py --event post-tool",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/context_capsule.py --event post-tool",
             "timeout": 15
           }
         ]
@@ -61,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_boundary_gate.py",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/boundary_gate.py",
             "timeout": 10
           }
         ]
@@ -71,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_command_guard.py",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/command_guard.py",
             "timeout": 10
           }
         ]
@@ -82,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hook_stop_check.py",
+            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/stop_check.py",
             "timeout": 10
           }
         ]

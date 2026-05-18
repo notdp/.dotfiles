@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+RISK_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("schema-contract", re.compile(r"(schema|response_model|request|response|envelope)", re.I)),
+    ("observability-routing", re.compile(r"(metric|metrics|埋点|指标)", re.I)),
+    ("data-source", re.compile(r"(data source|数据源|canonical|snapshot)", re.I)),
+    ("shared-path", re.compile(r"(封装|wrap|wrapper|包装|包一层|接入|对接|集成|adapter|integration|service\s+wrap)", re.I)),
+    ("context-surface", re.compile(r"(context|hook|prompt|capsule|CLAUDE\.md|AGENTS\.md)", re.I)),
+    ("limit-default-fallback", re.compile(r"(sampling|limit|fallback|default|默认值|上限|兜底)", re.I)),
+    ("operational-side-effect", re.compile(r"(prod|生产)", re.I)),
+)
+FACT_FIELD_RE = re.compile(
+    r"^\s*-?\s*(Boundary facts|Boundary decisions|Callers|Contract cases|Data source|Metric route|"
+    r"Schema contract|User approval)\s*:\s*(?P<value>.*)$",
+    re.I,
+)
+USER_APPROVAL_RE = re.compile(r"(用户批准|user-approved|approved by user|批准|同意|确认)", re.I)
+EMPTY_VALUE_RE = re.compile(r"^\s*(?:none|无|n/a|not applicable)\s*$", re.I)
+EDIT_TOOLS = {"ApplyPatch", "Create", "Edit", "Write", "MultiEdit"}
+MAX_TRANSCRIPT_CHARS = 80000
+
+
+def load_input() -> dict[str, Any]:
+    try:
+        raw = sys.stdin.read()
+        return json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def suppress() -> dict[str, bool]:
+    return {"suppressOutput": True}
+
+
+def transcript_text(path: str | None) -> str:
+    if not path:
+        return ""
+    transcript = Path(path).expanduser()
+    if not transcript.exists():
+        return ""
+    return transcript.read_text(encoding="utf-8", errors="replace")[-MAX_TRANSCRIPT_CHARS:]
+
+
+def record_text(record: dict[str, Any]) -> str:
+    message = record.get("message", record)
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts)
+    return str(content or "")
+
+
+def transcript_records(transcript: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for raw_line in transcript.splitlines():
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def record_role(record: dict[str, Any]) -> str:
+    message = record.get("message")
+    role = record.get("role") or record.get("type")
+    if role:
+        return str(role)
+    if isinstance(message, dict):
+        return str(message.get("role") or "")
+    return ""
+
+
+def recent_user_prompt_index(records: list[dict[str, Any]]) -> tuple[int, str]:
+    for index in range(len(records) - 1, -1, -1):
+        record = records[index]
+        if record_role(record) == "user":
+            return index, record_text(record)
+    return -1, ""
+
+
+def classify_risks(prompt: str) -> set[str]:
+    return {risk for risk, pattern in RISK_RULES if pattern.search(prompt)}
+
+
+def field_has_value(raw_value: str) -> bool:
+    value = raw_value.strip()
+    return bool(value and not EMPTY_VALUE_RE.fullmatch(value))
+
+
+def structured_fields(records: list[dict[str, Any]]) -> set[str]:
+    fields: set[str] = set()
+    for record in records:
+        text = record_text(record)
+        for line in text.splitlines():
+            match = FACT_FIELD_RE.match(line)
+            if match and field_has_value(match.group("value")):
+                fields.add(match.group(1).lower())
+    return fields
+
+
+def user_approval_present(records: list[dict[str, Any]]) -> bool:
+    return any(record_role(record) == "user" and USER_APPROVAL_RE.search(record_text(record)) for record in records)
+
+
+def missing_boundary_facts(risks: set[str], records_after_prompt: list[dict[str, Any]]) -> list[str]:
+    fields = structured_fields(records_after_prompt)
+    if "boundary decisions" in fields or user_approval_present(records_after_prompt):
+        return []
+
+    missing: list[str] = []
+    if "schema-contract" in risks and not ({"schema contract", "contract cases"} & fields):
+        missing.append("Schema contract or Contract cases")
+    if "observability-routing" in risks and "metric route" not in fields:
+        missing.append("Metric route")
+    if "data-source" in risks and "data source" not in fields:
+        missing.append("Data source")
+    if "shared-path" in risks and not ({"callers", "contract cases"} & fields):
+        missing.append("Callers or Contract cases")
+    if "context-surface" in risks and not ({"boundary facts", "boundary decisions"} & fields):
+        missing.append("Boundary facts or Boundary decisions")
+    if "limit-default-fallback" in risks and not ({"boundary facts", "contract cases"} & fields):
+        missing.append("Boundary facts or Contract cases")
+    if "operational-side-effect" in risks and "user approval" not in fields:
+        missing.append("User approval")
+    return missing
+
+
+def should_gate(tool_name: str, transcript: str) -> tuple[bool, list[str]]:
+    if tool_name not in EDIT_TOOLS:
+        return False, []
+    records = transcript_records(transcript)
+    prompt_index, prompt = recent_user_prompt_index(records)
+    risks = classify_risks(prompt)
+    if not risks:
+        return False, []
+    missing = missing_boundary_facts(risks, records[prompt_index + 1 :])
+    return bool(missing), missing
+
+
+def gate_payload(mode: str, missing: list[str]) -> dict[str, Any]:
+    missing_text = ", ".join(missing) if missing else "Boundary facts"
+    message = (
+        "Boundary gate advisory: high-risk boundary prompt detected before edit, but no boundary facts "
+        f"were found. Missing: {missing_text}. First list a structured `Boundary facts:` block or ask the user to confirm the boundary."
+    )
+    if mode == "block":
+        return {"decision": "block", "reason": message, "suppressOutput": True}
+    return {"systemMessage": message}
+
+
+def main() -> int:
+    hook_input = load_input()
+    tool_name = str(hook_input.get("tool_name") or hook_input.get("toolName") or "")
+    transcript = transcript_text(hook_input.get("transcript_path"))
+    mode = os.environ.get("BOUNDARY_GATE_MODE", "advisory").lower()
+    should_warn, missing = should_gate(tool_name, transcript)
+    if should_warn:
+        sys.stdout.write(json.dumps(gate_payload(mode, missing), ensure_ascii=False) + "\n")
+    else:
+        sys.stdout.write(json.dumps(suppress(), ensure_ascii=False) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
