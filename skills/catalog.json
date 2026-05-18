@@ -121,6 +121,12 @@
       "role": "canonical"
     },
     {
+      "name": "readable-html-artifact",
+      "path": "skills/readable-html-artifact",
+      "domain": "readable",
+      "role": "canonical"
+    },
+    {
       "name": "dev-refactor",
       "path": "skills/dev-refactor",
       "domain": "dev",

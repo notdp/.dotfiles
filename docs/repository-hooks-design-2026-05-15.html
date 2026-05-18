@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仓库 Hooks 日常工作地图</title>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --card: #ffffff;
+      --ink: #18212f;
+      --muted: #5b6573;
+      --line: #d9ded7;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #7c3aed;
+      --code: #eef2f0;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 12px 28px rgba(15, 23, 42, .06);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, .08), transparent 34rem),
+        radial-gradient(circle at top right, rgba(15, 118, 110, .08), transparent 30rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      line-height: 1.58;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 34px 22px 56px; }
+    h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.06; margin: 0 0 14px; letter-spacing: -.045em; }
+    h2 { font-size: 26px; margin: 42px 0 14px; letter-spacing: -.02em; }
+    h3 { font-size: 18px; margin: 0 0 8px; }
+    p { margin: 8px 0; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: var(--code);
+      border: 1px solid #dde4df;
+      border-radius: 6px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+    }
+    .eyebrow { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .subtitle { color: var(--muted); font-size: 17px; max-width: 900px; }
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 26px 0;
+      padding: 10px;
+      background: rgba(246, 247, 244, .88);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+    }
+    .nav a {
+      color: #374151;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card {
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .metric { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .value { font-size: 24px; font-weight: 850; margin-top: 3px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #e5e7eb;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .tag.blue { background: #dbeafe; color: #1d4ed8; }
+    .tag.green { background: #ccfbf1; color: #115e59; }
+    .tag.orange { background: #ffedd5; color: #9a3412; }
+    .tag.red { background: #fee2e2; color: #991b1b; }
+    .tag.purple { background: #ede9fe; color: #6d28d9; }
+    .callout {
+      border: 1px solid #bfdbfe;
+      border-left: 6px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin: 18px 0;
+    }
+    .callout.warn { border-color: #fed7aa; border-left-color: var(--orange); background: #fff7ed; }
+    .callout.good { border-color: #99f6e4; border-left-color: var(--green); background: #f0fdfa; }
+    .callout.bad { border-color: #fecaca; border-left-color: var(--red); background: #fef2f2; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .step {
+      position: relative;
+      min-height: 174px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      width: 10px;
+      height: 2px;
+      background: #b8c0bb;
+    }
+    .step .when { font-weight: 900; margin: 8px 0 6px; }
+    .step p { color: var(--muted); font-size: 13px; margin: 0; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin: 12px 0 18px;
+    }
+    th, td { text-align: left; vertical-align: top; padding: 12px 13px; border-bottom: 1px solid var(--line); }
+    th { background: #eef2f0; font-size: 13px; color: #374151; }
+    tr:last-child td { border-bottom: 0; }
+    td { font-size: 14px; }
+    .mono {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .scenario {
+      display: grid;
+      grid-template-columns: 170px 1fr 190px;
+      gap: 12px;
+      align-items: start;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .scenario:last-child { border-bottom: 0; }
+    .source-list { columns: 2; column-gap: 28px; }
+    .source-list li { break-inside: avoid; margin: 5px 0; }
+    .muted { color: var(--muted); }
+    .good-text { color: var(--green); }
+    .warn-text { color: var(--orange); }
+    .bad-text { color: var(--red); }
+    @media (max-width: 980px) {
+      .grid, .grid.two, .grid.four, .split { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .step { min-height: auto; }
+      .step:not(:last-child)::after { display: none; }
+      .scenario { grid-template-columns: 1fr; }
+      .source-list { columns: 1; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">
+      <span class="tag blue">基于当前仓库文件核对</span>
+      <span class="tag green">面向日常使用</span>
+    </div>
+    <h1>仓库 Hooks 日常工作地图</h1>
+    <p class="subtitle">这页只回答一个问题：你每天使用 Droid 改代码时，哪些 hook 会介入，它们会提醒什么、阻断什么，以及哪些结果只是辅助判断。</p>
+  </header>
+
+  <nav class="nav" aria-label="page sections">
+    <a href="#takeaway">先看结论</a>
+    <a href="#flow">触发链路</a>
+    <a href="#config">逐项配置</a>
+    <a href="#scripts">脚本职责</a>
+    <a href="#capsules">注入内容</a>
+    <a href="#pseudocode">运行伪代码</a>
+    <a href="#signals">反馈强度</a>
+    <a href="#boundary">边界机制</a>
+    <a href="#classifier">分类策略</a>
+    <a href="#daily">日常场景</a>
+    <a href="#limits">限制</a>
+    <a href="#sources">文件索引</a>
+  </nav>
+
+  <section id="takeaway">
+    <div class="callout good">
+      <strong>先记这句：</strong>这套 hooks 是一条工作流，不是单个拦截器。它先给 agent 上下文，再在写文件或执行命令前设护栏，写完后扫风险，最后在结束前检查验证证据。
+    </div>
+
+    <section class="grid four" aria-label="summary">
+      <div class="card">
+        <div class="metric">第一层</div>
+        <div class="value">入口提醒</div>
+        <p class="muted">Prompt 阶段按任务类型注入短规则；固定纪律放回 AGENTS.md。</p>
+      </div>
+      <div class="card">
+        <div class="metric">第二层</div>
+        <div class="value">写前护栏</div>
+        <p class="muted">编辑前看边界事实；执行命令前拦截高风险 shell。</p>
+      </div>
+      <div class="card">
+        <div class="metric">第三层</div>
+        <div class="value">写后扫描</div>
+        <p class="muted">编辑后扫描长任务合同、残留问题、边界变化。</p>
+      </div>
+      <div class="card">
+        <div class="metric">第四层</div>
+        <div class="value">收尾检查</div>
+        <p class="muted">结束前提醒缺验证、缺 UI 证据、缺 Boundary manifest。</p>
+      </div>
+    </section>
+
+    <div class="callout warn">
+      <strong>日常判断规则：</strong><code>additionalContext</code>、<code>permissionDecision: deny</code>、<code>decision:block</code> 更像 agent 必须处理的信号。当前默认的 <code>systemMessage</code> 更像提醒，不要把它当成稳定的 hard gate。
+    </div>
+  </section>
+
+  <section id="flow">
+    <h2>1. 触发链路</h2>
+    <div class="flow">
+      <div class="step">
+        <span class="tag blue">Prompt</span>
+        <div class="when">你发需求</div>
+        <p>按关键词注入 security、operational、debug、UI、planning、boundary capsules。</p>
+      </div>
+      <div class="step">
+        <span class="tag orange">PreTool</span>
+        <div class="when">动作前</div>
+        <p>编辑走 boundary gate；Execute 走 command guard。</p>
+      </div>
+      <div class="step">
+        <span class="tag purple">PostTool</span>
+        <div class="when">编辑后</div>
+        <p>统一跑 3 个 scanner，把 findings 注回上下文。</p>
+      </div>
+      <div class="step">
+        <span class="tag red">Stop</span>
+        <div class="when">结束前</div>
+        <p>检查验证证据、UI 视觉证据、Boundary decisions manifest。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="config">
+    <h2>2. 逐项配置：讲完一个，再讲下一个</h2>
+    <div class="card">
+      <span class="tag blue">1 / UserPromptSubmit</span>
+      <h3>你提交需求后：按关键词挑选专项 capsule</h3>
+      <p><strong>时机：</strong>你发出一条新需求后、agent 正式处理前触发。命令是 <code>scripts/hooks/context_capsule.py --event prompt</code>，timeout 10s。</p>
+      <p><strong>程序机制：</strong>脚本读取 hook stdin 里的 <code>prompt</code> 字段，用 <code>CAPSULE_RULES</code> 里的 regex 做召回。命中后读取 <code>agents/context-capsules/*.md</code>，最多拼到 2200 字符，再返回 additionalContext。</p>
+      <div class="mono">input = hook_json
+prompt = input.prompt
+capsules = []
+
+if prompt has prod/auth/db/deploy words:
+  capsules.add("security-gitops.md")
+if prompt has migrate/sync/backfill/dry-run words:
+  capsules.add("operational-task.md")
+if prompt has bug/error/failed words:
+  capsules.add("debug-task.md")
+if prompt has ui/css/react/figma words:
+  capsules.add("ui-task.md")
+if prompt has plan/spec/architecture words:
+  capsules.add("planning-task.md")
+if prompt has wrapper/schema/metric/hook words:
+  capsules.add("boundary-decision.md")
+
+output additionalContext(join(capsules, capped_to_2200_chars))</div>
+      <table>
+        <thead><tr><th>用户 prompt 命中特征</th><th>注入 capsule</th><th>注入内容的作用</th></tr></thead>
+        <tbody>
+          <tr><td>prod、deploy、ssh、db、secret、push</td><td><code>security-gitops.md</code></td><td>提醒先走安全或 GitOps 路径。</td></tr>
+          <tr><td>migration、sync、backfill、dry-run、batch</td><td><code>operational-task.md</code></td><td>提醒长任务要有 dry-run、进度、恢复、apply 安全。</td></tr>
+          <tr><td>bug、fail、traceback、报错</td><td><code>debug-task.md</code></td><td>提醒先复现、看日志、建立假设。</td></tr>
+          <tr><td>ui、css、react、figma、overflow</td><td><code>ui-task.md</code></td><td>提醒视觉验证、截图、viewport、overflow。</td></tr>
+          <tr><td>方案、架构、plan、options</td><td><code>planning-task.md</code></td><td>提醒先规划再动手。</td></tr>
+          <tr><td>wrapper、schema、metric、data source、hook、AGENTS.md</td><td><code>boundary-decision.md</code></td><td>提醒先列边界事实和 contract cases。</td></tr>
+        </tbody>
+      </table>
+      <p><strong>6 个 capsule 注入后分别长这样：</strong></p>
+      <div class="grid two">
+        <div class="card">
+          <h3><code>security-gitops.md</code></h3>
+          <div class="mono"># Security / GitOps Capsule
+
+This prompt touches auth, permissions, secrets, deployment, production, remote machines, databases, or external state.
+
+- Load `/guard-secure` for auth/data/network/supply-chain risk.
+- Load `/guard-gitops` before remote, deploy, DB, secret, runtime, third-party, push, or release side effects.
+- Read-only diagnosis is allowed when scoped to observation and reported back.
+- Remote writes, deploys, DB writes, push/release, or apply commands need explicit scope, rollback, and validation evidence before proceeding.
+- Broad destructive cleanup, force-push, destroy, delete, or schema-destructive DB commands remain blocked.
+- Before delivery, report what changed, where it is declared in git, and how rollback works.</div>
+        </div>
+        <div class="card">
+          <h3><code>operational-task.md</code></h3>
+          <div class="mono"># Operational Task Capsule
+
+This prompt looks like long-running, batch, data-changing, migration, or complex CLI work. Load `/dev-operational-task` before implementation.
+
+Check the contract before coding and before delivery:
+
+- Efficiency: bounded concurrency, batch size, backpressure, rate limit.
+- Resumability: cursor/checkpoint/state file/idempotency key; interrupted work can continue.
+- Observability: phase, current/total, percentage, rate, ETA, heartbeat, recent success/failure samples.
+- Robustness: retry/backoff, timeout, partial failure set, safe rerun behavior.
+- CLI UX: safe defaults, presets or interactive wizard; each choice explains impact and prints the underlying copyable command.
+- Dry-run data accuracy: planned counts, samples, diff/aggregation, invariants, failed examples.
+- Apply safety: `--apply` needs explicit confirmation and remote/db/destructive side effects route to `/guard-gitops`.</div>
+        </div>
+        <div class="card">
+          <h3><code>debug-task.md</code></h3>
+          <div class="mono"># Debug Task Capsule
+
+This prompt looks like a bug, error, flaky behavior, failing test, traceback, or incident.
+
+- Load `/dev-debug` before changing code.
+- First build a feedback loop: failing test, CLI fixture, HTTP check, browser check, or trace replay.
+- Do not guess and patch. State hypotheses and verify one at a time.
+- After two failed hypotheses, switch to `/think-unstuck` with a handoff.
+- Final claim needs original repro evidence plus regression validation.</div>
+        </div>
+        <div class="card">
+          <h3><code>ui-task.md</code></h3>
+          <div class="mono"># UI Task Capsule
+
+This prompt looks like UI, CSS, React/Vue/Svelte, page, screenshot, Figma, or visual work.
+
+- Load `/fe-ui-design` for implementation and `/fe-ui-visual-iterate` when comparing visuals.
+- Do not claim UI is done with tests only.
+- Capture real screenshots after changes, including mobile and desktop when relevant.
+- Check horizontal overflow, text overflow, interaction states, and design-token adherence.
+- If a Figma link is involved, use Figma MCP when available or suggest connecting it.</div>
+        </div>
+        <div class="card">
+          <h3><code>planning-task.md</code></h3>
+          <div class="mono"># Planning Task Capsule
+
+This prompt asks for approach, architecture, options, phase plan, or a large change.
+
+- Load `/think-plan` and stay in spec mode until the plan is approved.
+- Use `/think-research` first when technical facts or options are uncertain.
+- Separate goals, non-goals, constraints, risks, validation, and rollback.
+- If there are equally strong options, ask the user to choose before finalizing.
+- Do not start implementation from an unapproved design.</div>
+        </div>
+        <div class="card">
+          <h3><code>boundary-decision.md</code></h3>
+          <div class="mono"># Boundary-Decision Capsule
+
+This task looks like it may change a service, wrapper, adapter, schema, metric, data source, production path, or agent context surface.
+
+Before acting, surface facts or ask the user when you might change:
+
+1. spec-external input validation, rejection, or 4xx/5xx behavior
+2. skip, truncate, fallback, silent catch, retry, backoff, or sleep behavior
+3. default values, limits, cost caps, concurrency caps, or sampling boundaries
+4. shared code paths used by multiple callers
+5. API request/response schema, envelope, or field semantics
+6. canonical/raw data source, snapshot source, limit scope, or platform coverage
+7. metric name, label, route, StatsStore bucket, or observability ownership
+8. production writes, database changes, deployments, or external side effects
+9. hooks, prompts, capsules, CLAUDE.md, AGENTS.md, or anything entering model context
+
+Use this manifest when a boundary changed or was considered:
+
+Boundary decisions:
+- &lt;type&gt;: &lt;description&gt; (file:line, evidence: &lt;why allowed or user-approved&gt;)</div>
+        </div>
+      </div>
+      <p><strong>日常效果：</strong>这一步是“软路由”。它不会拦截你，也不会证明分类一定对；它只是把可能相关的短规则塞进上下文。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag orange">2 / PreToolUse: ApplyPatch | Create | Edit</span>
+      <h3>写文件前：Boundary gate 先看你是不是在改边界</h3>
+      <p><strong>时机：</strong>agent 准备调用写文件工具前触发。Droid 配置匹配 <code>ApplyPatch|Create|Edit</code>；Claude 配置里对应 <code>Edit|Write|MultiEdit</code>。</p>
+      <p><strong>命令：</strong><code>scripts/hooks/boundary_gate.py</code>，timeout 10s。</p>
+      <p><strong>程序机制：</strong>脚本读取 hook stdin 的 tool name，再读取 transcript。它只取最近一次用户 prompt，按命中词分类成 schema、metric、data source、shared path、context surface、limit/default/fallback、prod side effect 等风险；再只看这条 prompt 之后的对话里有没有结构化 <code>Boundary facts:</code> 或用户明确批准。旧历史里的 facts、assistant 自己写的“请确认”都不算。</p>
+      <p><strong>换成人话：</strong>它不是判断代码对错，而是在 agent 写文件前问一句：“这次是不是会顺手改接口、默认值、fallback、指标、数据源或 prompt/hook 注入面？”如果会，而当前这轮对话还没把 caller、contract case、data source、metric route 这些边界说清楚，就先提醒 agent 按固定格式补齐事实再动手。</p>
+      <div class="mono">input = hook_json
+tool = input.tool_name
+records = read_transcript_records(input.transcript_path)
+prompt_index, prompt = last_user_prompt(records)
+
+if tool is not an edit tool:
+  output suppress
+
+risks = classify prompt into schema, metric, data-source,
+        shared-path, context-surface, limit/default/fallback,
+        operational-side-effect
+window = records after prompt_index
+facts = structured Boundary facts fields in window
+missing = required fields for risks that facts do not satisfy
+
+if missing:
+  if env.BOUNDARY_GATE_MODE == "block":
+    output decision:block with missing fields
+  else:
+    output systemMessage advisory with missing fields
+else:
+  output suppress</div>
+      <p><strong>agent 应该写的固定格式：</strong></p>
+      <div class="mono">Boundary facts:
+- Risk types: schema-contract, shared-path
+- Callers: creator search API
+- Contract cases: keep accept/reject/schema behavior
+- Data source: not applicable
+- Metric route: not applicable
+- Schema contract: response envelope unchanged
+- User approval: not requested</div>
+      <p><strong>提示长什么样：</strong></p>
+      <div class="mono">Boundary gate advisory: high-risk boundary prompt detected before edit,
+but no boundary facts were found. Missing: Schema contract or Contract cases.
+First list a structured `Boundary facts:` block or ask the user to confirm the boundary.</div>
+      <p><strong>输出强度：</strong>默认是 <code>systemMessage</code>，属于 advisory；如果设置 <code>BOUNDARY_GATE_MODE=block</code>，会返回 <code>decision:block</code>。</p>
+      <p><strong>日常效果：</strong>它不判断代码对错，只逼 agent 在动手前把边界讲清楚，避免“顺手改了 schema / 默认值 / 指标路由 / 上下文注入面”。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag red">3 / PreToolUse: Execute</span>
+      <h3>执行命令前：Command guard 给命令分三档</h3>
+      <p><strong>时机：</strong>agent 准备调用 shell/命令工具前触发。Droid matcher 是 <code>Execute</code>；Claude 对应 <code>Bash</code>。</p>
+      <p><strong>命令：</strong><code>scripts/hooks/command_guard.py</code>，timeout 10s。</p>
+      <p><strong>程序机制：</strong>脚本从 hook stdin 的 <code>tool_input.command</code> 取 shell 命令，用 <code>shlex</code> 切词，再按命令段判断风险。现在分三档：明确只读和 dry-run 直接放行；发布、DB 写、远端写、<code>git push</code>、<code>kubectl apply</code>、<code>terraform apply</code> 等常见副作用命令返回 <code>systemMessage</code> 提醒；宽作用域清理、force push、destroy、delete、schema-destructive DB 命令继续 hard deny。</p>
+      <div class="mono">input = hook_json
+command = input.tool_input.command
+segments = shell_split(command)
+decision = allow
+
+for segment in segments:
+  if segment is clearly read-only or dry-run:
+    continue
+  if segment is catastrophic:
+    decision = deny
+    break
+  if segment has intended side effect:
+    decision = warn
+
+if decision == deny:
+  output permissionDecision: deny
+elif decision == warn:
+  output systemMessage advisory
+else:
+  output suppress</div>
+      <table>
+        <thead><tr><th>档位</th><th>例子</th><th>输出</th></tr></thead>
+        <tbody>
+          <tr><td>allow</td><td><code>git status</code>、只读 <code>ssh</code>、<code>scp remote local</code>、<code>rsync --dry-run</code>、<code>SELECT</code></td><td><code>suppressOutput</code></td></tr>
+          <tr><td>warn</td><td><code>git push</code>、<code>kubectl apply</code>、<code>terraform apply</code>、远端写、DB 写</td><td><code>systemMessage</code></td></tr>
+          <tr><td>deny</td><td><code>git push --force</code>、<code>git clean -fdx</code>、<code>rm -rf /</code>、<code>terraform destroy</code>、<code>kubectl delete</code>、<code>DROP TABLE</code></td><td><code>permissionDecision: deny</code></td></tr>
+        </tbody>
+      </table>
+      <p><strong>warn 提示长什么样：</strong></p>
+      <div class="mono">{
+  "systemMessage": "Command guard advisory: git push modifies remote repository state; route through /guard-gitops thinking and confirm branch, remote, CI impact, and rollback before proceeding."
+}</div>
+      <p><strong>deny 提示长什么样：</strong></p>
+      <div class="mono">{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "git force push can overwrite remote history; do not run automatically."
+  },
+  "suppressOutput": true
+}</div>
+      <p><strong>输出强度：</strong><code>allow</code> 只静默放行；<code>warn</code> 是 <code>systemMessage</code> advisory，提醒先确认 scope / rollback / validation；<code>deny</code> 才是硬拦截，命中后 agent 必须换路径或请求明确授权。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag purple">4 / PostToolUse: ApplyPatch | Create | Edit</span>
+      <h3>写文件后：自动复查刚改出的 diff</h3>
+      <p><strong>一句话：</strong>agent 每次写完文件后，hook 会马上看一眼当前 diff，检查有没有常见收尾风险；如果有，就把提醒重新塞回 agent 上下文，让它先处理或解释，不要直接继续。</p>
+      <p><strong>时机：</strong>agent 用写文件工具后触发。Droid matcher 是 <code>ApplyPatch|Create|Edit</code>；Claude 对应 <code>Edit|Write|MultiEdit</code>。</p>
+      <p><strong>命令：</strong><code>scripts/hooks/context_capsule.py --event post-tool</code>，timeout 15s。</p>
+      <p><strong>它检查什么：</strong></p>
+      <table>
+        <thead><tr><th>scanner</th><th>看什么</th><th>为什么提醒</th></tr></thead>
+        <tbody>
+          <tr><td><code>scan_operational_task_contract.py</code></td><td>dry-run / apply / batch / migration 这类长任务线索</td><td>提醒补进度、恢复、dry-run 数据证据、apply 安全确认。</td></tr>
+          <tr><td><code>scan_diff_residue.py</code></td><td>临时代码、调试残留、疑似 secret 或危险占位</td><td>提醒清理，不要把调试垃圾或敏感信息带出去。</td></tr>
+          <tr><td><code>scan_boundary_decisions.py</code></td><td>新增 reject/default/fallback/schema/metric/early-exit 等边界分支</td><td>提醒说明这个边界变化是否在 spec 内，必要时写 <code>Boundary decisions:</code>。</td></tr>
+        </tbody>
+      </table>
+      <div class="mono">写文件
+  -> 读取当前 git diff 和 untracked 文件
+  -> 三个 scanner 只看新增内容
+  -> 没发现问题：静默
+  -> 发现问题：把 Markdown 表格注入回 agent 上下文</div>
+      <p><strong>你会看到什么：</strong>类似你刚才贴的 <code>Boundary Decision Scan</code> 表格，里面有类型、文件、行号、片段和建议。</p>
+      <p><strong>不会做什么：</strong>它不会自动改代码，也不会 hard block；它只是写后复查，把可疑点重新提醒给 agent。</p>
+    </div>
+
+    <div class="card">
+      <span class="tag red">5 / Stop</span>
+      <h3>结束前：Stop check 看有没有验证证据和收尾缺口</h3>
+      <p><strong>时机：</strong>agent 准备结束回复前触发。命令是 <code>scripts/hooks/stop_check.py</code>，timeout 10s。</p>
+      <p><strong>程序机制：</strong>脚本读取当前 <code>git status --short</code> 和 transcript。只要发现代码文件有改动，就只检查最近一次用户请求及其之后的窗口里有没有测试、lint、typecheck、<code>verify_skills.py</code> 等验证证据；如果 UI 文件有改动，还会额外找 screenshot、visual、overflow、playwright 等证据；如果这个窗口里出现过 boundary scanner finding，还会找 assistant-authored <code>Boundary decisions:</code> manifest。旧历史里的验证和 manifest 不再算当前任务证据。</p>
+      <div class="mono">input = hook_json
+files = git_status_short()
+records = read_transcript_records(input.transcript_path)
+window = records from latest user prompt onward
+code_files = files with code suffix
+
+if no code_files:
+  output suppress
+
+problems = []
+if window has no validation evidence:
+  problems.add("missing validation evidence")
+if changed files include UI code and window has no visual evidence:
+  problems.add("missing visual evidence")
+if window has boundary scanner finding
+   and no assistant-authored Boundary decisions block in window:
+  problems.add("missing Boundary decisions manifest")
+
+if problems:
+  output systemMessage(join(problems))
+else:
+  output suppress</div>
+      <p><strong>提示长什么样：</strong></p>
+      <div class="mono">Stop check advisory:
+code changes exist but no validation evidence was found;
+run /guard-verify before claiming completion.
+Changed files: scripts/...</div>
+      <p><strong>输出强度：</strong>当前是 <code>systemMessage</code> advisory，不是 hard gate。</p>
+      <p><strong>日常效果：</strong>它在最终回复前提醒“别直接说完成”。但如果 agent 忽略 systemMessage，仍可能继续输出，所以真正交付还要看验证证据。</p>
+    </div>
+  </section>
+
+  <section id="scripts">
+    <h2>3. 脚本职责</h2>
+    <table>
+      <thead>
+        <tr><th>脚本</th><th>输入</th><th>输出</th><th>强度</th><th>你会感受到什么</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>scripts/hooks/context_capsule.py</code></td>
+          <td>hook stdin JSON、prompt、repo diff</td>
+          <td><code>hookSpecificOutput.additionalContext</code> 或 <code>suppressOutput</code></td>
+          <td><span class="tag green">上下文注入</span></td>
+          <td>把你的 prompt 和当前 diff 转成短上下文；具体判断见前面的对应配置章节。</td>
+        </tr>
+        <tr>
+          <td><code>scripts/hooks/boundary_gate.py</code></td>
+          <td>tool name、transcript、<code>BOUNDARY_GATE_MODE</code></td>
+          <td>默认 <code>systemMessage</code>；block 模式返回 <code>decision:block</code></td>
+          <td><span class="tag orange">默认 advisory</span></td>
+          <td>修改 wrapper、schema、metric、data source、hook 等边界前，会提醒先列 Boundary decisions / callers / contract cases。</td>
+        </tr>
+        <tr>
+          <td><code>scripts/hooks/command_guard.py</code></td>
+          <td>Execute 的 command</td>
+          <td><code>systemMessage</code>、<code>permissionDecision: deny</code> 或 suppress</td>
+          <td><span class="tag orange">三档：allow / warn / deny</span></td>
+          <td>只读命令放行；常见副作用命令提醒确认 scope / rollback / validation；高破坏命令继续硬拦截。</td>
+        </tr>
+        <tr>
+          <td><code>scripts/hooks/stop_check.py</code></td>
+          <td>transcript、<code>git status --short</code></td>
+          <td><code>systemMessage</code> 或 suppress</td>
+          <td><span class="tag orange">收尾提醒</span></td>
+          <td>如果有代码改动但没验证证据、UI 改动没截图证据、boundary scanner 命中但没 manifest，会提示。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="capsules">
+    <h2>4. 注入内容如何 review</h2>
+    <div class="callout good">
+      <strong>本质：</strong><code>context_capsule.py</code> 做的是 prompt routing。它不改代码，也不调用模型；它只根据用户 prompt 里的关键词，读取 <code>agents/context-capsules/*.md</code>，再把命中的文件内容拼成 <code>additionalContext</code> 注入给 agent。
+    </div>
+    <table>
+      <thead>
+        <tr><th>Capsule 文件</th><th>何时注入</th><th>注入后要求 agent 做什么</th><th>Review 重点</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>security-gitops.md</code></td>
+          <td>prompt 提到 prod、deploy、ssh、push、auth、DB、secret 等词。</td>
+          <td>要求安全审查；远端、部署、DB、secret、push、release 先走 GitOps。</td>
+          <td>关键词不能太宽，否则日常问题会被安全流程打断。</td>
+        </tr>
+        <tr>
+          <td><code>operational-task.md</code></td>
+          <td>prompt 提到 migration、sync、backfill、batch、dry-run、apply 等词。</td>
+          <td>要求长任务具备效率、可恢复、可观测、dry-run 数据证据、apply 安全确认。</td>
+          <td>适合数据/批处理任务；普通脚本不要被误判成长任务。</td>
+        </tr>
+        <tr>
+          <td><code>debug-task.md</code></td>
+          <td>prompt 提到 bug、error、failed、traceback、异常、复现等词。</td>
+          <td>要求先建立复现反馈环，再按假设逐个验证，不要猜改。</td>
+          <td>这类注入通常低风险，但要避免把普通咨询误判成调试任务。</td>
+        </tr>
+        <tr>
+          <td><code>ui-task.md</code></td>
+          <td>prompt 提到 UI、CSS、React、页面、截图、Figma、overflow 等词。</td>
+          <td>要求 UI 任务截图验证，检查溢出、状态、设计 token；Figma 走 MCP。</td>
+          <td>如果项目里大量文件名含 UI 词，注意是否频繁误触发。</td>
+        </tr>
+        <tr>
+          <td><code>planning-task.md</code></td>
+          <td>prompt 提到 方案、计划、架构、approach、spec 等词。</td>
+          <td>要求先计划，方案未批准前不实现；多方案时先让用户选择。</td>
+          <td>这个会改变 agent 节奏，关键词过宽会让小问题也进入规划模式。</td>
+        </tr>
+        <tr>
+          <td><code>boundary-decision.md</code></td>
+          <td>prompt 提到 wrapper、schema、metric、data source、hook、AGENTS 等词。</td>
+          <td>要求先暴露 validation、fallback、shared path、schema、metric、data source、context surface 等边界。</td>
+          <td>这是最容易误报也最有价值的一类；重点看是否真的改变系统边界。</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <strong>Review 方法：</strong>先看 <code>CAPSULE_RULES</code> 的关键词是否过宽，再看对应 capsule 是否只保留“必须改变 agent 行为”的短规则。不要把解释性长文塞进 capsule；长解释应该放 docs。
+    </div>
+    <div class="mono">python3 scripts/hooks/context_capsule.py \
+  --event prompt \
+  --preview \
+  --prompt-text "给我通过 html 清晰展示当前仓库 hooks"</div>
+    <p class="muted">这个 preview 命令只打印 Markdown 报告，不走 hook JSON。报告会列出每个 capsule 的 matched / not matched、heading、regex 规则和最终上下文长度。</p>
+  </section>
+
+  <section id="signals">
+    <h2>5. 反馈强度</h2>
+    <div class="split">
+      <div class="card">
+        <h3 class="good-text">更像 agent 必须处理的信号</h3>
+        <table>
+          <thead><tr><th>输出形态</th><th>来源</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td><code>hookSpecificOutput.additionalContext</code></td><td>context capsule、PostTool scanners</td><td>进入上下文，适合提醒 agent 下一步怎么做。</td></tr>
+            <tr><td><code>permissionDecision: deny</code></td><td>command guard</td><td>硬拦截危险命令，agent 必须换路径。</td></tr>
+            <tr><td><code>decision:block</code> + <code>reason</code></td><td>boundary gate 的 block 模式</td><td>当前默认未启用；启用后更像 hard gate。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3 class="warn-text">更像提醒的信号</h3>
+        <table>
+          <thead><tr><th>输出形态</th><th>来源</th><th>注意点</th></tr></thead>
+          <tbody>
+            <tr><td><code>systemMessage</code></td><td>boundary gate 默认模式、command guard warn 档、stop check</td><td>适合让你看到风险，但不要把它当作稳定 hard gate。</td></tr>
+            <tr><td>普通 stdout JSON</td><td>多数 hook 退出 0 时</td><td>只有符合 hook 协议的字段才有实际效果。</td></tr>
+            <tr><td>scanner Markdown</td><td>手动运行 <code>scan_*.py</code></td><td>适合人工 review；hook 模式才会包装成 additionalContext。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="scanners">
+    <h2>6. 写后扫描</h2>
+    <div class="grid">
+      <div class="card">
+        <span class="tag purple">Operational</span>
+        <h3><code>scan_operational_task_contract.py</code></h3>
+        <p>识别批处理、迁移、同步、回填、长任务 CLI 等 operational-looking diff。</p>
+        <p><strong>检查：</strong>进度可见、可恢复、dry-run 数据证据、失败可诊断、有界并发、apply 安全确认。</p>
+      </div>
+      <div class="card">
+        <span class="tag purple">Residue</span>
+        <h3><code>scan_diff_residue.py</code></h3>
+        <p>扫描新增 diff 中的临时残留和疑似凭据。</p>
+        <p><strong>检查：</strong>待办标记、调试前缀、临时输出语句、断点调用、疑似凭据、临时变量名。</p>
+      </div>
+      <div class="card">
+        <span class="tag purple">Boundary</span>
+        <h3><code>scan_boundary_decisions.py</code></h3>
+        <p>扫描可能改变系统边界的新增代码。</p>
+        <p><strong>检查：</strong>4xx/5xx rejection、assert guard、默认值、retry/backoff、schema contract、metric route、silent catch、early exit。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="boundary">
+    <h2>7. Boundary 机制</h2>
+    <div class="callout warn">
+      <strong>为什么重要：</strong>hook、prompt、capsule、schema、metric、data source 这类改动会改变后续 agent 或调用方的边界。当前设计把它拆成四层：Prompt 注入 capsule、PreTool 写前提醒、PostTool diff 扫描、Stop 检查 manifest。
+    </div>
+    <div class="mono">UserPromptSubmit
+  -> context_capsule.py 匹配 boundary 关键词
+  -> 注入 agents/context-capsules/boundary-decision.md
+
+PreToolUse: ApplyPatch|Create|Edit
+  -> hook_boundary_gate.py
+  -> 默认 systemMessage；BOUNDARY_GATE_MODE=block 时 decision:block
+
+PostToolUse: ApplyPatch|Create|Edit
+  -> scan_boundary_decisions.py --hook
+  -> 命中后追加 Boundary decision scan found...
+
+Stop
+  -> hook_stop_check.py
+  -> 若 transcript 里有 boundary finding 但无 assistant-authored Boundary decisions manifest，则提醒</div>
+  </section>
+
+  <section id="classifier">
+    <h2>8. 规则还是便宜模型</h2>
+    <div class="callout warn">
+      <strong>建议：</strong>不要把所有判断都交给模型。更稳的设计是 hybrid：硬安全用规则，软路由用便宜模型辅助，最终注入仍要有白名单、短上下文预算和日志。
+    </div>
+    <table>
+      <thead>
+        <tr><th>方案</th><th>适合做什么</th><th>优点</th><th>风险</th><th>结论</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>纯 regex</td>
+          <td>命令拦截、明显关键词、低成本 capsule routing。</td>
+          <td>可审计、稳定、快、无额外模型成本。</td>
+          <td>语义弱；容易误报，也可能漏掉换一种说法的关键任务。</td>
+          <td>适合 hard guard 和第一版实现。</td>
+        </tr>
+        <tr>
+          <td>便宜模型分类</td>
+          <td>判断 prompt 是否真的属于 debug / planning / boundary / operational。</td>
+          <td>能理解语义，减少“词命中但任务不相关”的脏 context。</td>
+          <td>有延迟、成本、不可完全复现；分类错了仍会污染上下文或漏掉提醒。</td>
+          <td>适合 advisory routing，不适合单独做安全硬门。</td>
+        </tr>
+        <tr>
+          <td>Hybrid</td>
+          <td>规则先召回候选，模型只在候选多或不确定时裁剪。</td>
+          <td>保留可审计性，同时降低误注入；可以记录分类结果方便回放。</td>
+          <td>实现复杂度更高，需要 timeout、fallback、日志和测试样本。</td>
+          <td><strong>推荐。</strong>先给 capsule routing 用，不碰 command guard。</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="mono">recommended_classifier_flow(prompt):
+  candidates = regex_rules(prompt)
+  if no candidates:
+    return []
+
+  if candidates are high-confidence hard safety:
+    return candidates
+
+  model_result = cheap_model_classify(
+    prompt,
+    allowed_labels=["debug", "ui", "planning", "operational", "boundary", "security"],
+    max_labels=2,
+    require_reason=true
+  )
+
+  selected = intersection_or_explained_override(candidates, model_result.labels)
+  log(prompt_hash, candidates, selected, model_result.reason)
+  return selected</div>
+  </section>
+
+  <section id="daily">
+    <h2>9. 日常场景</h2>
+    <div class="card">
+      <div class="scenario">
+        <div><span class="tag blue">普通代码改动</span></div>
+        <div>PostTool 主要看临时残留；Stop 会看有没有验证证据。</div>
+        <div class="muted">重点看验证输出</div>
+      </div>
+      <div class="scenario">
+        <div><span class="tag red">危险命令</span></div>
+        <div>执行 <code>git push</code>、<code>kubectl apply</code>、远端写操作、DB 写等常见副作用命令会收到 command guard warn；<code>git push --force</code>、<code>git clean -fdx</code>、<code>terraform destroy</code>、<code>kubectl delete</code>、<code>DROP TABLE</code> 等高破坏命令会被 hard deny；只读排障命令会放行。</div>
+        <div class="muted">副作用命令先确认 scope / rollback / validation；高破坏命令换路径或明确授权</div>
+      </div>
+      <div class="scenario">
+        <div><span class="tag orange">封装/接口/指标</span></div>
+        <div>prompt 会触发 boundary capsule；写前可能提醒列 callers、contract cases、metric route；写后 scanner 会看 rejection/default/schema/metric 等信号。</div>
+        <div class="muted">列 Boundary decisions</div>
+      </div>
+      <div class="scenario">
+        <div><span class="tag purple">长任务/数据任务</span></div>
+        <div>涉及 migration、sync、backfill、batch、dry-run、apply 等，operational scanner 会检查可观测性、可恢复性、dry-run 证据和安全确认。</div>
+        <div class="muted">按 operational contract 做</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>10. 安装与检查</h2>
+    <div class="callout good">
+      <strong>当前安装器：</strong><code>scripts/install_hooks.py</code> 已支持 Droid、Claude Code 和 Codex 的 project-local 配置。<code>--print</code> 只预览，<code>--check</code> 比对当前配置，<code>--apply</code> 必须显式加 <code>--yes</code> 才写文件。
+    </div>
+    <table>
+      <thead>
+        <tr><th>目标</th><th>写入文件</th><th>命令</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Droid</td>
+          <td><code>.factory/settings.json</code></td>
+          <td><code>python3 scripts/install_hooks.py --target droid --check</code></td>
+          <td>使用 Factory/Droid 工具名：<code>ApplyPatch|Create|Edit</code> 和 <code>Execute</code>。</td>
+        </tr>
+        <tr>
+          <td>Claude Code / CC</td>
+          <td><code>.claude/settings.json</code></td>
+          <td><code>python3 scripts/install_hooks.py --target claude --print</code></td>
+          <td>使用 Claude 工具名：<code>Edit|Write|MultiEdit</code> 和 <code>Bash</code>；保留非本仓库管理的 hooks。</td>
+        </tr>
+        <tr>
+          <td>Codex</td>
+          <td><code>.codex/config.toml</code></td>
+          <td><code>python3 scripts/install_hooks.py --target codex --print</code></td>
+          <td>写入 Codex TOML nested hook 形态：<code>[[hooks.Event]]</code> + <code>[[hooks.Event.hooks]]</code>，并启用 <code>[features].hooks = true</code>。</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="mono"># dry-run preview
+python3 scripts/install_hooks.py --target claude --print
+python3 scripts/install_hooks.py --target codex --print
+
+# write project-local config
+python3 scripts/install_hooks.py --target claude --apply --yes
+python3 scripts/install_hooks.py --target codex --apply --yes</div>
+  </section>
+
+  <section id="limits">
+    <h2>11. 限制</h2>
+    <table>
+      <thead>
+        <tr><th>限制</th><th>影响</th><th>日常处理方式</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>关键词和 regex 驱动</td>
+          <td>会有误报和漏报，尤其是 boundary 与 operational 类规则。</td>
+          <td>把 finding 当 review cue，不要当业务正确性证明。</td>
+        </tr>
+        <tr>
+          <td>Stop 当前是 advisory</td>
+          <td>它能提醒，但不是默认 hard gate。</td>
+          <td>如果你想强制闭环，下一步要改成 <code>decision:block</code>。</td>
+        </tr>
+        <tr>
+          <td>PostTool scanner 会进上下文</td>
+          <td>误报会占 token 和注意力。</td>
+          <td>发现噪音后优先收窄规则或加排除。</td>
+        </tr>
+        <tr>
+          <td>Scanner 看 diff，不懂完整业务语义</td>
+          <td>能发现风险形态，不能证明需求验收通过。</td>
+          <td>最终仍要跑测试、验证命令，必要时做人工可观察验收。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted"><strong>备注：</strong>默认不安装 <code>SessionStart</code> / <code>PreCompact</code> 自定义 hook；固定纪律放在 <code>agents/AGENTS.md</code>，<code>scripts/hooks/context_state.py</code> 只保留作 legacy/manual 工具。</p>
+  </section>
+
+  <section id="sources">
+    <h2>12. 文件索引</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3>配置与实现</h3>
+        <ul class="source-list">
+          <li><code>.factory/settings.json</code></li>
+          <li><code>scripts/hooks/context_capsule.py</code></li>
+          <li><code>scripts/hooks/context_state.py</code></li>
+          <li><code>scripts/hooks/command_guard.py</code></li>
+          <li><code>scripts/hooks/boundary_gate.py</code></li>
+          <li><code>scripts/hooks/stop_check.py</code></li>
+          <li><code>.factory/hooks/context_capsule.py</code> compatibility wrapper</li>
+          <li><code>scripts/hook_*.py</code> compatibility wrappers</li>
+          <li><code>scripts/install_hooks.py</code></li>
+          <li><code>scripts/scan_operational_task_contract.py</code></li>
+          <li><code>scripts/scan_diff_residue.py</code></li>
+          <li><code>scripts/scan_boundary_decisions.py</code></li>
+          <li><code>agents/context-capsules/*.md</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>测试覆盖</h3>
+        <ul class="source-list">
+          <li><code>scripts/tests/test_context_capsule.py</code></li>
+          <li><code>scripts/tests/test_hook_context_state.py</code></li>
+          <li><code>scripts/tests/test_hook_command_guard.py</code></li>
+          <li><code>scripts/tests/test_hook_boundary_gate.py</code></li>
+          <li><code>scripts/tests/test_hook_stop_check.py</code></li>
+          <li><code>scripts/tests/test_install_hooks.py</code></li>
+          <li><code>scripts/tests/test_scan_boundary_decisions.py</code></li>
+          <li><code>scripts/tests/test_operational_task_contract.py</code></li>
+          <li><code>scripts/tests/test_scan_diff_residue.py</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

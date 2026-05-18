@@ -64,17 +64,18 @@ argument-hint: <技术问题|方案对比|可行性评估>
 
 默认输出 Markdown，并在 Markdown 中直接给出推荐方案、理由、风险与参考；这份 Markdown 是调研结论的 SSOT。
 
-当调研需要被非实现者阅读，或内容包含复杂方案矩阵、架构图、代码片段注释、PR explainer、领导层报告时，追加 HTML companion artifact。HTML companion 是同步交付物，不是事后建议。命中这些条件时，不要只输出 Markdown。若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后再实际生成 `.html` 文件。HTML 负责视觉化、浏览体验、标注和交互，不承载唯一结论。
+当调研需要被非实现者阅读，或内容包含复杂方案矩阵、架构图、代码片段注释、PR explainer、领导层报告时，追加 HTML companion artifact。HTML companion 是同步交付物，不是事后建议。命中这些条件时，不要只输出 Markdown。若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后通过 `/readable-html-artifact` 生成 `.html` 文件。HTML 负责视觉化、浏览体验、标注和交互，不承载唯一结论。
 
 HTML companion 硬约束：
 
 - 引用对应 Markdown source。
 - 保留 Markdown 中的推荐结论，不另起一套相互竞争的结论。
 - 在调研结论变化时，以 Markdown 为准先更新 source，再刷新 HTML。
+- HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 - 结构化为结论摘要、方案矩阵、证据地图、风险 / 代价区、推荐路径、开放问题，不把 Markdown 原文整段搬进页面。
 - 复杂调研优先图表化：方案对比用矩阵，权衡用 scorecard，时间演进用 timeline，依赖关系用 flow / graph，风险用 heatmap，证据强弱用表格或卡片；图表数量以降低理解成本为准，不为凑数量堆图。
 - 批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。
-- 最终回复必须同步给出 Markdown 结论和 HTML 文件路径；不要只说"可以生成"。
+- 最终回复必须同步给出 Markdown source、HTML 文件路径和 renderer 验证摘要；不要返回完整 HTML，也不要只说"可以生成"。
 
 参考：
 - `refs/trq212/unreasonable-effectiveness-of-html.md`

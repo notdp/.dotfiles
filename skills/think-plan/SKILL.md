@@ -108,18 +108,18 @@ UI / 前端视觉任务必须额外锁定：
 
 Markdown spec 是审批与实现的 SSOT；在 Droid spec mode 中，`ExitSpecMode` 提交的 Markdown plan 仍是用户批准入口。HTML companion 是同步交付物，不是事后建议。
 
-仅在以下场景追加 HTML companion artifact；命中任一条件时，不要只输出 Markdown spec。若当前处于禁止写文件的审批/spec mode，先在 plan 中声明批准后生成 HTML；用户批准后再实际生成 `.html` 文件：
+仅在以下场景追加 HTML companion artifact；命中任一条件时，不要只输出 Markdown spec。若当前处于禁止写文件的审批/spec mode，先在 plan 中声明批准后生成 HTML；用户批准后通过 `/readable-html-artifact` 实际生成 `.html` 文件：
 
 - 多方向 / 多组件 spec 太长，用户需要先看地图再看细节。
 - 需要 mockup、data flow、状态图、关键代码片段注释或 diff explainer。
 - 读者包含跨职能团队、评审者或领导层，需要浏览器可读版本。
 - 需要交互式比较方案、调参、复制 prompt / JSON / Markdown。
 
-HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。
+HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 
 HTML companion 必须结构化为 TL;DR、范围边界、系统 / 文件地图、阶段计划、风险与回滚、验证门、待决问题。复杂 spec 优先图表化：组件关系用架构图，数据流用 flow，状态变化用 state diagram，阶段推进用 timeline，取舍用对比矩阵，风险用 heatmap；图表数量以降低理解成本为准，不为凑数量堆图。
 
-批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。最终回复必须同步给出 Markdown spec 结论和 HTML 文件路径；不要只说"可以生成"。
+批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。最终回复必须同步给出 Markdown source、HTML 文件路径和 renderer 验证摘要；不要返回完整 HTML，也不要只说"可以生成"。
 
 参考：
 - `refs/trq212/unreasonable-effectiveness-of-html.md`
