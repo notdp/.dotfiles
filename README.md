@@ -33,9 +33,6 @@ npx -y github:notdp/.dotfiles fix      # merge standalone dirs into dotfiles
 Symlinks a single source directory to every agent's config path:
 
 ```
-~/.claude/skills     → ~/.dotfiles/skills
-~/.codex/skills      → ~/.dotfiles/skills
-~/.factory/skills    → ~/.dotfiles/skills
 ~/.claude/commands   → ~/.dotfiles/commands
 ~/.codex/prompts     → ~/.dotfiles/commands
 ~/.factory/commands  → ~/.dotfiles/commands
@@ -45,6 +42,44 @@ Symlinks a single source directory to every agent's config path:
 ```
 
 Edit once, apply everywhere.
+
+### Skills
+
+Skills are managed by the standalone [`skills`](https://www.npmjs.com/package/skills) CLI, not this installer. It pulls skill packages from GitHub into a universal pool and symlinks them into each agent:
+
+```bash
+npx skills add <github-repo> -g --all   # install a skill package globally to every agent
+npx skills ls -g                         # list global skills
+npx skills update -g                     # refresh global skills to upstream HEAD
+```
+
+Layout:
+
+```
+~/.agents/skills/<name>/         ← skill content (one dir per skill, fetched from upstream)
+~/.claude/skills/<name>          → ~/.agents/skills/<name>
+~/.codex/skills/<name>           → ~/.agents/skills/<name>
+~/.factory/skills/<name>         → ~/.agents/skills/<name>
+~/.dotfiles/skills/.skill-lock.json  ← portable lock file, committed to track versions
+```
+
+## Terminal dotfiles (stow)
+
+Plain single-target dotfiles (tmux, ghostty, ...) are managed with [GNU stow](https://www.gnu.org/software/stow/), kept separate from the agent fanout above.
+
+```bash
+brew install stow            # one-time
+cd ~/.dotfiles && stow tmux ghostty
+```
+
+Each package mirrors home:
+
+```
+~/.dotfiles/tmux/.tmux.conf                   → ~/.tmux.conf
+~/.dotfiles/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
+```
+
+Edit the file under `~/.dotfiles/...` (the home paths are symlinks pointing here), commit, done. `stow -D <pkg>` removes the symlinks.
 
 ## Supported Agents
 

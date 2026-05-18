@@ -1,0 +1,93 @@
+# Font
+font-family = Monaspace Neon
+font-family-bold = Monaspace Neon
+font-family-italic = Monaspace Neon
+font-family-bold-italic = Monaspace Neon
+#font-family = "Hiragino Sans GB"
+font-size = 12
+
+# Window
+window-width = 160
+window-height = 50
+window-decoration = true
+window-save-state = always
+macos-titlebar-style = transparent
+
+# Scrollback
+scrollback-limit = 1000
+
+# Theme — light (white bg, black fg, standard ANSI)
+background = ffffff
+foreground = 000000
+cursor-color = 000000
+cursor-text = ffffff
+selection-background = b4d5ff
+selection-foreground = 000000
+
+# Standard ANSI colors
+palette = 0=#000000
+palette = 1=#bb0000
+palette = 2=#00bb00
+palette = 3=#bbbb00
+palette = 4=#0000bb
+palette = 5=#bb00bb
+palette = 6=#00bbbb
+palette = 7=#bbbbbb
+palette = 8=#555555
+palette = 9=#ff5555
+palette = 10=#55ff55
+palette = 11=#ffff55
+palette = 12=#5555ff
+palette = 13=#ff55ff
+palette = 14=#55ffff
+palette = 15=#ffffff
+
+# Background image
+background-image = /Users/notdp/Pictures/千棘/644962.png
+background-image-fit = cover
+background-image-opacity = 0.15
+
+# Bell
+bell-features = attention,title
+
+# macOS specific
+macos-option-as-alt = false
+
+# Terminal
+term = xterm-256color
+
+# Mouse
+mouse-hide-while-typing = true
+
+# Map Cmd keys to tmux via Alt-style root bindings
+keybind = cmd+t=text:\x1bt
+keybind = cmd+physical:one=text:\x1b1
+keybind = cmd+physical:two=text:\x1b2
+keybind = cmd+physical:three=text:\x1b3
+keybind = cmd+physical:four=text:\x1b4
+keybind = cmd+physical:five=text:\x1b5
+keybind = cmd+physical:six=text:\x1b6
+keybind = cmd+physical:seven=text:\x1b7
+keybind = cmd+physical:eight=text:\x1b8
+keybind = cmd+physical:nine=text:\x1b9
+keybind = cmd+physical:zero=text:\x1b0
+keybind = cmd+d=text:\x02%
+keybind = cmd+shift+d=text:\x02\"
+keybind = cmd+shift+f=text:\x1bf
+keybind = cmd+shift+c=text:\x1bc
+keybind = cmd+w=text:\x1bw
+keybind = cmd+left=text:\x1b[1;3D
+keybind = cmd+right=text:\x1b[1;3C
+keybind = cmd+shift+left=text:\x1b[1;4D
+keybind = cmd+shift+right=text:\x1b[1;4C
+
+# Zoom current pane (like iTerm2 Cmd+Shift+Enter)
+keybind = cmd+shift+enter=text:\x02z
+keybind = cmd+r=text:\x1br
+
+# Shift+Enter sends newline (fix for droid/claude CLI)
+keybind = shift+enter=text:\n
+
+# Misc
+copy-on-select = clipboard
+confirm-close-surface = false

@@ -33,9 +33,6 @@ npx -y github:notdp/.dotfiles fix      # 合并独立目录到 dotfiles
 将单一源目录软链到每个 agent 的配置路径：
 
 ```
-~/.claude/skills     → ~/.dotfiles/skills
-~/.codex/skills      → ~/.dotfiles/skills
-~/.factory/skills    → ~/.dotfiles/skills
 ~/.claude/commands   → ~/.dotfiles/commands
 ~/.codex/prompts     → ~/.dotfiles/commands
 ~/.factory/commands  → ~/.dotfiles/commands
@@ -45,6 +42,44 @@ npx -y github:notdp/.dotfiles fix      # 合并独立目录到 dotfiles
 ```
 
 改一处，全生效。
+
+### Skills
+
+Skills 由独立的 [`skills`](https://www.npmjs.com/package/skills) CLI 管理，不走本仓库的 installer。它从 GitHub 拉取 skill 包到统一池子，再软链到每个 agent：
+
+```bash
+npx skills add <github-repo> -g --all   # 全局安装 skill 包到所有 agent
+npx skills ls -g                         # 查看已装的全局 skills
+npx skills update -g                     # 把全局 skills 更新到 upstream HEAD
+```
+
+布局：
+
+```
+~/.agents/skills/<name>/         ← skill 内容（每个 skill 一个目录，从上游拉取）
+~/.claude/skills/<name>          → ~/.agents/skills/<name>
+~/.codex/skills/<name>           → ~/.agents/skills/<name>
+~/.factory/skills/<name>         → ~/.agents/skills/<name>
+~/.dotfiles/skills/.skill-lock.json  ← 可移植的锁文件，已 commit 用来追踪版本
+```
+
+## Terminal dotfiles (stow)
+
+单目标 dotfile（tmux、ghostty 等）用 [GNU stow](https://www.gnu.org/software/stow/) 管理，与上面的 agent fanout 分开：
+
+```bash
+brew install stow            # 一次性
+cd ~/.dotfiles && stow tmux ghostty
+```
+
+每个 package 镜像 home：
+
+```
+~/.dotfiles/tmux/.tmux.conf                   → ~/.tmux.conf
+~/.dotfiles/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
+```
+
+编辑 `~/.dotfiles/...` 下的源文件（home 路径是 symlink 指过来）, commit, 完事。`stow -D <pkg>` 拆 symlink。
 
 ## 支持的 Agent
 
