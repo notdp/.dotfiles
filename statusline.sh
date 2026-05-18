@@ -7,7 +7,7 @@ SHORT_SID="${SID:0:8}"
 IS_CC=$(echo "$input" | jq -e '.context_window' >/dev/null 2>&1 && echo 1 || echo 0)
 
 SHORT_CWD="${CWD/#$HOME/~}"
-COLS=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
+COLS=$(stty size 2>/dev/null </dev/tty | awk '{print $2}')
 [ -z "$COLS" ] && COLS=120
 
 SEP='\033[0m · '
@@ -118,11 +118,17 @@ if [ -n "$USAGE_DATA" ]; then
       RENEW=" ${DAYS_LEFT}d"
     fi
     BILLING_URL="https://app.factory.ai/settings/billing"
-    USAGE_STR=" · ${OSC_START}${BILLING_URL}${OSC_END}\033[38;5;243m${SHORT_PLAN}\033[0m \033[${USAGE_CLR}m${USED_M}/${TOTAL_M}M\033[0m\033[38;5;243m${RENEW}\033[0m${OSC_START}${OSC_END}"
+    USAGE_BODY="${OSC_START}${BILLING_URL}${OSC_END}\033[38;5;243m${SHORT_PLAN}\033[0m \033[${USAGE_CLR}m${USED_M}/${TOTAL_M}M\033[0m\033[38;5;243m${RENEW}\033[0m${OSC_START}${OSC_END}"
+    USAGE_STR=" · ${USAGE_BODY}"
   fi
 fi
 
 if [ "$IS_CC" = "0" ]; then
+  MAX_CWD_LEN=$((COLS / 3))
+  [ "$MAX_CWD_LEN" -lt 24 ] && MAX_CWD_LEN=24
+  if [ "${#SHORT_CWD}" -gt "$MAX_CWD_LEN" ]; then
+    SHORT_CWD="…/$(basename "$CWD")"
+  fi
   right_col=$((COLS - ${#SHORT_CWD}))
   DIR_LINK="\033[${right_col}G${OSC_START}vscode://file${CWD}${OSC_END}\033[1;38;5;66m${SHORT_CWD}\033[0m${OSC_START}${OSC_END}"
 else
