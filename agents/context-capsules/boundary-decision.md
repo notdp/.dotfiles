@@ -14,6 +14,19 @@ Before acting, surface facts or ask the user when you might change:
 8. production writes, database changes, deployments, or external side effects
 9. hooks, prompts, capsules, CLAUDE.md, AGENTS.md, or anything entering model context
 
+Before editing, use this facts block so hooks can detect that the boundary has been considered:
+
+```markdown
+Boundary facts:
+- Risk types: <schema-contract|data-source|shared-path|observability-routing|context-surface|limit-default-fallback|operational-side-effect>
+- Callers: <caller list or not applicable>
+- Contract cases: <accept/reject/schema cases or not applicable>
+- Data source: <source or not applicable>
+- Metric route: <name/labels/route or not applicable>
+- Schema contract: <request/response/envelope or not applicable>
+- User approval: <quote or not requested>
+```
+
 Use this manifest when a boundary changed or was considered:
 
 ```markdown

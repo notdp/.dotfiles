@@ -129,6 +129,34 @@
 - 假设检查：问题通常有隐含前提，确认前提是否成立再动手
 - 事实优先：区分事实（代码行为、日志输出、测试结果）和推断（经验、直觉），决策基于前者
 
+边界决策：
+- 不要凭“工程默认”自决边界；先列事实，必要时问用户或写 contract cases
+- 需要显式说明的边界包括：spec 外 validation/rejection、默认值/上限/fallback、skip/truncate/silent catch、shared caller 路径、API schema/envelope、data source/sampling、metric route/label、prod/DB/成本/并发副作用、会进入 model context 的 hook/prompt/capsule
+- 写文件前如涉及高风险边界，先给出可被 hook 识别的事实块：
+
+```markdown
+Boundary facts:
+- Risk types: <schema-contract|data-source|shared-path|observability-routing|context-surface|limit-default-fallback|operational-side-effect>
+- Callers: <caller list or not applicable>
+- Contract cases: <accept/reject/schema cases or not applicable>
+- Data source: <source or not applicable>
+- Metric route: <name/labels/route or not applicable>
+- Schema contract: <request/response/envelope or not applicable>
+- User approval: <quote or not requested>
+```
+
+- 若做了或考虑过未在 spec 内的边界变化，final/commit/PR summary 列出：
+
+```markdown
+Boundary decisions:
+- <type>: <description> (file:line, evidence: <why allowed or user-approved>)
+```
+
+上下文预算软提醒：
+- 不按固定时间刷屏提醒 token；只有工具提供可信 window/token 数字时才报告具体数值
+- 没有可信 token 信号时，不伪造精确数字；必要时只说“上下文可能变长/分散”
+- 当上下文明显变长、接近 compact、或关键信息分散时，简短自检是否需要 checkpoint 当前目标、关键约束、已改文件和验证证据；不需要就继续执行
+
 排错纪律（遇到报错/异常时的默认行为，禁止"猜→改→看行不行"）：
 1. 观察：读代码、读完整错误信息和日志，建立当前状态的完整图景
 2. 假设：列出可能的原因，按可能性排序
