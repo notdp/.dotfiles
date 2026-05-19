@@ -4,7 +4,7 @@ MODEL=$(echo "$input" | jq -r '.model.display_name')
 CWD=$(echo "$input" | jq -r '.cwd')
 IS_CC=$(echo "$input" | jq -e '.context_window' >/dev/null 2>&1 && echo 1 || echo 0)
 
-SHORT_CWD="${CWD/#$HOME/~}"
+if [[ "$CWD" == "$HOME"/* || "$CWD" == "$HOME" ]]; then SHORT_CWD="~${CWD#$HOME}"; else SHORT_CWD="$CWD"; fi
 COLS=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
 [ -z "$COLS" ] && COLS=120
 
