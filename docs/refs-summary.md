@@ -17,7 +17,7 @@
 - **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
 - **AWS / 云 Agent 平台**：围绕 AWS Agent 插件、Bedrock AgentCore、云部署、身份、记忆、网关、观测、评估与 IaC 样例。 代表项目：`awslabs/agent-plugins`、`awslabs/agentcore-samples`
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`addyosmani/agent-skills`、`automazeio/ccpm`、`garrytan/gstack`、`gsd-build/get-shit-done`、`obra/superpowers`
-- **最佳实践 / 知识库**：围绕 Claude Code 概念地图、目录约定、功能导航与实践经验整理。 代表项目：`shanraisshan/claude-code-best-practice`
+- **最佳实践 / 知识库**：围绕 Agent / Claude Code 概念地图、LLM 应用工程方法论、目录约定、功能导航与实践经验整理。 代表项目：`humanlayer/12-factor-agents`、`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
 - **MCP / 工具链 / 安装分发**：围绕 MCP、CLI、安装器、技能包管理、多 Agent 兼容与基础设施。 代表项目：`vercel-labs/skills`
 - **行为协议 / 提示工程**：围绕提示协议、行为约束、激励/约束机制、触发词和 hook 协同。 代表项目：`HughYau/qiushi-skill`、`multica-ai/andrej-karpathy-skills`、`tanweai/pua`
@@ -43,6 +43,7 @@
 | [`google-labs-code/stitch-skills`](./refs-details/google-labs-code/stitch-skills.md) | 前端 UI / 设计系统 | 围绕 Stitch MCP 的 Agent Skills 库，用于 UI 设计生成、设计系统提炼、React 转换和演示视频生成。 |
 | [`gsd-build/get-shit-done`](./refs-details/gsd-build/get-shit-done.md) | 研发流程 / 项目管理 | 跨多种 AI 运行时的 spec-driven development / context engineering 系统，覆盖立项、规划、执行、验证、交付全流程。 |
 | [`HughYau/qiushi-skill`](./refs-details/HughYau/qiushi-skill.md) | 行为协议 / 提示工程 | 从毛泽东思想中提炼"实事求是"总原则和九大方法论工具，系统性武装 AI Agent 的分析与决策能力，附带工作流编排和多平台插件。 |
+| [`humanlayer/12-factor-agents`](./refs-details/humanlayer/12-factor-agents.md) | 最佳实践 / 知识库 | 面向生产级 LLM 应用的 12-factor agent 工程方法论，强调 prompt/context/tool/state/control flow 的显式所有权。 |
 | [`K-Dense-AI/scientific-agent-skills`](./refs-details/K-Dense-AI/scientific-agent-skills.md) | 科研 / 数据分析 / 领域技能 | 大型科学研究 skill 集合，把科研数据库、科学 Python 包、实验平台、医学/临床工作流、科学写作和可视化整理成多 Agent 可读的能力包。 |
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
@@ -133,6 +134,7 @@
 - `awslabs/agentcore-samples` 是 Bedrock AgentCore 能力地图和样例索引，适合参考 Runtime/Gateway/Identity/Memory/Observability/Evaluation/Policy/IaC 分类；实际运行会创建 AWS 资源并可能产生费用。
 - `msitarzewski/agency-agents` 是大规模 Markdown agent 角色库，适合借鉴 agent frontmatter、转换脚本、NEXUS handoff 和 quality-gate 模板，不适合作为直接运行时依赖。
 - `multica-ai/andrej-karpathy-skills` 是轻量行为指南，适合把“每条改动可追溯到用户请求”“不为一次性代码建抽象”“成功标准先行”下沉到 `think-plan`、`dev-simplify`、`guard-close`、`guard-verify`；不适合整包追加到 `agents/AGENTS.md` 或新增 always-on skill。
+- `humanlayer/12-factor-agents` 是生产级 LLM 应用工程方法论，最值得吸收的是“小而聚焦 agent + 确定性外层控制流”、prompt/context/tool schema 一等资产化、错误压缩进上下文、人类审批作为结构化 tool call、以及高概率上下文预取；不适合直接引入 HumanLayer/A2H 运行时、TypeScript/BAML 模板或外部 webhook/channel 依赖。
 - `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行，验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
 - `travisvn/awesome-claude-Skills`、`libukai/awesome-agent-Skills` 更偏导航/市场/索引；适合找来源，不适合直接当能力实现。
 - `ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser` 是浏览器自动化/前端调试类的两条重要主线，前者偏 DevTools MCP，后者偏 agent-browser CLI/runtime。

@@ -118,3 +118,6 @@
 [submodule "refs/multica-ai/andrej-karpathy-skills"]
 	path = refs/multica-ai/andrej-karpathy-skills
 	url = https://github.com/multica-ai/andrej-karpathy-skills.git
+[submodule "refs/humanlayer/12-factor-agents"]
+	path = refs/humanlayer/12-factor-agents
+	url = https://github.com/humanlayer/12-factor-agents.git
