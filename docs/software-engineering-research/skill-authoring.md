@@ -46,6 +46,20 @@ Command 可以引用多个 skill；本仓库不采用“禁止跨插件引用”
 
 原则：可以规定流程纪律和验收标准，不要微操具体操作路径。
 
+### Prompt pressure 与诚实失败路径
+
+参考：`docs/software-engineering-research/prompt-pressure-risk.md`。
+
+工作流型 skill 可以有严格门禁，但每个强约束都必须配一个诚实失败路径，避免把 agent 压成“必须成功”的单一路径。
+
+写作检查：
+
+- 写 `必须`、`不允许`、`直到通过`、`cannot`、`must` 时，是否同时定义了 `blocked`、`partial`、`verification: none`、AskUser 澄清或结构化退出？
+- 如果任务目标、测试、权限或输入矛盾，skill 是否允许报告矛盾和证据，而不是绕过约束？
+- 如果提到 forbidden behavior，是否在同段给出安全替代动作？
+- 验证证据是否尽量来自工具输出、文件、截图、日志、git diff 或结构化 artifact，而不是 assistant 自述？
+- 用户-only 信息、授权缺口、缺少凭据、外部副作用和不可逆动作是否被视为合法 stop / escalate 条件？
+
 ---
 
 ## 1. frontmatter 触发语义（硬约束）
