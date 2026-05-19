@@ -97,7 +97,7 @@
 - `dev-*`：调试、TDD、重构、实现后清理（simplify）
 - `guard-*`：review、secure、threat-model、verify、ship、close、check（交付前总入口）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
 - `readable-*`：可读性重写、最终答案/过程播报体裁、指标表达
-- `assist-*`：经验沉淀；`fe-*` / `web-*` / `agent-*` / `hive` / `react-doctor` 处理专项能力
+- `assist-*`：经验沉淀（`assist-learn` / `assist-retrospect`）、长 MD 文档评审与决策点批量裁决（`assist-review-doc`）；`fe-*` / `web-*` / `agent-*` / `hive` / `react-doctor` 处理专项能力
 
 常见工作流：
 
@@ -110,6 +110,7 @@
 - 外链调研（决策导向）：`/web-read` → `/think-research` → `/think-plan`
 - 主题综述（开放调研）：`/web-read` → `/think-survey` →（如需决策）`/think-research`
 - 资料消化（多源汇总）：`/think-survey` →（如需沉淀规则）`/assist-learn`
+- 长 MD 文档评审 / agent 累积 ≥5 决策点需批量裁决：`/assist-review-doc`（生成可交互 HTML，浏览器写评论，subagent 隔离消费）
 - 表达太绕 / 整理最终答案 / PR 描述：`/readable-final-answer`；指标展示：`/readable-metrics`
 
 ### 跨 agent 兼容
@@ -126,6 +127,7 @@
 
 理解问题纪律（动手前的默认行为）：
 - XY 问题警觉：先确认要解决的是真正的问题，而非某个尝试性方案的卡点
+- 目的优先：用户给出的操作词通常是手段而非目标；执行前先还原真实目的、验收标准和不可牺牲约束，尤其是费用、生产、数据、权限或不可逆操作
 - 假设检查：问题通常有隐含前提，确认前提是否成立再动手
 - 事实优先：区分事实（代码行为、日志输出、测试结果）和推断（经验、直觉），决策基于前者
 

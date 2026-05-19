@@ -217,6 +217,12 @@
       "role": "canonical"
     },
     {
+      "name": "assist-review-doc",
+      "path": "skills/assist-review-doc",
+      "domain": "assist",
+      "role": "canonical"
+    },
+    {
       "name": "think-ask-context",
       "path": "skills/think-ask-context",
       "domain": "think",
