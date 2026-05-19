@@ -42,6 +42,8 @@ class HookContextStateTests(unittest.TestCase):
             transcript = repo / "session.jsonl"
             transcript.write_text(
                 json.dumps({"role": "user", "content": "Fix the flaky sync bug"}) + "\n"
+                + json.dumps({"role": "assistant", "content": "Boundary decisions:\n- context-surface: compact recovery keeps state small"}) + "\n"
+                + json.dumps({"role": "assistant", "content": "Blocked: waiting for failing fixture"}) + "\n"
                 + json.dumps({"role": "assistant", "content": "Ran `python3 scripts/run-verify.sh` pass"}) + "\n",
                 encoding="utf-8",
             )
@@ -57,7 +59,47 @@ class HookContextStateTests(unittest.TestCase):
             self.assertEqual(state["last_user_prompt"], "Fix the flaky sync bug")
             self.assertIn("src.py", state["changed_files"])
             self.assertIn("run-verify.sh", state["recent_validation"])
+            self.assertIn("Fix the flaky sync bug", state["goal"])
+            self.assertIn("waiting for failing fixture", state["blockers"])
+            self.assertIn("context-surface", state["boundary_decisions"])
+            self.assertIn("not inferred", state["next_action"])
             self.assertNotIn("recent_todos", state)
+
+    def test_precompact_captures_chinese_blocker_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"role": "user", "content": "继续修复"}) + "\n"
+                + json.dumps({"role": "assistant", "content": "阻塞：等待用户确认生产资源范围"}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(repo, {"transcript_path": str(transcript)}, "--event", "pre-compact")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state_file = next((repo / ".agent-state" / "hooks" / "compact-state").glob("*.json"))
+            state = json.loads(state_file.read_text())
+            self.assertIn("等待用户确认生产资源范围", state["blockers"])
+
+    def test_precompact_does_not_treat_embedded_blocked_text_as_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"role": "user", "content": "review 当前 diff"}) + "\n"
+                + json.dumps({"role": "assistant", "content": "Example text: Blocked: this is only a quoted review sample"}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(repo, {"transcript_path": str(transcript)}, "--event", "pre-compact")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state_file = next((repo / ".agent-state" / "hooks" / "compact-state").glob("*.json"))
+            state = json.loads(state_file.read_text())
+            self.assertEqual(state["blockers"], "")
 
     def test_precompact_ignores_todowrite_lines_as_recovery_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,8 +144,10 @@ class HookContextStateTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             context = payload["hookSpecificOutput"]["additionalContext"]
             self.assertIn("Compact Recovery Capsule", context)
+            self.assertIn("TaskCheckpoint", context)
             self.assertIn("Implement operational hook", context)
             self.assertIn("scripts/hook.py", context)
+            self.assertIn("Next action", context)
             self.assertNotIn("Recent todos", context)
             self.assertFalse((state_dir / "agent-a.json").exists())
 

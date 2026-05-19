@@ -14,6 +14,8 @@ from typing import Any
 
 
 VALIDATION_RE = re.compile(r"(run-verify\.sh|pytest|npm test|tsc|verify_skills\.py|unittest|pass|failed|ok)", re.I)
+BOUNDARY_DECISION_RE = re.compile(r"Boundary decisions:\s*(.*?)(?:\n\n|\Z)", re.I | re.S)
+BLOCKER_RE = re.compile(r"^\s*(?:\b(?:Blocked|Blocker)\b|阻塞)[:：]\s*(.+)", re.I | re.M)
 MAX_CONTEXT_CHARS = 2000
 
 
@@ -121,6 +123,26 @@ def recent_validation(records: list[dict]) -> str:
     return " | ".join(snippets[-3:])
 
 
+def boundary_decisions(records: list[dict]) -> str:
+    decisions: list[str] = []
+    for record in records[-120:]:
+        text = stringify(record)
+        for match in BOUNDARY_DECISION_RE.finditer(text):
+            body = re.sub(r"\s+", " ", match.group(1)).strip()
+            if body:
+                decisions.append(body[:240])
+    return " | ".join(decisions[-3:])
+
+
+def blockers(records: list[dict]) -> str:
+    found: list[str] = []
+    for record in records[-120:]:
+        text = stringify(record)
+        for match in BLOCKER_RE.finditer(text):
+            found.append(match.group(1).strip()[:240])
+    return " | ".join(found[-3:])
+
+
 def changed_files(root: Path) -> list[str]:
     result = subprocess.run(["git", "status", "--short"], cwd=root, text=True, capture_output=True, check=False)
     if result.returncode != 0:
@@ -141,9 +163,14 @@ def build_state(root: Path, hook_input: dict) -> dict:
         "state_key": state_key(hook_input),
         "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "cwd": str(root),
+        "goal": last_user_prompt(records),
+        "current_step": "not inferred",
         "last_user_prompt": last_user_prompt(records),
         "changed_files": changed_files(root),
         "recent_validation": recent_validation(records),
+        "boundary_decisions": boundary_decisions(records),
+        "blockers": blockers(records),
+        "next_action": "not inferred; re-open changed files and verify current state before continuing",
         "risks": [],
     }
 
@@ -188,9 +215,14 @@ def compact_context(state: dict) -> str:
     lines = [
         "# Compact Recovery Capsule",
         "",
-        f"- Last user goal: {state.get('last_user_prompt') or 'unknown'}",
+        "TaskCheckpoint:",
+        f"- Goal: {state.get('goal') or state.get('last_user_prompt') or 'unknown'}",
+        f"- Current step: {state.get('current_step') or 'not inferred'}",
         f"- Changed files: {', '.join(state.get('changed_files') or []) or 'none recorded'}",
         f"- Recent validation: {state.get('recent_validation') or 'none recorded'}",
+        f"- Boundary decisions: {state.get('boundary_decisions') or 'none recorded'}",
+        f"- Blockers: {state.get('blockers') or 'none recorded'}",
+        f"- Next action: {state.get('next_action') or 'not inferred; re-open changed files and verify current state before continuing'}",
     ]
     risks = state.get("risks") or []
     if risks:
