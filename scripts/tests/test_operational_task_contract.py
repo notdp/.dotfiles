@@ -45,6 +45,7 @@ class OperationalTaskContractTests(unittest.TestCase):
         self.assertIn("可观测性", result.stdout)
         self.assertIn("可恢复性", result.stdout)
         self.assertIn("dry-run 数据证据", result.stdout)
+        self.assertIn("失败集合", result.stdout)
         self.assertIn("apply 安全确认", result.stdout)
 
     def test_accepts_operational_cli_with_core_contract(self) -> None:
@@ -64,6 +65,7 @@ class OperationalTaskContractTests(unittest.TestCase):
             +    parser.add_argument("--batch-size", type=int, default=1000)
             +    parser.add_argument("--concurrency", type=int, default=16)
             +    parser.add_argument("--state-file", default=".sync-state.json")
+            +    parser.add_argument("--resume", action="store_true")
             +    parser.add_argument("--yes", action="store_true")
             +    args = parser.parse_args()
             +    semaphore = asyncio.Semaphore(args.concurrency)
@@ -85,6 +87,58 @@ class OperationalTaskContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("命中 0 条", result.stdout)
+
+    def test_reports_missing_resume_command_for_checkpointed_cli(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/scripts/user_backfill.py b/scripts/user_backfill.py
+            --- /dev/null
+            +++ b/scripts/user_backfill.py
+            @@ -0,0 +1,12 @@
+            +import argparse
+            +parser = argparse.ArgumentParser()
+            +parser.add_argument("--dry-run", action="store_true")
+            +parser.add_argument("--state-file", default=".state.json")
+            +cursor = load_checkpoint(".state.json")
+            +total = count_planned_rows(cursor)
+            +sample = preview_sample(cursor)
+            +print(f"phase=backfill current/total=0/{total} percent=0 eta=unknown")
+            +print(f"dry_run count={total} sample={sample} diff=preview invariant=ok")
+            +failed_set = retry_with_backoff(run_batches, cursor)
+            +save_checkpoint(".state.json", cursor)
+            """
+        )
+
+        result = self.run_scan(diff, "--strict")
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("resume 命令", result.stdout)
+
+    def test_resume_word_in_function_name_does_not_satisfy_resume_command(self) -> None:
+        diff = textwrap.dedent(
+            """\
+            diff --git a/scripts/user_backfill.py b/scripts/user_backfill.py
+            --- /dev/null
+            +++ b/scripts/user_backfill.py
+            @@ -0,0 +1,14 @@
+            +import argparse
+            +parser = argparse.ArgumentParser()
+            +parser.add_argument("--dry-run", action="store_true")
+            +parser.add_argument("--state-file", default=".state.json")
+            +cursor = resume_from_checkpoint(".state.json")
+            +total = count_planned_rows(cursor)
+            +sample = preview_sample(cursor)
+            +print(f"phase=backfill current/total=0/{total} percent=0 eta=unknown")
+            +print(f"dry_run count={total} sample={sample} diff=preview invariant=ok")
+            +failed_set = retry_with_backoff(run_batches, cursor)
+            +save_checkpoint(".state.json", cursor)
+            """
+        )
+
+        result = self.run_scan(diff, "--strict")
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("resume 命令", result.stdout)
 
     def test_ignores_simple_non_operational_script(self) -> None:
         diff = textwrap.dedent(

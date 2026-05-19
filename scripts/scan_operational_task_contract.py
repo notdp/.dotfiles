@@ -39,6 +39,11 @@ CONTRACT_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
         re.compile(r"(retry|retries|backoff|failed[_-]?set|dead[-_ ]?letter|partial[_-]?failure|timeout)", re.I),
         "长任务需要重试/退避、部分失败记录或可诊断的失败集合。",
     ),
+    (
+        "失败集合",
+        re.compile(r"(failed[_-]?set|failed[_-]?examples|partial[_-]?failure|dead[-_ ]?letter|failure[_-]?summary)", re.I),
+        "长任务需要输出 failed set、partial failure summary 或 failed examples，便于安全重跑和人工复核。",
+    ),
 )
 
 BOUNDED_CONCURRENCY_RE = re.compile(
@@ -49,6 +54,8 @@ APPLY_CONFIRM_RE = re.compile(r"(--yes|--confirm|confirm|confirmation|force|requ
 DRY_RUN_RE = re.compile(r"(--dry-run|dry_run|dryRun)", re.I)
 APPLY_RE = re.compile(r"(--apply|\bapply\b)", re.I)
 CONCURRENCY_RE = re.compile(r"(concurrenc|asyncio|ThreadPoolExecutor|ProcessPoolExecutor|worker)", re.I)
+CHECKPOINT_RE = re.compile(r"(checkpoint|cursor|resume|state[-_ ]?file|last[_-]?id|offset)", re.I)
+RESUME_COMMAND_RE = re.compile(r"(--resume|resume command|继续命令|恢复命令)", re.I)
 
 
 @dataclass(frozen=True)
@@ -215,6 +222,17 @@ def scan_chunks(chunks: list[FileChunk]) -> list[Finding]:
                     chunk.first_line,
                     "--apply/apply cue",
                     "`--apply` 或破坏性操作需要显式确认、preset 或 guard-gitops 升级路径。",
+                )
+            )
+
+        if CHECKPOINT_RE.search(chunk.text) and not RESUME_COMMAND_RE.search(chunk.text):
+            findings.append(
+                Finding(
+                    "resume 命令",
+                    chunk.file,
+                    chunk.first_line,
+                    "checkpoint/cursor cue without resume command",
+                    "可恢复任务需要暴露 `--resume`、resume command 或等价的可复制恢复命令。",
                 )
             )
     return findings
