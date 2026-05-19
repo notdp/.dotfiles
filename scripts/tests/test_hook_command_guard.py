@@ -55,6 +55,22 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assertIn(reason_part, payload["systemMessage"])
         self.assertNotIn("hookSpecificOutput", payload)
 
+    def assert_warned_with_approval_request(self, result: subprocess.CompletedProcess[str], reason_part: str) -> None:
+        self.assert_warned(result, reason_part)
+        message = json.loads(result.stdout)["systemMessage"]
+        for field in [
+            "ApprovalRequest:",
+            "- Action:",
+            "- Target:",
+            "- External side effect:",
+            "- Risk:",
+            "- Dry-run / read-only evidence:",
+            "- Rollback:",
+            "- Validation after apply:",
+            "- User approval required:",
+        ]:
+            self.assertIn(field, message)
+
     def test_denies_git_push_with_gitops_reason(self) -> None:
         result = self.run_guard("git push origin main")
 
@@ -98,14 +114,14 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assert_suppressed(self.run_guard("psql prod -c \"SET statement_timeout='5s'; SELECT count(*) FROM users\""))
 
     def test_warns_for_intended_side_effect_commands(self) -> None:
-        self.assert_warned(self.run_guard("ssh root@example.com 'systemctl restart app'"), "remote")
-        self.assert_warned(self.run_guard("scp local.txt host:/tmp/local.txt"), "remote")
-        self.assert_warned(self.run_guard("rsync -av ./ host:/srv/app/"), "remote")
-        self.assert_warned(self.run_guard("kubectl apply -f deploy.yaml"), "cluster")
-        self.assert_warned(self.run_guard("kubectl rollout restart deployment/app"), "cluster")
-        self.assert_warned(self.run_guard("helm upgrade app chart/"), "helm")
-        self.assert_warned(self.run_guard("terraform apply"), "terraform")
-        self.assert_warned(self.run_guard("psql prod -c \"update users set active=false where id=1\""), "database")
+        self.assert_warned_with_approval_request(self.run_guard("ssh root@example.com 'systemctl restart app'"), "remote")
+        self.assert_warned_with_approval_request(self.run_guard("scp local.txt host:/tmp/local.txt"), "remote")
+        self.assert_warned_with_approval_request(self.run_guard("rsync -av ./ host:/srv/app/"), "remote")
+        self.assert_warned_with_approval_request(self.run_guard("kubectl apply -f deploy.yaml"), "cluster")
+        self.assert_warned_with_approval_request(self.run_guard("kubectl rollout restart deployment/app"), "cluster")
+        self.assert_warned_with_approval_request(self.run_guard("helm upgrade app chart/"), "helm")
+        self.assert_warned_with_approval_request(self.run_guard("terraform apply"), "terraform")
+        self.assert_warned_with_approval_request(self.run_guard("psql prod -c \"update users set active=false where id=1\""), "database")
 
     def test_denies_catastrophic_commands(self) -> None:
         self.assert_denied(self.run_guard("git push --force origin main"), "force")
@@ -134,6 +150,39 @@ class HookCommandGuardTests(unittest.TestCase):
         result = self.run_guard("psql prod -c \"delete from users\"")
 
         self.assert_warned(result, "database")
+
+    def test_warns_keep_charging_aliyun_ecs_stop_instance_billing_risk(self) -> None:
+        result = self.run_guard("aliyun ecs StopInstance --InstanceId i-xxx --StoppedMode KeepCharging")
+
+        self.assert_warned(result, "KeepCharging")
+        self.assertIn("billing", json.loads(result.stdout)["systemMessage"])
+
+    def test_warns_stop_charging_aliyun_ecs_stop_instance_resource_risk(self) -> None:
+        result = self.run_guard("aliyun ecs StopInstance --InstanceId i-xxx --StoppedMode StopCharging")
+
+        self.assert_warned_with_approval_request(result, "StopCharging")
+        message = json.loads(result.stdout)["systemMessage"]
+        self.assertIn("rollback", message)
+        self.assertIn("validation", message)
+
+    def test_warns_aliyun_ecs_stop_instance_without_stopped_mode(self) -> None:
+        result = self.run_guard("aliyun ecs StopInstance --InstanceId i-xxx")
+
+        self.assert_warned(result, "StoppedMode")
+
+    def test_allows_read_only_aliyun_ecs_describe_instances(self) -> None:
+        result = self.run_guard("aliyun ecs DescribeInstances --InstanceIds '[\"i-xxx\"]'")
+
+        self.assert_suppressed(result)
+
+    def test_warns_for_generic_aliyun_write_command(self) -> None:
+        result = self.run_guard("aliyun rds ModifyDBInstanceSpec --DBInstanceId rm-xxx --DBInstanceClass mysql.n2.small.1")
+
+        self.assert_warned_with_approval_request(result, "aliyun CLI command can change cloud resource state")
+
+    def test_denies_destructive_aliyun_delete_or_release_commands(self) -> None:
+        self.assert_denied(self.run_guard("aliyun ecs ReleaseInstance --InstanceId i-xxx"), "aliyun destructive")
+        self.assert_denied(self.run_guard("aliyun rds DeleteDBInstance --DBInstanceId rm-xxx"), "aliyun destructive")
 
     def test_warns_for_remote_and_database_file_writes(self) -> None:
         self.assert_warned(self.run_guard("ssh host 'sed -i s/a/b/ /etc/app.conf'"), "remote")

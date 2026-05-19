@@ -10,6 +10,12 @@ import sys
 from pathlib import Path
 
 
+CRITICAL_OPERATION_ACTION_RE = r"(关掉|停掉|回收|释放|降配|不用了|降成本|停止计费|stop|shutdown|release|destroy|decommission|downsize|cut cost)"
+CRITICAL_OPERATION_RISK_RE = r"(GPU|ECS|云|实例|计费|费用|账单|生产|数据库|权限|RDS|OSS|Kafka|aliyun|阿里云|aws|k8s|delete|destroy)"
+CRITICAL_OPERATION_PROMPT_RE = re.compile(
+    rf"(?=.*{CRITICAL_OPERATION_ACTION_RE})(?=.*{CRITICAL_OPERATION_RISK_RE})",
+    re.I,
+)
 OPERATIONAL_PROMPT_RE = re.compile(
     r"(刷数据|同步|迁移|回填|修复数据|批处理|dry-?run|apply|run-until-empty|concurrenc|"
     r"backfill|migration|migrate|sync|pipeline|batch|etl|repair|reconcile)",
@@ -20,7 +26,7 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "security-gitops.md",
         re.compile(r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm)", re.I),
     ),
-    ("operational-task.md", OPERATIONAL_PROMPT_RE),
+    ("operational-task.md", re.compile(rf"(?:{OPERATIONAL_PROMPT_RE.pattern})|(?:{CRITICAL_OPERATION_PROMPT_RE.pattern})", re.I)),
     (
         "debug-task.md",
         re.compile(r"(bug|error|fail|failed|flaky|traceback|exception|报错|失败|异常|复现|incident)", re.I),

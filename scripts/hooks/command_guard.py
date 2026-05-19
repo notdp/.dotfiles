@@ -99,7 +99,25 @@ def deny(reason: str) -> dict:
 
 
 def warn(reason: str) -> dict:
-    return {"systemMessage": f"Command guard advisory: {reason}"}
+    return {"systemMessage": f"Command guard advisory: {approval_request(reason)}"}
+
+
+def approval_request(reason: str) -> str:
+    return "\n".join(
+        [
+            reason,
+            "",
+            "ApprovalRequest:",
+            "- Action: state the exact command or operation before running it",
+            "- Target: name the remote, cluster, database, file path, package, or cloud resource",
+            f"- External side effect: {reason}",
+            "- Risk: explain data loss, outage, billing, remote state, or rollback risk",
+            "- Dry-run / read-only evidence: provide status, plan, diff, or read-only check when available",
+            "- Rollback: describe the concrete rollback or recovery path",
+            "- Validation after apply: list the command or observation that proves the target state",
+            "- User approval required: quote the explicit approval before proceeding",
+        ]
+    )
 
 
 def split_tokens(command: str) -> list[str]:
@@ -262,6 +280,59 @@ def raw_command_decision(command: str) -> Decision | None:
     return None
 
 
+def option_value(args: list[str], name: str) -> str | None:
+    prefix = f"{name}="
+    for index, arg in enumerate(args):
+        if arg == name and index + 1 < len(args):
+            return args[index + 1]
+        if arg.startswith(prefix):
+            return arg.removeprefix(prefix)
+    return None
+
+
+def aliyun_ecs_stop_instance_decision(args: list[str]) -> Decision | None:
+    if len(args) < 2 or args[:2] != ["ecs", "stopinstance"]:
+        return None
+    stopped_mode = option_value(args, "--stoppedmode")
+    if stopped_mode == "keepcharging":
+        return Decision(
+            "warn",
+            "aliyun ecs StopInstance with KeepCharging can leave ECS/GPU compute billing active; confirm the cost goal, retained assets, rollback, and StoppedMode verification before proceeding.",
+        )
+    if stopped_mode == "stopcharging":
+        return Decision(
+            "warn",
+            "aliyun ecs StopInstance with StopCharging changes remote resource and billing state; confirm retained assets, rollback, immediate validation, and delayed billing verification before proceeding.",
+        )
+    return Decision(
+        "warn",
+        "aliyun ecs StopInstance requires an explicit StoppedMode decision; confirm whether the goal is KeepCharging recoverability or StopCharging billing reduction before proceeding.",
+    )
+
+
+def aliyun_command_decision(args: list[str]) -> Decision | None:
+    ecs_stop_decision = aliyun_ecs_stop_instance_decision(args)
+    if ecs_stop_decision:
+        return ecs_stop_decision
+    if len(args) < 2:
+        return Decision(
+            "warn",
+            "aliyun CLI command can change cloud resource state; confirm retained assets, rollback, billing impact, and validation before proceeding.",
+        )
+    action = args[1]
+    if action.startswith(("describe", "list", "get")) or action in {"help", "version"}:
+        return None
+    if any(word in action for word in ("delete", "release", "remove", "destroy")):
+        return Decision(
+            "deny",
+            "aliyun destructive cloud command is too risky for automatic execution.",
+        )
+    return Decision(
+        "warn",
+        "aliyun CLI command can change cloud resource state; confirm retained assets, rollback, billing impact, and validation before proceeding.",
+    )
+
+
 def env_inner_segment(segment: list[str]) -> list[str]:
     index = 1
     while index < len(segment):
@@ -323,6 +394,10 @@ def segment_decision(segment: list[str]) -> Decision | None:
         return Decision("deny", "recursive cloud object deletion is too risky for automatic execution.")
     if cmd.name == "aws" and args[:2] == ["s3"]:
         return Decision("warn", "cloud storage command can change remote state; confirm scope, rollback, and validation before proceeding.")
+    if cmd.name == "aliyun":
+        aliyun_decision = aliyun_command_decision(args)
+        if aliyun_decision:
+            return aliyun_decision
     if cmd.name == "docker" and args and args[0] in {"rm", "rmi"}:
         return Decision("warn", "container cleanup can remove local runtime state; confirm scope and rollback before proceeding.")
     if cmd.name == "docker" and args[:2] in (["volume", "rm"], ["system", "prune"]):

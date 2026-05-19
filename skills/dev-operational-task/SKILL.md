@@ -92,9 +92,30 @@ dry-run 不是 smoke test。合格 dry-run 至少输出以下证据：
 
 ## Apply Safety
 
-- `--apply`、数据库写入、远端状态变更、第三方系统写入、生产数据修复必须按 `/guard-gitops` 判断是否需要升级。
+- `--apply`、数据库写入、远端状态变更、第三方系统写入、生产数据修复必须先过本 skill 的 operational gate；只有涉及声明式 SSOT、部署产物、远程机器配置、线上漂移修复或仓库外状态需要回写时，才升级到 `/guard-gitops`。
 - apply 前必须有 dry-run evidence；apply 后必须有 post-apply verification。
 - destructive 操作需要备份/回滚路径；无法回滚时必须显式写入风险和人工确认点。
+
+## Critical / Cloud Cost Operations
+
+用户的自然语言操作词不能直接映射到 API。涉及费用、生产、数据、权限或不可逆状态时，先还原真实目的，再选择手段。
+
+| 用户词 | 可能语义 |
+|---|---|
+| 关掉 | 停机 / 停止计费 / 下线服务 / 释放资源 |
+| 回收 | 停用 / 删除 / 释放 / 归档 |
+| 不用了 | 暂停 / 降配 / 删除 / 到期不续 |
+| 降成本 | 停计费 / 降配 / 包年包月调整 / 生命周期策略 |
+| 停掉 | 停服务 / 停实例 / 停账单 / 停任务 |
+
+| Action | Trigger | Owner | Verification |
+|---|---|---|---|
+| Critical 操作先澄清目的 | 用户说“关掉/停掉/回收/释放/降配/不用了”，且涉及费用、生产、数据、权限或不可逆操作 | Agent | 回复中出现目标、验收标准、保留资产、回滚方式 |
+| 云资源操作解释计费影响 | 操作 ECS/GPU/OSS/Kafka/RDS 等云资源 | Agent | 执行前列出计费影响和副作用 |
+| ECS/GPU 停机即时验收 | 执行 ECS/GPU 停机后 | Agent | 输出 `Status` 和 `StoppedMode`，且目标为省钱时必须是 `StopCharging` |
+| 账单延迟验收 | 停用/降配/释放云资源后的次日 | Agent/用户 | 查询实例账单，确认目标费用为 0 或列出残留计费 |
+| Skill / 流程沉淀 | 本次复盘后 | 用户 | skill 中包含 critical 定义、澄清模板、即时/延迟验证规则 |
+| 禁止把 `Stopped` 等同于不计费 | 任何云资源状态变更报告 | Agent | 报告里明确“状态”和“计费状态”是两个字段 |
 
 ## Spec / Plan 输出格式
 
@@ -135,7 +156,7 @@ scripts/scan_operational_task_contract.py --strict
 - 无法证明数据准确性 → 停止，不进入 apply。
 - 无法安全 resume → 降低范围或先补 checkpoint。
 - 无法观察进度 → 先补日志/heartbeat，再跑长任务。
-- 触碰远程、DB、部署、secrets、第三方写入 → 先过 `/guard-gitops`。
+- 触碰远程、DB、部署、secrets、第三方写入 → 先过本 skill 的 operational gate；涉及声明式 SSOT、部署产物、远程机器配置、线上漂移修复或仓库外状态需要回写时再升级到 `/guard-gitops`。
 - 连续失败 2 次 → `/think-unstuck`。
 
 ## Gotchas

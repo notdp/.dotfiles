@@ -86,6 +86,34 @@ class ContextCapsuleTests(unittest.TestCase):
             with self.subTest(prompt=prompt):
                 self.assert_prompt_capsules(prompt, expected_headings)
 
+    def test_critical_cloud_operation_prompts_inject_operational_capsule(self) -> None:
+        samples = [
+            "关掉 GPU 省钱",
+            "停掉 ECS，不用了",
+            "降成本，把这个 RDS 降配",
+            "stop this aliyun ECS to cut cost",
+        ]
+        for prompt in samples:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, ["Operational Task Capsule"])
+
+    def test_english_release_cloud_prompt_injects_operational_capsule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), "release this RDS instance")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Operational Task Capsule", context)
+
+    def test_non_critical_operation_words_stay_quiet(self) -> None:
+        samples = [
+            "这个按钮关掉动画",
+            "不用了这个变量，删一下本地代码",
+        ]
+        for prompt in samples:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, [])
+
     def test_preview_reports_matches_without_hook_json(self) -> None:
         result = self.run_preview("封装 response_model metric hook")
 
