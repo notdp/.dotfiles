@@ -27,10 +27,15 @@ run_check() {
     last=$(tail -n 1 "$tmp" | tr -d '|' | cut -c 1-80)
     RESULTS+=("${name}|\`${cmd}\`|pass (${dur}s)|${last:-ok}")
   else
+    local exit_code="$?"
     local dur=$(($(date +%s)-start))
     local last
     last=$(tail -n 3 "$tmp" | tr -d '|' | tr '\n' ' ' | cut -c 1-120)
-    RESULTS+=("${name}|\`${cmd}\`|fail (${dur}s)|${last:-fail}")
+    local summary
+    if [[ -f scripts/compact_validator_error.py ]] && command -v python3 >/dev/null 2>&1; then
+      summary=$(python3 scripts/compact_validator_error.py --command "$cmd" --check "$name" --exit-code "$exit_code" <"$tmp" | tr -d '|' | tr '\n' ' ' | cut -c 1-220)
+    fi
+    RESULTS+=("${name}|\`${cmd}\`|fail (${dur}s)|${summary:-${last:-fail}}")
     FAIL_COUNT=$((FAIL_COUNT+1))
   fi
   rm -f "$tmp"
