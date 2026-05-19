@@ -60,6 +60,25 @@ TRIGGER_PREFIXES = (
     "用于",
     "当",
 )
+METHODOLOGY_DOMAINS = ALLOWED_DOMAINS
+METHODOLOGY_HEADING_PATTERN = re.compile(r"(思维框架|方法论|评估模型|Ambiguity Score|核心循环)", re.IGNORECASE)
+METHODOLOGY_HOW_TABLE_PATTERN = re.compile(r"\|.*核心动作.*\|")
+METHODOLOGY_WHY_TERMS = (
+    "为什么",
+    "原因",
+    "目的",
+    "价值",
+    "避免",
+    "防止",
+    "防什么",
+    "偏差",
+    "失败模式",
+    "代价",
+    "rationale",
+    "Rationale",
+    "Why",
+    "why",
+)
 
 
 class ValidationError(RuntimeError):
@@ -87,6 +106,13 @@ class ValidationContext:
     @property
     def catalog_path(self) -> Path:
         return self.skills_root / "catalog.json"
+
+
+@dataclass(frozen=True)
+class MarkdownSection:
+    heading: str
+    line_number: int
+    lines: list[str]
 
 
 def fail(message: str) -> None:
@@ -280,6 +306,88 @@ def validate_workflow_quality(entry: SkillEntry, skill_file: Path, content: str)
     )
 
 
+def iter_top_level_sections(content: str) -> list[MarkdownSection]:
+    sections: list[MarkdownSection] = []
+    current_heading = "<root>"
+    current_line_number = 1
+    current_lines: list[str] = []
+
+    for line_number, line in enumerate(content.splitlines(), start=1):
+        if line.startswith("## ") and not line.startswith("### "):
+            if current_lines:
+                sections.append(
+                    MarkdownSection(
+                        heading=current_heading,
+                        line_number=current_line_number,
+                        lines=current_lines,
+                    )
+                )
+            current_heading = line.strip()
+            current_line_number = line_number
+            current_lines = [line]
+            continue
+        current_lines.append(line)
+
+    if current_lines:
+        sections.append(
+            MarkdownSection(
+                heading=current_heading,
+                line_number=current_line_number,
+                lines=current_lines,
+            )
+        )
+    return sections
+
+
+def has_why_rationale(lines: list[str]) -> bool:
+    in_code_block = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block or not stripped or stripped.startswith("|"):
+            continue
+        if any(term in stripped for term in METHODOLOGY_WHY_TERMS):
+            return True
+    return False
+
+
+def validate_methodology_why(entry: SkillEntry, skill_file: Path, content: str) -> None:
+    if is_trigger_exempt(entry) or entry.domain not in METHODOLOGY_DOMAINS:
+        return
+
+    for section in iter_top_level_sections(content):
+        heading_matches = bool(METHODOLOGY_HEADING_PATTERN.search(section.heading))
+        table_header_indexes = [
+            index
+            for index, line in enumerate(section.lines)
+            if METHODOLOGY_HOW_TABLE_PATTERN.search(line)
+        ]
+        if not heading_matches and not table_header_indexes:
+            continue
+
+        for table_index in table_header_indexes:
+            table_header = section.lines[table_index]
+            if any(term in table_header for term in METHODOLOGY_WHY_TERMS):
+                continue
+            if has_why_rationale(section.lines[:table_index]):
+                continue
+            fail(
+                f"METHODOLOGY WHY VIOLATION: {entry.name} section {section.heading!r} "
+                f"in {skill_file}:{section.line_number} has a methodology table with '核心动作' "
+                "but no why/rationale. Add a why paragraph before the table or a column such as "
+                "'为什么 / 防什么偏差'."
+            )
+
+        if heading_matches and not table_header_indexes and not has_why_rationale(section.lines[:12]):
+            fail(
+                f"METHODOLOGY WHY VIOLATION: {entry.name} section {section.heading!r} "
+                f"in {skill_file}:{section.line_number} describes a thinking model without why/rationale. "
+                "Explain what failure mode, bias, or cost this model is meant to avoid."
+            )
+
+
 def validate_boundary_references(entry: SkillEntry, content: str, skill_names: set[str]) -> None:
     for reference in sorted(collect_boundary_references(content)):
         if reference not in skill_names:
@@ -338,6 +446,7 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
 
     validate_trigger_prefix(entry, frontmatter["description"])
     validate_workflow_quality(entry, skill_file, content)
+    validate_methodology_why(entry, skill_file, content)
     full_text = frontmatter["description"] + "\n" + content
     validate_boundary_references(entry, full_text, skill_names)
 

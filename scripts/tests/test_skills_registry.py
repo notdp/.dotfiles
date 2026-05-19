@@ -302,6 +302,219 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("WORKFLOW QUALITY VIOLATION", result.stderr)
 
+    def test_verify_script_reports_methodology_table_without_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 方法论切换\n\n"
+                "| 方法论 | 核心动作 | 适用场景 |\n"
+                "|---|---|---|\n"
+                "| RCA | 逐层追问 | Debug |\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("METHODOLOGY WHY VIOLATION", result.stderr)
+
+    def test_verify_script_accepts_methodology_table_with_why_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 方法论切换\n\n"
+                "| 方法论 | 核心动作 | 为什么 / 防什么偏差 |\n"
+                "|---|---|---|\n"
+                "| RCA | 逐层追问 | 避免停在表层症状 |\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+
+    def test_verify_script_accepts_methodology_nearby_rationale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 方法论切换\n\n"
+                "为什么要做：方法论切换用于避免 agent 原地重复同一种错误路径。\n\n"
+                "| 方法论 | 核心动作 | 适用场景 |\n"
+                "|---|---|---|\n"
+                "| RCA | 逐层追问 | Debug |\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+
+    def test_verify_script_reports_model_heading_without_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 评估模型\n\n"
+                "- Predictable: stable patterns\n"
+                "- Explicit: visible rules\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("METHODOLOGY WHY VIOLATION", result.stderr)
+
+    def test_verify_script_reports_core_loop_without_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 核心循环\n\n"
+                "1. RED\n"
+                "2. GREEN\n"
+                "3. REFACTOR\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("METHODOLOGY WHY VIOLATION", result.stderr)
+
+    def test_verify_script_ignores_output_format_tables_without_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n"
+                "## 输出格式\n\n"
+                "| File | Issue | Fix |\n"
+                "|---|---|---|\n"
+                "| demo.py | missing check | add check |\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+
     def test_verify_script_reports_unknown_skill_boundary_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
