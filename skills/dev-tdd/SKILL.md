@@ -16,6 +16,8 @@ TDD 的单位是 vertical slice / tracer bullet：一个可观察行为对应一
 
 TDD 是 inner-loop verifier：它证明局部实现行为正确，不等于用户最终目标已经达成。用户可见功能、数据任务、模型/评测任务、复杂 Agent 流程在 TDD 通过后，仍必须用 `/guard-verify` 给出 acceptance verifier 证据。
 
+为什么用 RED→GREEN→REFACTOR：这个循环把“先想象实现结构”改成“先定义一个可观察行为，再用最小实现证明它成立”。RED 防止测试只是复述现有代码，GREEN 防止顺手加料，REFACTOR 防止在未验证状态下清理结构。
+
 ```
 RED    → 写一个失败测试（一个行为、名字说清行为）
        → 跑测试，确认失败原因是"功能缺失"而非 typo

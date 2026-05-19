@@ -18,6 +18,8 @@ allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*), Bash(scripts/ui
 
 ## 核心循环
 
+为什么这样循环：视觉判断最容易被记忆和主观感觉污染。Declare 先固定目标和变量，Capture / Diff 让差异可观察，Change 小步修改，Re-capture 防止凭印象收尾，Decide 用差异表决定继续、停止或记录取舍。
+
 ```
 Declare → Capture → Diff → Change → Re-capture → Decide
 ```
