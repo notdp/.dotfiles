@@ -187,6 +187,12 @@
       "role": "canonical"
     },
     {
+      "name": "dev-long-task-scaffold",
+      "path": "skills/dev-long-task-scaffold",
+      "domain": "dev",
+      "role": "canonical"
+    },
+    {
       "name": "dev-operational-task",
       "path": "skills/dev-operational-task",
       "domain": "dev",
