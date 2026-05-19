@@ -69,17 +69,17 @@ npx skills update -g                     # 把全局 skills 更新到 upstream H
 
 ```bash
 brew install stow            # 一次性
-cd ~/.dotfiles && stow tmux ghostty
+cd ~/.dotfiles && stow -d config -t ~ tmux ghostty
 ```
 
 每个 package 镜像 home：
 
 ```
-~/.dotfiles/tmux/.tmux.conf                   → ~/.tmux.conf
-~/.dotfiles/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
+~/.dotfiles/config/tmux/.tmux.conf                   → ~/.tmux.conf
+~/.dotfiles/config/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
 ```
 
-编辑 `~/.dotfiles/...` 下的源文件（home 路径是 symlink 指过来）, commit, 完事。`stow -D <pkg>` 拆 symlink。
+编辑 `~/.dotfiles/config/...` 下的源文件（home 路径是 symlink 指过来）, commit, 完事。`stow -d config -t ~ -D <pkg>` 拆 symlink。
 
 ## 支持的 Agent
 

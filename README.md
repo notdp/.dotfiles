@@ -69,17 +69,17 @@ Plain single-target dotfiles (tmux, ghostty, ...) are managed with [GNU stow](ht
 
 ```bash
 brew install stow            # one-time
-cd ~/.dotfiles && stow tmux ghostty
+cd ~/.dotfiles && stow -d config -t ~ tmux ghostty
 ```
 
 Each package mirrors home:
 
 ```
-~/.dotfiles/tmux/.tmux.conf                   → ~/.tmux.conf
-~/.dotfiles/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
+~/.dotfiles/config/tmux/.tmux.conf                   → ~/.tmux.conf
+~/.dotfiles/config/ghostty/.config/ghostty/config    → ~/.config/ghostty/config
 ```
 
-Edit the file under `~/.dotfiles/...` (the home paths are symlinks pointing here), commit, done. `stow -D <pkg>` removes the symlinks.
+Edit the file under `~/.dotfiles/config/...` (the home paths are symlinks pointing here), commit, done. `stow -d config -t ~ -D <pkg>` removes the symlinks.
 
 ## Supported Agents
 
