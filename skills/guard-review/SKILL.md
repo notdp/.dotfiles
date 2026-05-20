@@ -58,6 +58,9 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
   - [ ] 引入 PR 描述未提及的新依赖
   - [ ] 删除看似不相关的代码
   - [ ] 引入未被本次需求要求的新抽象 / 封装层
+  - [ ] 修改与需求无关的注释、格式、空白、quote style、import 排序或命名风格
+  - [ ] 未经要求加入类型重写、docstring、额外校验、fallback、配置项或兼容层
+  - [ ] 删除既有 dead code，而不是只清理本次改动造成的 unused / orphan
 - [ ] 可修改性：改动是否局部、规则是否显式、是否破坏既有 convention、diff 是否足够单一
 
 ### Hard Stops（必须阻断 merge，优先级高于 Critical）
@@ -103,6 +106,9 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
 - [ ] 新依赖未在描述中提及
 - [ ] 不相关代码被删除
 - [ ] 新增未要求的抽象层
+- [ ] 无关注释 / 格式 / 风格漂移
+- [ ] 未要求的类型重写 / docstring / 额外校验 / fallback / 配置项
+- [ ] 删除非本次改动造成的 dead code
 
 ### Out-of-scope observations
 - [范围外但值得记录的观察；不影响当前 Ready to merge 结论]
