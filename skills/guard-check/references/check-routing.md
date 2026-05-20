@@ -9,9 +9,14 @@
    - 权限控制
    - 外部输入
    - secrets / tokens / headers / cookies
-4. 用户要求“验证通过 / 可以交付 / 可以合并”时追加 `guard-verify`
-5. 需要 PR、发布、交付动作时切到 `guard-ship`
-6. 如果 diff、PR 描述或任务上下文引用了 spec / plan / prompt artifact，追加 intent alignment 检查：
+4. 满足以下任一条件时追加 `guard-mysql-review`
+   - MySQL/InnoDB DDL 或 migration
+   - 表结构、字段类型、时间字段、主键、逻辑外键命名变更
+   - 索引新增、删除、组合索引调整
+   - 查询性能、反范式、冗余字段、减少 join 的设计取舍
+5. 用户要求“验证通过 / 可以交付 / 可以合并”时追加 `guard-verify`
+6. 需要 PR、发布、交付动作时切到 `guard-ship`
+7. 如果 diff、PR 描述或任务上下文引用了 spec / plan / prompt artifact，追加 intent alignment 检查：
    - 目标是否仍匹配 artifact
    - Non-goals 是否被突破
    - 关键领域术语、结构边界、验证策略是否发生未说明变化

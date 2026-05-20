@@ -37,6 +37,7 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
 - **先看 diff，再看直接影响面**：默认只审查改动文件、同模块调用链、被改测试和明显受影响的配置/脚本。
 - **不要一上来做 repo-wide 猎巫**：范围外的担忧可以记录，但不能和当前 diff 里的确定性问题混在一起。
 - **严重度要有证据门槛**：只有存在明确失败路径、触发条件、影响范围时，才能升到 `Critical` / `Important`。
+- **数据库专项路由**：命中 MySQL/InnoDB DDL、migration、索引、表结构命名或查询性能设计时，追加 `/guard-mysql-review`；本 skill 只汇总裁决，不复制 MySQL checklist。
 
 ### 审查维度
 
@@ -45,6 +46,7 @@ python3 scripts/collect_diff.py a1b2..HEAD   # commit 范围
 - [ ] 安全：输入验证、敏感数据、注入风险
 - [ ] 测试：覆盖关键路径、测试行为而非实现
 - [ ] 需求：变更是否满足目标
+- [ ] MySQL/InnoDB 专项（仅当 DDL / migration / 索引 / 查询性能 diff 命中）：是否已按 `/guard-mysql-review` 输出 Must / Should / Exception / Convention conflict / Anti-pattern 裁决
 - [ ] UI 专项（仅当前端/UI/CSS diff 命中）：
   - [ ] 新增颜色是否来自 token，是否出现默认 indigo/purple 或 trust gradient
   - [ ] 是否新增硬编码 spacing/radius/shadow，破坏既有 design system
@@ -225,6 +227,7 @@ review 时常见的"放行借口"，命中即拒绝放行：
 ## 关联技能
 
 - Critical issues 涉及安全 → `/guard-secure` 深入审查
+- MySQL/InnoDB DDL、migration、索引、表结构或查询性能取舍 → `/guard-mysql-review`
 - 需要统一结构质量语言 → `/think-quality`
 - 发现需要重构 → `/dev-refactor`
 - Review 通过后交付 → `/guard-ship`

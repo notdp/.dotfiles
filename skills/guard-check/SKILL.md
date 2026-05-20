@@ -11,7 +11,7 @@ argument-hint: <diff 范围|留空=当前未提交变更>
 ## 目标
 
 1. 统一判断当前变更该走哪些检查链路
-2. 复用已有 `guard-review`、`guard-secure`、`guard-verify`、`guard-ship`
+2. 复用已有 `guard-review`、`guard-secure`、`guard-mysql-review`、`guard-verify`、`guard-ship`
 3. 当存在已批准 spec / plan / prompt artifact 时，补看实现是否偏离意图
 4. 在一个入口里给出最终交付裁决
 
@@ -28,6 +28,7 @@ argument-hint: <diff 范围|留空=当前未提交变更>
 
 - 默认先看 diff 范围
 - 安全敏感改动追加 `guard-secure`
+- MySQL/InnoDB DDL、migration、索引或查询性能相关改动追加 `guard-mysql-review`
 - 声称“已完成 / 可交付”时追加 `guard-verify`
 - 需要 PR / 发布动作时切到 `guard-ship`
 - 改动会影响仓库外可见状态（远程机器、部署产物、数据库、secrets、运行时配置、仓库外二进制、第三方面板）时追加 `guard-gitops`；发现存在"绕过 git"的副作用一律升 Critical
@@ -38,6 +39,7 @@ argument-hint: <diff 范围|留空=当前未提交变更>
 
 - 它不替代 `guard-review`
 - 它不直接实现安全扫描或验证逻辑
+- 它不直接展开 MySQL/InnoDB checklist；命中数据库 schema / 索引风险时路由到 `guard-mysql-review`
 - 它只负责编排和裁决汇总
 - 它不要求所有任务都创建 artifact；只在 artifact 已存在时把它作为对齐基准
 

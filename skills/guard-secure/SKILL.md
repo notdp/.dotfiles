@@ -154,6 +154,7 @@ git diff <range> --name-only
 - 每个 finding 必须给：威胁类型 + file:line + 触发路径 + 缓解建议
 - 关注数据流：用户输入 → 处理 → 存储 → 输出的每个环节
 - 命中 Critical 必须给出 Ready for merge? = No
+- MySQL/InnoDB schema、索引、命名和性能规范不在本 skill 展开；需要时串联 `/guard-mysql-review`。如果 `/guard-mysql-review` 命中 SQL injection 或未参数化 SQL，再回到本 skill 做安全裁决。
 
 ## Gotchas
 
@@ -171,5 +172,6 @@ git diff <range> --name-only
 ## 关联技能
 
 - 缺少威胁模型基线 → `/guard-threat-model` 建立 SSOT
+- MySQL/InnoDB schema、索引、DDL 或查询性能审查 → `/guard-mysql-review`
 - 发现漏洞需修复 → `/dev-debug`（定位）+ `/dev-tdd`（修复）
 - 安全审查通过后 → `/guard-ship` 交付

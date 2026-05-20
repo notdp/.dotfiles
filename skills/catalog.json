@@ -157,6 +157,12 @@
       "role": "canonical"
     },
     {
+      "name": "guard-mysql-review",
+      "path": "skills/guard-mysql-review",
+      "domain": "guard",
+      "role": "canonical"
+    },
+    {
       "name": "guard-ship",
       "path": "skills/guard-ship",
       "domain": "guard",
