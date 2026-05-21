@@ -1,0 +1,29 @@
+# Harness Engineering Sources
+
+| Source | Status | Core idea | Harness pattern | Caution |
+|---|---|---|---|---|
+| [Humans and Agents in Software Engineering Loops](https://www.martinfowler.com/articles/exploring-gen-ai/humans-and-agents.html) | mixed: `search-summary` + `user-summary` | Why loop / How loop and outside / in / on the loop frame human-agent collaboration. | Use loop position to decide where humans approve, supervise, or delegate. | Full text was not fetched in this session; do not quote beyond source title, search metadata, and user notes. |
+| [Harness engineering for coding agent users](https://martinfowler.com/articles/harness-engineering.html) | mixed: `search-summary` + `user-summary` | Trust in coding agents comes from feedforward guides, feedback sensors, and iterative harness improvement. | Convert repeated friction into guides, sensors, constraints, or cleanup work. | Full text was not fetched in this session; keep conclusions tied to search metadata and user notes. |
+| [Maintainability sensors for coding agents](https://martinfowler.com/articles/sensors-for-coding-agents.html) | mixed: `search-summary` + `user-summary` | Static analysis, dependency rules, coupling analysis, and modularity review can become sensors agents can consume. | Prefer deterministic sensors when the issue can be detected mechanically. | Full text was not fetched in this session; details need a later read before hardening rules. |
+| [How I'm Productive with Claude Code](https://neilkakkar.com/productive-with-claude-code.html) | fetched | Remove the current constraint in the agent workflow: PR formatting, waiting, verification, then parallel worktrees. | Use theory of constraints: find the next visible bottleneck and build only the harness that removes it. | Commit count is explicitly a visible side effect, not a reliable output metric. |
+| [Diving into Claude Code's Source Code Leak](https://read.engineerscodex.com/p/diving-into-claude-codes-source-code) | mixed: `fetched snippets` + `user-summary` | Real coding-agent systems expose memory, cache, tools, background mode, permission, and multi-agent design concerns. | Use real agent architecture as a vocabulary for context, tools, permissions, and orchestration surfaces. | Fetched output was large and noisy; treat the article as secondary analysis of leaked code, not normative implementation guidance. |
+| [Claude Code Unpacked](https://ccunpacked.dev/) | mixed: `fetched snippets` + `site-metadata` | Interactive index of agent loop, tools, commands, hooks, coordinator mode, bridge, daemon mode, UDS inbox, and auto-dream features. | Use as a map of possible harness surfaces: loop, tools, hooks, permissions, background work, and inter-agent messaging. | The site says it is unofficial and may be wrong or outdated; use as research index, not authority. |
+| [Building Pi, and what makes self-modifying software so fascinating](https://newsletter.pragmaticengineer.com/p/building-pi-and-what-makes-self-modifying) | mixed: `fetched` metadata + `user-summary` | Minimal self-modifying systems are compelling, but human judgment remains important in agent-driven work. | Keep the kernel small, make extension paths explicit, and preserve useful friction where risk is high. | Fetched content was dominated by Substack page data and metadata; detailed interpretation relies on user notes. |
+
+## Cross-source Synthesis
+
+- Harness work should start from evidence: repeated failures, missing context, slow feedback, unsafe side effects, or recurring review friction.
+- Harness can be feedforward, feedback, architectural, verification, operational, GitOps, parallelization, or garbage-collection work.
+- The best harness is often not a new skill. It may be a script, CI check, tighter routing to an existing skill, or deleting stale rules.
+- Automation that removes all friction can be harmful when it hides security, data, production, or judgment-heavy decisions.
+
+## Source-to-checklist Mapping
+
+| Checklist idea | Source influence | Notes |
+|---|---|---|
+| Why / How loop and outside / in / on the loop | Humans and Agents in Software Engineering Loops | Based on search metadata and user summary; use as a decision lens, not a quote source. |
+| Feedforward guides, feedback sensors, architectural constraints, garbage collection | Harness engineering for coding agent users | Based on search metadata and user summary; verify full text before hardening new terminology. |
+| Maintainability sensors | Maintainability sensors for coding agents | Supports deterministic sensors such as lint, dependency rules, coupling analysis, and modularity checks. |
+| Theory of constraints for workflow friction | How I'm Productive with Claude Code | Fetched page directly supports removing visible bottlenecks: formatting, waiting, verifying, parallel work. |
+| Agent loop, tools, hooks, permissions, background and coordination surfaces | Claude Code Unpacked; Engineer's Codex | Use only as architecture vocabulary; do not copy leaked-source-derived implementation details. |
+| Minimal kernel and useful human judgment | Building Pi discussion | Detailed interpretation relies on user notes; keep as caution against over-automation. |

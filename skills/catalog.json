@@ -37,6 +37,12 @@
       "role": "canonical"
     },
     {
+      "name": "agent-harness-creator",
+      "path": "skills/agent-harness-creator",
+      "domain": "agent",
+      "role": "canonical"
+    },
+    {
       "name": "workflow-helper",
       "path": "skills/workflow-helper",
       "domain": "workflow",
