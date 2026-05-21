@@ -12,7 +12,7 @@ argument-hint: <任务目标或需求>
 
 - `dev-long-loop` 面向 harness 驱动的 long-loop runner。
 - `dev-long-task-scaffold` 面向用户手动控制的阶段式交付。
-- 本 skill 不启动 `long_loop.py run`、不创建后台 agent、不自动进入任何 phase。
+- 本 skill 仍使用 `dev-long-loop/long_loop.py plan` 生成同构 workspace，但不启动 `long_loop.py run`、不创建后台 agent、不自动进入任何 phase。
 
 ## Decision Principles
 
@@ -28,8 +28,8 @@ argument-hint: <任务目标或需求>
 2. **确定 workspace 路径** — 若用户指定目录，使用指定目录；否则默认 `.long-loop/<date>_<slug>`。路径必须回显给用户。
 3. **只读调研** — 使用 Grep / Glob / Read / LS 收集代码事实、相关文件、现有测试、脚本和风险。
 4. **拆 phase** — 每个 phase 必须有目标、主要文件、验证方式、退出条件和 commit 边界。
-5. **创建 workspace** — 创建目录和 Markdown 文件；不生成 `state.json`、`runtime.log`、`runtime-input.md` 等 runner 状态文件。
-6. **填充控制提示词** — 写 `CONTROL_PROMPT.md`，用于后续 agent 按用户指定 phase 执行。
+5. **创建 workspace** — 解析 `skills/dev-long-loop/long_loop.py`，调用 `python3 "$LONG_LOOP_HARNESS" plan --goal "<goal>" --dir "<workspace>" --token-budget <500K|1M|2M>` 生成基线结构；如果 harness 缺失或 plan 失败，停止并报告，不要手写替代结构。
+6. **填充控制提示词** — 更新 `PROMPT.md`，用于后续 agent 按用户指定 phase 执行；不要创建 `CONTROL_PROMPT.md` 作为并行协议。
 7. **停止并交付** — 汇报 workspace 路径、phase 列表、下一步建议；不要开始实施 phase。
 
 ## Workspace Contract
@@ -39,10 +39,11 @@ argument-hint: <任务目标或需求>
 ```text
 .long-loop/<slug>/
 ├── SPEC_OVERVIEW.md
-├── CONTROL_PROMPT.md
+├── PROMPT.md
 ├── fix_plan.md
 ├── qa.md
 ├── logs.md
+├── state.json
 └── phases/
     ├── 01_<phase>/
     │   ├── research.md
@@ -59,16 +60,17 @@ argument-hint: <任务目标或需求>
 | 文件 | 责任 |
 |---|---|
 | `SPEC_OVERVIEW.md` | 任务目标、非目标、代码事实、影响面、风险、整体 phase map |
-| `CONTROL_PROMPT.md` | 后续 agent 的阶段执行协议；只执行用户指定 phase，不自动跨 phase |
+| `PROMPT.md` | 后续 agent 的阶段执行协议；只执行用户指定 phase，不自动跨 phase；保留 harness 生成的 Long Loop Prompt 语义 |
 | `fix_plan.md` | 全局任务清单；item 状态只允许 `pending / in_progress / done / blocked` |
 | `qa.md` | 整体验收标准、验证命令、acceptance verifier、回归检查 |
 | `logs.md` | append-only 过程记录；每个 phase 的执行、验证、commit 和阻塞都记录在这里 |
+| `state.json` | harness 状态文件；scaffold 阶段只允许由 `plan` 生成，不手写、不伪造运行状态 |
 | `phases/*/research.md` | 当前 phase 的只读代码事实、相关文件、约定和风险 |
 | `phases/*/spec.md` | 当前 phase 的目标、非目标、边界、接口 / 行为契约 |
 | `phases/*/plan.md` | 当前 phase 的实施步骤、验证步骤、回滚方式 |
 | `phases/*/qa.md` | 当前 phase 的完成定义、验证证据和 known gaps |
 
-## CONTROL_PROMPT.md 必须包含
+## PROMPT.md 必须包含
 
 ```markdown
 # Phase Control Prompt
@@ -87,7 +89,7 @@ Rules:
 - If blocked, update the workspace and stop with the blocker, evidence, and options.
 ```
 
-可按任务增加项目特定命令，但不得删除这些控制规则。
+可按任务增加项目特定命令，但不得删除这些控制规则，也不得删除 harness 生成的 workspace、budget 和 loop rules 上下文。
 
 ## Phase Template
 
@@ -126,7 +128,8 @@ Rules:
 ## Gotchas
 
 - 不要启动 `long_loop.py run`。
-- 不要生成 runner 状态文件冒充 harness workspace。
+- 不要手写 `state.json`、`runtime.log`、`events.jsonl` 或其它 runner 状态文件冒充 harness workspace；`state.json` 只能来自 `long_loop.py plan`。
+- 不要创建与 `PROMPT.md` 并行的 `CONTROL_PROMPT.md`，否则后续 agent 会读取错误控制面。
 - 不要在 scaffold 阶段顺手实现 phase。
 - 不要把所有未知点留给后续 agent；必须在 `Blockers / open questions` 中显式列出。
 - 不要自动 push、deploy、迁移数据库、改 secrets 或触碰第三方系统。
