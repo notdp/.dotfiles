@@ -32,11 +32,27 @@ TW_PAT = re.compile(
 TW_CORE_PAT = re.compile(
     rb'(?P<models>' + V + rb')=(?P<svc>' + V + rb')\(\)\.getCustomModels\(\)\.map\(m=>m\.id\),(?P<empty>' + V + rb')=!(?P=svc)\(\)\.hasAnyAvailableModel\((?P=models)\),'
 )
+CYCLE_130_PAT = re.compile(
+    rb'getModelCycleCandidates\((?P<arg>' + V + rb')\)\{let (?P<set>' + V + rb')=new Set\(\[\.\.\.(?P=arg),\.\.\.this\.customModels\.map\(\((?P<item>' + V + rb')\)=>(?P=item)\.id\)\]\),'
+    rb'(?P<favs>' + V + rb')=this\.getAllowedCycleModelIds\(this\.getModelFavorites\(\)\.filter\(\((?P<fav>' + V + rb')\)=>(?P=set)\.has\((?P=fav)\)\)\);'
+    rb'if\((?P=favs)\.length>0\)return\{modelIds:(?P=favs),source:"favorites"\};'
+    rb'let (?P<all>' + V + rb')=\[\.\.\.(?P=arg),\.\.\.this\.customModels\.map\(\((?P<item2>' + V + rb')\)=>(?P=item2)\.id\)\];'
+    rb'return\{modelIds:this\.getAllowedCycleModelIds\((?P=all)\),source:"all"\}\}'
+)
+CYCLE_130_CORE_PAT = re.compile(
+    rb'getModelCycleCandidates\((?P<arg>' + V + rb')\)\{let (?P<set>' + V + rb')=new Set\(this\.customModels\.map\(\((?P<item>' + V + rb')\)=>(?P=item)\.id\)\),'
+    rb'(?P<favs>' + V + rb')=this\.getAllowedCycleModelIds\(this\.getModelFavorites\(\)\.filter\(\((?P<fav>' + V + rb')\)=>(?P=set)\.has\((?P=fav)\)\)\);'
+    rb'if\((?P=favs)\.length>0\)return\{modelIds:(?P=favs),source:"favorites"\};'
+    rb'let (?P<all>' + V + rb')=this\.customModels\.map\(\((?P<item2>' + V + rb')\)=>(?P=item2)\.id\);'
+    rb'return\{modelIds:this\.getAllowedCycleModelIds\((?P=all)\),source:"all"\}\}'
+)
 
 
 def is_already_applied(data: bytes) -> bool:
     selector_core_count = len(list(SELECTOR_CORE_PAT.finditer(data)))
     selector_original_count = len(list(SELECTOR_PAT.finditer(data)))
+    if CYCLE_130_CORE_PAT.search(data) and not CYCLE_130_PAT.search(data):
+        return True
     return bool(
         selector_core_count > 0
         and selector_original_count == 0
@@ -74,6 +90,68 @@ def build_selector_core(match: re.Match[bytes]) -> bytes:
         + check
         + b'.allowed}}));'
     )
+
+
+def build_cycle_130_core(match: re.Match[bytes]) -> bytes:
+    arg = match.group('arg')
+    set_var = match.group('set')
+    item = match.group('item')
+    favs = match.group('favs')
+    fav = match.group('fav')
+    all_var = match.group('all')
+    item2 = match.group('item2')
+    return (
+        b'getModelCycleCandidates('
+        + arg
+        + b'){let '
+        + set_var
+        + b'=new Set(this.customModels.map(('
+        + item
+        + b')=>'
+        + item
+        + b'.id)),'
+        + favs
+        + b'=this.getAllowedCycleModelIds(this.getModelFavorites().filter(('
+        + fav
+        + b')=>'
+        + set_var
+        + b'.has('
+        + fav
+        + b')));if('
+        + favs
+        + b'.length>0)return{modelIds:'
+        + favs
+        + b',source:"favorites"};let '
+        + all_var
+        + b'=this.customModels.map(('
+        + item2
+        + b')=>'
+        + item2
+        + b'.id);return{modelIds:this.getAllowedCycleModelIds('
+        + all_var
+        + b'),source:"all"}}'
+    )
+
+
+def patch_cycle_130(data: bytes) -> tuple[bytes, bool]:
+    matches = list(CYCLE_130_PAT.finditer(data))
+    if not matches:
+        if CYCLE_130_CORE_PAT.search(data):
+            return data, True
+        return data, False
+
+    total = len(matches)
+    for idx, match in enumerate(reversed(matches), start=1):
+        old = match.group(0)
+        core = build_cycle_130_core(match)
+        pad_len = len(old) - len(core) - 4
+        if pad_len < 0:
+            raise ValueError(
+                f'cycle candidates[{total - idx + 1}]: new core ({len(core)}B) + wrapper (4B) 超过 old 长度 ({len(old)}B)'
+            )
+        new = core + b'/*' + b' ' * pad_len + b'*/'
+        data = data[:match.start()] + new + data[match.end():]
+    return data, True
 
 
 def patch_selectors(data: bytes) -> bytes:
@@ -145,8 +223,10 @@ def main() -> None:
 
     original_size = len(data)
     try:
-        data = patch_selectors(data)
-        data = patch_tw(data)
+        data, patched_cycle_130 = patch_cycle_130(data)
+        if not patched_cycle_130:
+            data = patch_selectors(data)
+            data = patch_tw(data)
     except ValueError as exc:
         print(f'{NAME} 失败: {exc}')
         sys.exit(1)

@@ -17,6 +17,27 @@ results = {}
 
 # mod-cycle-custom-model: Ctrl+N 预览与选择器只显示 custom models
 def _mod_cycle_custom_model_detect():
+    cycle_130_core = re.search(
+        rb'getModelCycleCandidates\((?P<arg>' + V + rb')\)\{let (?P<set>' + V + rb')=new Set\(this\.customModels\.map\(\((?P<item>' + V + rb')\)=>(?P=item)\.id\)\),'
+        rb'(?P<favs>' + V + rb')=this\.getAllowedCycleModelIds\(this\.getModelFavorites\(\)\.filter\(\((?P<fav>' + V + rb')\)=>(?P=set)\.has\((?P=fav)\)\)\);'
+        rb'if\((?P=favs)\.length>0\)return\{modelIds:(?P=favs),source:"favorites"\};'
+        rb'let (?P<all>' + V + rb')=this\.customModels\.map\(\((?P<item2>' + V + rb')\)=>(?P=item2)\.id\);'
+        rb'return\{modelIds:this\.getAllowedCycleModelIds\((?P=all)\),source:"all"\}\}',
+        data,
+    )
+    cycle_130_original = re.search(
+        rb'getModelCycleCandidates\((?P<arg>' + V + rb')\)\{let (?P<set>' + V + rb')=new Set\(\[\.\.\.(?P=arg),\.\.\.this\.customModels\.map\(\((?P<item>' + V + rb')\)=>(?P=item)\.id\)\]\),'
+        rb'(?P<favs>' + V + rb')=this\.getAllowedCycleModelIds\(this\.getModelFavorites\(\)\.filter\(\((?P<fav>' + V + rb')\)=>(?P=set)\.has\((?P=fav)\)\)\);'
+        rb'if\((?P=favs)\.length>0\)return\{modelIds:(?P=favs),source:"favorites"\};'
+        rb'let (?P<all>' + V + rb')=\[\.\.\.(?P=arg),\.\.\.this\.customModels\.map\(\((?P<item2>' + V + rb')\)=>(?P=item2)\.id\)\];'
+        rb'return\{modelIds:this\.getAllowedCycleModelIds\((?P=all)\),source:"all"\}\}',
+        data,
+    )
+    if cycle_130_core and not cycle_130_original:
+        return 'modified'
+    if cycle_130_original:
+        return 'original'
+
     selector_core_count = len(re.findall(
         rb'(?P<items>' + V + rb')\.push\(\.\.\.(?P<custom>' + V + rb')\.map\(\((?P<item>' + V + rb')\)=>\{let (?P<check>' + V + rb')=(?P<access>' + V + rb')\((?P=item)\.id,(?P<policy>' + V + rb'),(?P=item)\);return\{type:"model",id:(?P=item)\.id,disabled:!(?P=check)\.allowed\}\}\)\);',
         data,
@@ -46,11 +67,14 @@ def _mod_cycle_custom_model_detect():
 results['mod-cycle-custom-model'] = _mod_cycle_custom_model_detect()
 
 # mod-fix-multiline-history-down: 多行历史记录按↓修复
-# 修改后: V(),!0 → spaces + !1 (返回 false 让外层接管)
-mod_fix_multiline_history_down_modified = re.search(rb'downArrow&&' + V + rb'&&' + V + rb'\)return\s+!1;return!1', data)
+# 修改后: V(),!0 → !!V() + padding (由 callback 返回值决定是否消费 ↓)
+mod_fix_multiline_history_down_modified = re.search(rb'downArrow&&' + V + rb'&&(' + V + rb')\)return !!\1\(\) ;return!1', data)
+mod_fix_multiline_history_down_legacy = re.search(rb'downArrow&&' + V + rb'&&' + V + rb'\)return\s+!1;return!1', data)
 mod_fix_multiline_history_down_original = re.search(rb'downArrow&&' + V + rb'&&(' + V + rb')\)return \1\(\),!0;return!1', data)
 if mod_fix_multiline_history_down_modified:
     results['mod-fix-multiline-history-down'] = 'modified'
+elif mod_fix_multiline_history_down_legacy:
+    results['mod-fix-multiline-history-down'] = 'partial'
 elif mod_fix_multiline_history_down_original:
     results['mod-fix-multiline-history-down'] = 'original'
 else:

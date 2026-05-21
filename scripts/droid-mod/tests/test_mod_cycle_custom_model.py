@@ -76,6 +76,20 @@ SELECTOR_104_CORE = (
 TW_104_ORIGINAL = b',fJ=ye(),sw=!UR().hasAnyAvailableModel(fJ),'
 TW_104_PATCHED = b',fJ=UR().getCustomModels().map(m=>m.id),sw=!UR().hasAnyAvailableModel(fJ),'
 TW_104_CORE = b'fJ=UR().getCustomModels().map(m=>m.id)'
+CYCLE_130_ORIGINAL = (
+    b'getModelCycleCandidates(H){let T=new Set([...H,...this.customModels.map((B)=>B.id)]),'
+    b'R=this.getAllowedCycleModelIds(this.getModelFavorites().filter((B)=>T.has(B)));'
+    b'if(R.length>0)return{modelIds:R,source:"favorites"};'
+    b'let A=[...H,...this.customModels.map((B)=>B.id)];'
+    b'return{modelIds:this.getAllowedCycleModelIds(A),source:"all"}}'
+)
+CYCLE_130_CORE = (
+    b'getModelCycleCandidates(H){let T=new Set(this.customModels.map((B)=>B.id)),'
+    b'R=this.getAllowedCycleModelIds(this.getModelFavorites().filter((B)=>T.has(B)));'
+    b'if(R.length>0)return{modelIds:R,source:"favorites"};'
+    b'let A=this.customModels.map((B)=>B.id);'
+    b'return{modelIds:this.getAllowedCycleModelIds(A),source:"all"}}'
+)
 
 
 def _write_droid(home: Path, data: bytes) -> Path:
@@ -242,6 +256,34 @@ class ModCycleCustomModelTests(unittest.TestCase):
             status = _run(STATUS, home)
             self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
             self.assertIn("mod-cycle-custom-model: 已修改", status.stdout)
+
+    def test_patches_v130_cycle_candidates_without_selector(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            original = b"prefix" + CYCLE_130_ORIGINAL + b"updateSettings(H){suffix"
+            droid = _write_droid(home, original)
+
+            result = _run(SCRIPT, home)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+            patched = droid.read_bytes()
+            self.assertEqual(len(patched), len(original))
+            self.assertIn(CYCLE_130_CORE, patched)
+            self.assertNotIn(CYCLE_130_ORIGINAL, patched)
+
+            status = _run(STATUS, home)
+            self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+            self.assertIn("mod-cycle-custom-model: 已修改", status.stdout)
+
+    def test_status_detects_v130_cycle_candidates_as_original(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            _write_droid(home, CYCLE_130_ORIGINAL)
+
+            status = _run(STATUS, home)
+
+            self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+            self.assertIn("mod-cycle-custom-model: 原版", status.stdout)
 
     def test_fails_loudly_when_pattern_not_found(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

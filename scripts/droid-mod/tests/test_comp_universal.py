@@ -20,6 +20,10 @@ SAMPLE_BYTES = (
     + b'"dim-bold":{color:"#FFA500"/*    */,'
     + b'logo:{color:"#FFA500"    ,'
 )
+CALLBACK_RETURN_BYTES = (
+    b'if(BH&&hR.downArrow&&lR){let GR=BH.navigateNext();return!0}}'
+    b'if(hR.downArrow&&lR&&kH)return !!kH() ;return!1}return!1}'
+)
 
 
 class CompUniversalTests(unittest.TestCase):
@@ -45,6 +49,15 @@ class CompUniversalTests(unittest.TestCase):
         self.assertNotIn(b"return      !1", patched)
         self.assertNotIn(b'/*    */', patched)
         self.assertNotIn(b'"#FFA500"    ,', patched)
+
+    def test_find_regions_includes_callback_return_padding(self) -> None:
+        regions = comp_universal.find_regions(CALLBACK_RETURN_BYTES)
+        capacities = {
+            name: len(old_bytes) - min_size
+            for name, _offset, old_bytes, min_size, _rtype in regions
+        }
+
+        self.assertEqual(capacities["多行历史 callback 填充"], 1)
 
 
 if __name__ == "__main__":

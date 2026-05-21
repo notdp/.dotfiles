@@ -13,7 +13,11 @@ CURRENT_ORIGINAL = (
     b"if(BH&&hR.downArrow&&lR){let GR=BH.navigateNext();return!0}}"
     b"if(hR.downArrow&&lR&&kH)return kH(),!0;return!1}return!1}"
 )
-CURRENT_PATCHED = (
+CURRENT_PATCHED_CALLBACK_RETURN = (
+    b"if(BH&&hR.downArrow&&lR){let GR=BH.navigateNext();return!0}}"
+    b"if(hR.downArrow&&lR&&kH)return !!kH() ;return!1}return!1}"
+)
+LEGACY_PATCHED_FALSE = (
     b"if(BH&&hR.downArrow&&lR){let GR=BH.navigateNext();return!0}}"
     b"if(hR.downArrow&&lR&&kH)return      !1;return!1}return!1}"
 )
@@ -50,17 +54,40 @@ class ModFixMultilineHistoryDownTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             patched = droid.read_bytes()
             self.assertEqual(len(patched), len(original))
-            self.assertIn(CURRENT_PATCHED, patched)
+            self.assertIn(CURRENT_PATCHED_CALLBACK_RETURN, patched)
 
-    def test_status_detects_current_semicolon_form_as_modified(self) -> None:
+    def test_upgrades_legacy_false_return_patch_without_size_change(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)
-            _write_droid(home, CURRENT_PATCHED)
+            original = b"prefix" + LEGACY_PATCHED_FALSE + b"suffix"
+            droid = _write_droid(home, original)
+
+            result = _run(SCRIPT, home)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            patched = droid.read_bytes()
+            self.assertEqual(len(patched), len(original))
+            self.assertIn(CURRENT_PATCHED_CALLBACK_RETURN, patched)
+
+    def test_status_detects_callback_return_form_as_modified(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            _write_droid(home, CURRENT_PATCHED_CALLBACK_RETURN)
 
             result = _run(STATUS, home)
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("mod-fix-multiline-history-down: 已修改", result.stdout)
+
+    def test_status_detects_legacy_false_return_form_as_partial(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            _write_droid(home, LEGACY_PATCHED_FALSE)
+
+            result = _run(STATUS, home)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("mod-fix-multiline-history-down: 部分修改", result.stdout)
 
 
 if __name__ == "__main__":

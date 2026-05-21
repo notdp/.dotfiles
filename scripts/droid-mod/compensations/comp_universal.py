@@ -10,7 +10,7 @@
   2. FFH 死代码 (mod-hide-command-truncation 后，已归档)       ~100-151B
   3. substring 长度字面量 (旧版，新版本中已移除)               ~3B
   4. mod-highlight-welcome-modified 颜色填充                  ~12B
-  5. mod-fix-multiline-history-down 空白填充                  ~6B
+  5. mod-fix-multiline-history-down 空白填充                  1B（旧版 ~6B）
 
 原理:
   - ffh_dead: mod-hide-command-truncation 后的不可达代码，最小替换为 ';' (1 byte)
@@ -94,6 +94,18 @@ def find_regions(data):
             '多行历史空白填充',
             history_pat.start('spaces'),
             history_pat.group('spaces'),
+            0,
+            'padding',
+        )
+    history_callback_pat = re.search(
+        rb'downArrow&&' + V + rb'&&' + V + rb'\)return !!' + V + rb'\(\)(?P<spaces> +);return!1',
+        data,
+    )
+    if history_callback_pat:
+        add(
+            '多行历史 callback 填充',
+            history_callback_pat.start('spaces'),
+            history_callback_pat.group('spaces'),
             0,
             'padding',
         )
