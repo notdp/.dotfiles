@@ -28,20 +28,23 @@ class CommandEntryTests(unittest.TestCase):
         skill = (REPO_ROOT / "skills" / "dev-long-loop" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn("SPEC_OVERVIEW.md", skill)
+        self.assertIn("ORCHESTRATOR.md", skill)
+        self.assertIn("WORKER_PROMPT.md", skill)
+        self.assertIn("HANDOFF.md", skill)
         self.assertIn("fix_plan.md", skill)
         self.assertIn("qa.md", skill)
         self.assertIn("logs.md", skill)
         self.assertNotIn("validator-results.json", skill)
         self.assertNotIn("events.jsonl", skill)
 
-    def test_long_loop_skill_documents_hands_off_runtime_contract(self) -> None:
+    def test_long_loop_skill_documents_agent_orchestrated_contract(self) -> None:
         skill = (REPO_ROOT / "skills" / "dev-long-loop" / "SKILL.md").read_text(encoding="utf-8")
 
-        self.assertIn("hands-off", skill)
-        self.assertIn("runtime.log", skill)
-        self.assertIn("observe", skill)
-        self.assertIn("observe.html", skill)
-        self.assertIn("idle timeout", skill)
+        self.assertIn("orchestrator", skill)
+        self.assertIn("worker", skill)
+        self.assertIn("tmux", skill)
+        self.assertIn("Hive 不作为主路径", skill)
+        self.assertIn("LLM", skill)
         self.assertIn("pending / in_progress / done / blocked", skill)
 
 

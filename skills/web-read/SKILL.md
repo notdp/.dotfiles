@@ -21,7 +21,7 @@ argument-hint: <URL|PDF 链接>
 ## 默认流程
 
 1. 先判断链接是否属于 GitHub / PDF / 通用网页
-2. 调用 `scripts/fetch.sh`
+2. 先解析本 skill 的安装目录，调用 `<skill_dir>/scripts/fetch.sh`
 3. 需要补充抓取策略时，参考 `references/read-methods.md`
 
 ## 使用约束
@@ -29,6 +29,7 @@ argument-hint: <URL|PDF 链接>
 - 本 skill 处理远程 URL，不处理 repo 内本地文件
 - 第一版不专门处理微信 / 飞书
 - 如果链接需要登录态或复杂交互，改用 `agent-browser`
+- 不要从目标项目 cwd 运行 `scripts/fetch.sh`；该脚本是本 skill 自带资产
 
 ## 资产
 

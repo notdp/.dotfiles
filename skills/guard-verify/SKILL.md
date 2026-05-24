@@ -1,10 +1,10 @@
 ---
 name: guard-verify
-description: 当准备声称“已完成/已修复/可交付”时使用；必须给出验证证据，不能空口收尾。
+description: 当准备报告“已完成/已修复/可交付”时使用；输出验证证据和剩余缺口。
 argument-hint: <交付物|验证范围>
 ---
 
-调用本 skill 后，必须提供验证证据。没有验证结果 = 不能声称完成。
+调用本 skill 后，先提供验证证据；缺少验证结果时，报告状态写为 `partial` 或 `verification: none -- structural gap`。
 
 ## 触发时机
 
@@ -29,7 +29,7 @@ argument-hint: <交付物|验证范围>
 | Acceptance | 用户目标达成 | E2E、真实输入、holdout、人工观察、回归样例 | 复杂任务必须有 |
 | Regression | 未破坏已有能力 | 历史样例、关键路径、快照对比 | 重要任务必须考虑 |
 
-复杂任务、用户可见功能、数据任务、模型/评测任务、Agent 流程不能只列 inner-loop evidence 就标 verified。若 acceptance verifier 不适用，必须说明原因和剩余风险。
+复杂任务、用户可见功能、数据任务、模型/评测任务、Agent 流程需要 acceptance evidence 才能标 verified。若 acceptance verifier 不适用，说明原因和剩余风险。
 
 最终报告必须显式列出：
 
@@ -54,7 +54,7 @@ argument-hint: <交付物|验证范围>
 | DESIGN.md adherence | 若存在 `DESIGN.md`，说明已读取并给出 token / direction 遵守证据；若偏离，说明理由 |
 | Reference diff | 有参考图时引用 `/fe-ui-visual-iterate` 差异表 |
 
-禁止把“测试通过”“肉眼看了下”当成 UI verified。缺截图或 overflow 证据时，UI 交付物状态只能是 `partial`。
+UI verified 状态只在截图、overflow 和适用交互状态证据齐备时成立。缺截图或 overflow 证据时，UI 交付物状态写为 `partial`。
 
 ## Data / Operational 任务额外门禁
 
@@ -69,7 +69,7 @@ argument-hint: <交付物|验证范围>
 | CLI UX | preset/default/wizard/help；复杂 wizard 必须打印底层可复制命令 |
 | apply safety | apply confirmation、post-apply verification、必要时 `/guard-gitops` evidence |
 
-禁止把“dry-run 能跑通”当成数据任务 verified。dry-run 缺少数据准确性证据时，只能写：
+数据任务 verified 状态需要 dry-run 数据准确性证据。dry-run 缺少数据准确性证据时，写：
 
 ```text
 dry-run: smoke only -- data accuracy not verified
@@ -80,16 +80,17 @@ dry-run: smoke only -- data accuracy not verified
 ## 工具化步骤
 
 ```
-bash scripts/run-verify.sh
+bash "<dotfiles_root>/scripts/run-verify.sh" "<target_repo_root>"
 ```
 
 - 自动探测 package.json / pyproject.toml / Cargo.toml / Makefile / go.mod 等并运行对应 test / lint / typecheck / build
 - 输出固定 Markdown 表，agent 直接贴进报告作为 Evidence
 - exit code 0=全绿，1=有失败，2=无任何可检测命令（需要手动补）
+- `scripts/run-verify.sh` 来自 dotfiles；目标项目路径作为参数传入
 
 ### Verification: None 强制声明
 
-当出现以下任一情况时，**禁止**在报告里写 "verified pass"：
+当出现以下任一情况时，报告状态使用 `verification: none -- structural gap`：
 
 - `scripts/run-verify.sh` 退出码为 `2`（无任何可探测的 test / lint / build 命令）
 - 没有探测到自动化测试入口，且本次也未补 characterization
@@ -101,11 +102,11 @@ bash scripts/run-verify.sh
 verification: none -- structural gap
 ```
 
-并把"补可执行验证"列入"待补 / Followups"，不能让缺验证伪装成通过。
+并把"补可执行验证"列入"待补 / Followups"。
 
 ## 验证三层级（每条 Deliverable 都必须分别给 L1/L2/L3 证据）
 
-文件 / 函数能找到 ≠ 实现到位。三层级缺一不算 verified：
+文件 / 函数能找到 ≠ 实现到位。三层级齐备时才算 verified：
 
 | 层级 | 含义 | 不充分的反例 |
 |---|---|---|
@@ -119,7 +120,7 @@ verification: none -- structural gap
 - L2 证据：函数体片段、关键分支或具体行为说明
 - L3 证据：调用点、注册位置、入口绑定（路径 + 行号）
 
-任意层级缺证据 → 该条交付物状态为 `partial`，不能算 verified pass。
+任意层级缺证据 → 该条交付物状态为 `partial`。
 
 ## 输出格式
 
@@ -197,14 +198,13 @@ verification: none -- structural gap
 
 ## 规则
 
-- 没有跑过验证命令，不能声称完成
+- 报告完成状态前先跑对应验证命令
 - 测试/构建通过 ≠ 用户可感知行为已经成立；交付物必须单独验收
-- "应该没问题"/"改动很小不需要验证" = 不接受
 - 验证失败 → 修复 → 重新验证，直到通过
 
 ## Anti-Rationalization Guard
 
-声称"已验证"前常见的"放行借口"，命中即拒绝标 verified pass：
+声称"已验证"前常见的放行借口，命中时改写为 `partial` 或 `verification: none -- structural gap`：
 
 | 借口 | 反驳 |
 |---|---|
@@ -216,7 +216,7 @@ verification: none -- structural gap
 ## Gotchas
 
 - 测试通过不等于交付物成立；用户要求必须逐条验收
-- 没有证据截图、命令输出或可复现步骤，就不要写“已完成”
+- 报告“已完成”时附上证据截图、命令输出或可复现步骤
 - 文档/配置类改动也要验证链接、路径、命令和引用是否仍然成立
 - 若验证发现范围外回归，必须回退到对应 skill 修复，而不是在总结里弱化问题
 

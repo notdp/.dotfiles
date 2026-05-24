@@ -16,9 +16,11 @@ argument-hint: <仓库路径|留空=当前目录>
 
 ## 默认流程
 
-1. 运行 `scripts/collect_data.sh`
+1. 先解析本 skill 的安装目录，运行 `<skill_dir>/scripts/collect_data.sh <目标仓库路径>`
 2. 先读 summary，再看 issues
 3. 需要更细分析时，再让 inspector agents 深挖
+
+不要直接运行目标仓库里的 `scripts/collect_data.sh`；该脚本是本 skill 自带资产，目标仓库只是被审计对象。
 
 ## 资产
 

@@ -9,6 +9,10 @@
    - 权限控制
    - 外部输入
    - secrets / tokens / headers / cookies
+   - 供应链、依赖升级、CI/CD、IaC、container 或 cloud config
+   - MCP / tool permission / hook / prompt / capsule / agent context surface
+   - 安全工具执行、外部目标扫描、exploit、C2、phishing simulation、credential access、lateral movement、暴力测试或绕过认证
+   - 仅在 diff、PR 描述或任务上下文有证据时触发；不要只因普通关键词扩大为重安全审查
 4. 满足以下任一条件时追加 `guard-mysql-review`
    - MySQL/InnoDB DDL 或 migration
    - 表结构、字段类型、时间字段、主键、逻辑外键命名变更
