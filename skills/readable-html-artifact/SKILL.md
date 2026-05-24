@@ -28,28 +28,36 @@ argument-hint: <source.md> <output.html> [profile]
 ## Flow
 
 1. 确认 `source_md` 是文件，且 Markdown 是结论 SSOT。
-2. 先解析 repo root，不要假设当前工作目录就是仓库根：
+2. 先把路径拆成两个概念，不要把目标项目 root 当成 renderer 所在位置：
 
-   - 优先用 `git rev-parse --show-toplevel`。
-   - 若当前目录不是 git repo，但 `source_md` / `output_html` 位于可识别仓库内，使用该仓库根。
-   - 若无法定位 repo root，停止并报告“无法定位 repo root”，不要声称 renderer 缺失。
-   - 只有检查过 `<repo_root>/scripts/render_html_artifact.py` 仍不存在时，才能报告 renderer 缺失。
+   - `target_repo_root`：`source_md` / `output_html` 所在项目，用于相对路径、报告和 SSOT 归属。
+   - `renderer_path`：实际执行的 renderer 脚本路径，独立于目标项目。
+   - 相对 `source_md` / `output_html` 默认按当前工作目录解析；解析后再用 `git -C <source_or_output_parent> rev-parse --show-toplevel` 找目标项目。
+   - 若无法定位 `target_repo_root`，仍可用绝对 `source_md` / `output_html` 生成，但最终报告要写明“无法定位 target repo root”。
 
-3. 优先运行已解析 repo root 下的脚本：
+3. 按顺序解析 `renderer_path`，只要找到第一个存在的绝对路径就使用：
+
+   1. `<target_repo_root>/scripts/render_html_artifact.py`，允许目标项目覆盖 renderer。
+   2. `<skill_dir>/render_html_artifact.py`，即随本 skill 一起安装的 wrapper。
+   3. `<skill_dir>/../../scripts/render_html_artifact.py`，即在 dotfiles 源仓库内开发本 skill 时的 renderer。
+
+   只有这些绝对路径都检查过仍不存在时，才能报告 renderer 缺失；不要因为目标项目没有 `scripts/render_html_artifact.py` 就向用户询问是否临时生成 HTML。
+
+4. 运行已解析的 renderer：
 
    ```bash
-   python3 "<repo_root>/scripts/render_html_artifact.py" --source <source.md> --output <output.html> --profile <generic|plan|research>
+   python3 "<renderer_path>" --source <source.md> --output <output.html> --profile <generic|plan|research>
    ```
 
-4. 若平台支持隔离子任务，可派发“隔离生成任务”，但必须使用 `references/worker-contract.md` 的输入输出契约。
-5. 不支持子任务的平台直接运行脚本；不要为了兼容性引入 Droid-only 或 Codex-only 入口。
-6. 最终只返回 source path、HTML path、repo root、验证结果、已知风险；不要返回完整 HTML。
+5. 若平台支持隔离子任务，可派发“隔离生成任务”，但必须使用 `references/worker-contract.md` 的输入输出契约。
+6. 不支持子任务的平台直接运行脚本；不要为了兼容性引入 Droid-only 或 Codex-only 入口。
+7. 最终只返回 source path、HTML path、target repo root、renderer path、验证结果、已知风险；不要返回完整 HTML。
 
 ## Cross-agent rules
 
 - 子任务派发使用“派发隔离生成任务”这种通用描述，不写 Droid `Task`、missions 或平台专属语法。
 - 工具名使用 Read / Edit / Execute 等通用概念；实现细节由当前 agent 映射。
-- 路径默认相对 repo root，但 renderer 调用必须使用已解析的 repo root；不要依赖当前工作目录、`.factory`、`~/.factory` 或某个 agent 的私有目录。
+- `source_md` / `output_html` 可以相对当前工作目录，但 renderer 调用必须使用已解析的 `renderer_path`；不要把目标项目的 repo root 当成 renderer root。
 - 并行子任务不可用时，降级为主流程顺序执行脚本。
 
 ## Risk / Evidence
@@ -77,7 +85,8 @@ argument-hint: <source.md> <output.html> [profile]
 | Source | `<source.md>` |
 | Output | `<output.html>` |
 | Profile | `<profile>` |
-| Repo root | `<repo_root>` |
+| Target repo root | `<target_repo_root or unresolved>` |
+| Renderer | `<renderer_path>` |
 | Validation | `<command/result>` |
 
 Known gaps:
