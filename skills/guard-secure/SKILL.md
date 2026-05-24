@@ -45,7 +45,17 @@ git diff <range> --name-only
 
 威胁模型不是强制前置；缺失时仅降级，不阻断。
 
-## 3. 威胁建模（STRIDE 检查表）
+## 3. 安全授权边界
+
+先区分本次任务是只读审查，还是会对外部系统产生安全测试副作用：
+
+- 只读审查、代码级漏洞分析、本地配置检查、已授权范围内的本地验证可以继续，但 findings 仍必须给证据。
+- 对外部目标执行扫描、exploit、C2、phishing simulation、credential access、lateral movement、暴力测试、绕过认证或破坏性测试前，必须先拿到明确授权范围、允许动作、停止条件和验证方式。
+- 授权范围不明确时不要执行安全工具或攻击模拟；改为说明缺少的 scope，并提供只读审查路径。
+
+需要扩展检查面时，读取 `references/security-taxonomy.md`；该 reference 只作为分类导航，不是 ATT&CK / NIST 覆盖率 SSOT。
+
+## 4. 威胁建模（STRIDE 检查表）
 
 对目标范围逐维度分析。每条检查点给出常见模式 + 触发关键词供 grep。
 
@@ -113,14 +123,14 @@ git diff <range> --name-only
 - TOCTOU：检查后再使用，中间可被修改
 - 反序列化：`pickle.loads` / Java ObjectInputStream / PHP `unserialize` 接受用户数据
 
-## 4. 依赖 CVE 检查
+## 5. 依赖 CVE 检查
 
 - [ ] 项目已配置漏洞扫描（`npm audit` / `pip-audit` / `cargo audit` / `go list -m -u all` / GitHub Dependabot / Snyk / Trivy）
 - [ ] 锁文件（`package-lock.json` / `pnpm-lock.yaml` / `poetry.lock` / `Cargo.lock` / `go.sum`）已 commit 且与 manifest 一致
 - [ ] 新增依赖经过 license + supply chain 审查
 - [ ] 高危 CVE 有跟进计划（不要求每个都立即修，但要可见）
 
-## 5. 输出
+## 6. 输出
 
 ```markdown
 ### Scan Context
@@ -148,7 +158,7 @@ git diff <range> --name-only
 - Ready for merge?: Yes / No / With fixes
 ```
 
-## 6. 规则
+## 7. 规则
 
 - 只报告有证据的风险，不报告理论上的可能性
 - 每个 finding 必须给：威胁类型 + file:line + 触发路径 + 缓解建议

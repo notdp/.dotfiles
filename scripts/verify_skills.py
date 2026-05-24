@@ -35,7 +35,15 @@ RISK_PATTERNS = {
         r"\b(?:generate|process|analyze|handle|write|create)\b.{0,60}\b(?:clinical|medical|patient|laboratory|lab automation|hipaa|treatment)\b",
         re.IGNORECASE | re.DOTALL,
     ),
+    "offensive-dual-use": re.compile(
+        r"\b(?:exploit|exploitation|c2|command[- ]and[- ]control|phishing|credential(?: dumping| theft| access)?|lateral movement|brute[- ]?force|red team|penetration test|pentest|scan external target)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
 }
+GUARDRAIL_ANCHOR_PATTERN = re.compile(
+    r"(/guard-secure|/guard-gitops|guardrail|guardrails|risk|risks|authorization|authorized|scope|scope-bound|风险|授权|范围|护栏|边界)",
+    re.IGNORECASE,
+)
 WORKFLOW_QUALITY_TERMS = (
     "证据",
     "验收",
@@ -429,10 +437,17 @@ def collect_high_risk_capability_warnings(entry: SkillEntry, text: str) -> list[
     ]
     if not categories:
         return []
-    return [
+    warnings = [
         f"RISK WARNING: {entry.name} declares high-risk capability categories: "
         + ", ".join(categories)
     ]
+    if not GUARDRAIL_ANCHOR_PATTERN.search(text):
+        warnings.append(
+            f"GUARDRAIL WARNING: {entry.name} declares high-risk capabilities without "
+            "risk/authorization guardrails; add a Risk/Guardrails section or route through "
+            "/guard-secure and /guard-gitops."
+        )
+    return warnings
 
 
 def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_names: set[str]) -> list[str]:

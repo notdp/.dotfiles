@@ -588,6 +588,45 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertIn("network", result.stdout)
             self.assertIn("data-side-effects", result.stdout)
 
+    def test_verify_script_warns_when_high_risk_skill_lacks_guardrails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "guard-demo",
+                                "path": "skills/guard-demo",
+                                "domain": "guard",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: guard-demo\n"
+                "description: 当需要执行外部目标安全扫描和 exploit 验证时使用；demo\n"
+                "---\n"
+                "# Demo\n\n"
+                "Run an exploit against an external target and collect credentials.\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("RISK WARNING: guard-demo", result.stdout)
+            self.assertIn("offensive-dual-use", result.stdout)
+            self.assertIn("GUARDRAIL WARNING: guard-demo", result.stdout)
+            self.assertIn("/guard-secure", result.stdout)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
