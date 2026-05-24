@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 import time
@@ -17,6 +18,15 @@ class LongLoopTests(unittest.TestCase):
         return subprocess.run(
             ["python3", str(LONG_LOOP_SCRIPT), *args],
             cwd=cwd,
+            text=True,
+            capture_output=True,
+        )
+
+    def run_script_with_env(self, cwd: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["python3", str(LONG_LOOP_SCRIPT), *args],
+            cwd=cwd,
+            env=env,
             text=True,
             capture_output=True,
         )
@@ -55,6 +65,27 @@ class LongLoopTests(unittest.TestCase):
         scan.write_text("#!/usr/bin/env python3\nprint('scan-pass')\n", encoding="utf-8")
         scan.chmod(0o755)
 
+    def install_fake_tmux(self, cwd: Path) -> tuple[Path, dict[str, str]]:
+        bindir = cwd / "bin"
+        bindir.mkdir()
+        log = cwd / "tmux.log"
+        tmux = bindir / "tmux"
+        tmux.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, pathlib, sys\n"
+            "pathlib.Path(os.environ['TMUX_LOG']).open('a', encoding='utf-8').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "if len(sys.argv) > 1 and sys.argv[1] in {'split-window', 'new-window'}:\n"
+            "    print('%999')\n",
+            encoding="utf-8",
+        )
+        tmux.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+        env["TMUX"] = "/tmp/fake-tmux"
+        env["TMUX_PANE"] = "%1"
+        env["TMUX_LOG"] = str(log)
+        return log, env
+
     def workspace(self, cwd: Path) -> Path:
         workspaces = sorted(path for path in (cwd / ".long-loop").iterdir() if path.is_dir())
         self.assertEqual(len(workspaces), 1)
@@ -70,6 +101,10 @@ class LongLoopTests(unittest.TestCase):
             self.assertTrue(root.name.startswith(datetime.now().strftime("%Y-%m-%d") + "_ship-feature"))
             self.assertFalse((cwd / ".long-loop" / "current").exists())
             self.assertTrue((root / "PROMPT.md").exists())
+            self.assertTrue((root / "ORCHESTRATOR.md").exists())
+            self.assertTrue((root / "WORKER_PROMPT.md").exists())
+            self.assertTrue((root / "HANDOFF.md").exists())
+            self.assertTrue((root / "WORKER_CONFIG.json").exists())
             self.assertTrue((root / "SPEC_OVERVIEW.md").exists())
             self.assertTrue((root / "fix_plan.md").exists())
             self.assertTrue((root / "qa.md").exists())
@@ -90,6 +125,169 @@ class LongLoopTests(unittest.TestCase):
             self.assertEqual(state["token_budget"], "1M")
             self.assertEqual(state["created_by"], "dev-long-loop-harness")
             self.assertIn("workspace_token", state)
+
+    def test_plan_creates_agent_orchestration_contract_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+
+            orchestrator = (root / "ORCHESTRATOR.md").read_text(encoding="utf-8")
+            worker_prompt = (root / "WORKER_PROMPT.md").read_text(encoding="utf-8")
+            handoff = (root / "HANDOFF.md").read_text(encoding="utf-8")
+            worker_config = json.loads((root / "WORKER_CONFIG.json").read_text(encoding="utf-8"))
+
+            self.assertIn("Current agent", orchestrator)
+            self.assertIn("Do not use Hive as a required dependency", orchestrator)
+            self.assertIn("Use `long_loop.py launch-worker`", orchestrator)
+            self.assertIn("Do not hand-write `tmux new-session`", orchestrator)
+            self.assertIn("HANDOFF.md + fix_plan.md + phase QA", orchestrator)
+            self.assertIn("handoff complete but worker process still running", orchestrator)
+            self.assertIn("one worker round", worker_prompt)
+            self.assertIn("HANDOFF.md", worker_prompt)
+            self.assertIn("Do not start the next round", worker_prompt)
+            self.assertIn("state file", worker_prompt)
+            self.assertIn("resume command", worker_prompt)
+            self.assertIn("# Latest Worker Handoff", handoff)
+            self.assertIn("- Status: pending", handoff)
+            self.assertIn("failure_summary", handoff)
+            self.assertIn("failed_examples", handoff)
+            self.assertIn("failed_set", handoff)
+            self.assertEqual(worker_config["agent"], "droid")
+            self.assertEqual(worker_config["tmuxMode"], "split-right")
+
+    def test_ensure_contract_adds_missing_worker_files_to_existing_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+            for name in ["ORCHESTRATOR.md", "WORKER_PROMPT.md", "HANDOFF.md", "WORKER_CONFIG.json"]:
+                (root / name).unlink()
+
+            result = self.run_script(cwd, "ensure-contract", "--dir", str(root))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("contract-ready", result.stdout)
+            for name in ["ORCHESTRATOR.md", "WORKER_PROMPT.md", "HANDOFF.md", "WORKER_CONFIG.json"]:
+                self.assertTrue((root / name).exists(), name)
+
+    def test_launch_worker_without_tmux_prints_manual_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+            self.make_workspace_ready(root)
+            env = os.environ.copy()
+            env.pop("TMUX", None)
+            env.pop("TMUX_PANE", None)
+
+            result = self.run_script_with_env(
+                cwd,
+                env,
+                "launch-worker",
+                "--dir",
+                str(root),
+                "--item",
+                "P0: Ship concrete feature",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("tmux not detected", result.stdout)
+            self.assertIn("WORKER_PROMPT.md", result.stdout)
+            self.assertIn("P0: Ship concrete feature", result.stdout)
+
+    def test_launch_worker_opens_tmux_split_with_absolute_paths_and_title(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            log, env = self.install_fake_tmux(cwd)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+            self.make_workspace_ready(root)
+
+            result = self.run_script_with_env(
+                cwd,
+                env,
+                "launch-worker",
+                "--dir",
+                str(root),
+                "--item",
+                "P0: Ship concrete feature",
+                "--model",
+                "gpt-5.5-fast",
+                "--reasoning-effort",
+                "high",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+            split = calls[0]
+            title = calls[1]
+            self.assertFalse(any(call[0] == "new-window" for call in calls), calls)
+            self.assertEqual(split[:5], ["split-window", "-t", "%1", "-h", "-P"])
+            self.assertIn("-c", split)
+            self.assertEqual(split[split.index("-c") + 1], str(cwd.resolve()))
+            command = split[-1]
+            self.assertIn("droid", command)
+            self.assertIn("--cwd", command)
+            self.assertIn(str(cwd.resolve()), command)
+            self.assertIn("--settings", command)
+            self.assertIn(str((root / "WORKER_LAUNCH_PROMPT.md").resolve()), command)
+            self.assertIn("Read", command)
+            self.assertNotIn("droid exec", command)
+            self.assertTrue((root / "WORKER_SETTINGS.json").exists())
+            self.assertEqual(title[:4], ["select-pane", "-t", "%999", "-T"])
+            self.assertIn("LL P0 01_initial", title)
+            launch_prompt = (root / "WORKER_LAUNCH_PROMPT.md").read_text(encoding="utf-8")
+            self.assertIn("Spec stage", launch_prompt)
+            self.assertIn("Implementation and debug stage", launch_prompt)
+            self.assertIn("Handoff stage", launch_prompt)
+            self.assertIn(str(root.resolve()), launch_prompt)
+
+    def test_launch_worker_refuses_blocked_item_before_tmux(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            log, env = self.install_fake_tmux(cwd)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+            self.make_workspace_ready(root, status="blocked")
+
+            result = self.run_script_with_env(
+                cwd,
+                env,
+                "launch-worker",
+                "--dir",
+                str(root),
+                "--item",
+                "P0: Ship concrete feature",
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("blocked", result.stderr)
+            self.assertFalse(log.exists())
+
+    def test_launch_worker_refuses_new_window_without_explicit_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            log, env = self.install_fake_tmux(cwd)
+            self.run_script(cwd, "plan", "--goal", "ship feature")
+            root = self.workspace(cwd)
+            self.make_workspace_ready(root)
+
+            result = self.run_script_with_env(
+                cwd,
+                env,
+                "launch-worker",
+                "--dir",
+                str(root),
+                "--item",
+                "P0: Ship concrete feature",
+                "--tmux-mode",
+                "window",
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("new tmux window", result.stderr)
+            self.assertFalse(log.exists())
 
     def test_prompt_contains_ralph_workflow_rules(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -126,12 +324,20 @@ class LongLoopTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("# Long Loop Review", result.stdout)
+            self.assertIn("Use the harness launcher, not hand-written tmux", result.stdout)
+            self.assertIn("launch-worker --dir", result.stdout)
+            self.assertIn("Do not use `tmux new-session`, `tmux new-window`, or `droid exec` directly", result.stdout)
+            self.assertIn("## ORCHESTRATOR.md", result.stdout)
+            self.assertIn("## WORKER_PROMPT.md", result.stdout)
+            self.assertIn("## HANDOFF.md", result.stdout)
+            self.assertIn("## WORKER_CONFIG.json", result.stdout)
             self.assertIn("## SPEC_OVERVIEW.md", result.stdout)
             self.assertIn("## fix_plan.md", result.stdout)
             self.assertIn("## qa.md", result.stdout)
             self.assertIn("## PROMPT.md", result.stdout)
             self.assertIn("--dir .long-loop/", result.stdout)
             self.assertIn(str(LONG_LOOP_SCRIPT.resolve()), result.stdout)
+            self.assertNotIn("Use tmux to launch a worker", result.stdout)
             self.assertNotIn("--max-minutes", result.stdout)
 
     def test_only_simple_commands_are_supported(self) -> None:

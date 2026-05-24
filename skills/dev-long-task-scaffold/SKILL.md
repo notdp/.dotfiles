@@ -10,9 +10,9 @@ argument-hint: <任务目标或需求>
 
 与 `dev-long-loop` 的区别：
 
-- `dev-long-loop` 面向 harness 驱动的 long-loop runner。
+- `dev-long-loop` 面向当前 agent 作为 orchestrator、tmux worker 执行单轮交付的 agent-orchestrated long-loop。
 - `dev-long-task-scaffold` 面向用户手动控制的阶段式交付。
-- 本 skill 仍使用 `dev-long-loop/long_loop.py plan` 生成同构 workspace，但不启动 `long_loop.py run`、不创建后台 agent、不自动进入任何 phase。
+- 本 skill 仍使用 `dev-long-loop/long_loop.py plan` 生成同构 workspace，但不启动 tmux worker、不启动 `long_loop.py run`、不创建后台 agent、不自动进入任何 phase。
 
 ## Decision Principles
 
@@ -40,6 +40,9 @@ argument-hint: <任务目标或需求>
 .long-loop/<slug>/
 ├── SPEC_OVERVIEW.md
 ├── PROMPT.md
+├── ORCHESTRATOR.md
+├── WORKER_PROMPT.md
+├── HANDOFF.md
 ├── fix_plan.md
 ├── qa.md
 ├── logs.md
@@ -60,6 +63,9 @@ argument-hint: <任务目标或需求>
 | 文件 | 责任 |
 |---|---|
 | `SPEC_OVERVIEW.md` | 任务目标、非目标、代码事实、影响面、风险、整体 phase map |
+| `ORCHESTRATOR.md` | `dev-long-loop` 使用的调度协议；scaffold 阶段只生成/保留，不执行 |
+| `WORKER_PROMPT.md` | `dev-long-loop` tmux worker 的单轮执行协议；scaffold 阶段不注入 worker |
+| `HANDOFF.md` | 后续 worker 的交接面；scaffold 阶段保持初始状态 |
 | `PROMPT.md` | 后续 agent 的阶段执行协议；只执行用户指定 phase，不自动跨 phase；保留 harness 生成的 Long Loop Prompt 语义 |
 | `fix_plan.md` | 全局任务清单；item 状态只允许 `pending / in_progress / done / blocked` |
 | `qa.md` | 整体验收标准、验证命令、acceptance verifier、回归检查 |
@@ -128,6 +134,7 @@ Rules:
 ## Gotchas
 
 - 不要启动 `long_loop.py run`。
+- 不要启动 tmux worker。
 - 不要手写 `state.json`、`runtime.log`、`events.jsonl` 或其它 runner 状态文件冒充 harness workspace；`state.json` 只能来自 `long_loop.py plan`。
 - 不要创建与 `PROMPT.md` 并行的 `CONTROL_PROMPT.md`，否则后续 agent 会读取错误控制面。
 - 不要在 scaffold 阶段顺手实现 phase。

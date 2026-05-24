@@ -9,6 +9,7 @@ import re
 import secrets
 import selectors
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -33,6 +34,30 @@ class LoopPaths:
     @property
     def prompt(self) -> Path:
         return self.root / "PROMPT.md"
+
+    @property
+    def orchestrator(self) -> Path:
+        return self.root / "ORCHESTRATOR.md"
+
+    @property
+    def worker_prompt(self) -> Path:
+        return self.root / "WORKER_PROMPT.md"
+
+    @property
+    def handoff(self) -> Path:
+        return self.root / "HANDOFF.md"
+
+    @property
+    def worker_config(self) -> Path:
+        return self.root / "WORKER_CONFIG.json"
+
+    @property
+    def worker_launch_prompt(self) -> Path:
+        return self.root / "WORKER_LAUNCH_PROMPT.md"
+
+    @property
+    def worker_settings(self) -> Path:
+        return self.root / "WORKER_SETTINGS.json"
 
     @property
     def spec(self) -> Path:
@@ -1143,6 +1168,358 @@ You are running a Ralph Loop style long task. The filesystem is the source of tr
 """
 
 
+def v2_template_orchestrator(goal: str, workspace: str, token_budget: str) -> str:
+    return f"""# Orchestrator Protocol
+
+Goal: {goal}
+Workspace: {workspace}
+Token budget: {token_budget}
+
+Current agent role: orchestrator. Use LLM judgment to schedule the long-loop work; do not delegate scheduling decisions to `long_loop.py run`.
+
+## Source of truth
+
+- Read `SPEC_OVERVIEW.md`, `fix_plan.md`, `qa.md`, recent `logs.md`, and `HANDOFF.md` before each scheduling decision.
+- Treat workspace files as the source of truth. Do not rely on tmux scrollback or model memory.
+- Do not use Hive as a required dependency. Hive can be an optional collaboration layer, but this workflow must run with tmux plus workspace files.
+- Use `long_loop.py launch-worker` to start worker rounds. Do not hand-write `tmux new-session` or custom tmux launch commands.
+- Completion evidence is `HANDOFF.md + fix_plan.md + phase QA`; a handoff complete but worker process still running is an observation conflict to inspect, not proof that the round is unfinished.
+
+## Scheduling loop
+
+1. Re-check the goal, current git status, latest handoff, and highest-priority unfinished item.
+2. Decide whether to launch one worker round, stop as done, mark blocked, or ask the user.
+3. If launching a worker, run `long_loop.py launch-worker` from this skill harness and instruct the worker to read `WORKER_PROMPT.md` plus the selected item.
+4. After the worker stops, inspect `HANDOFF.md`, `logs.md`, `fix_plan.md`, validation output, and git diff.
+5. Launch another worker only when the evidence supports continuing.
+
+## Stop conditions
+
+- A `blocked` item needs user information, credentials, or authorization.
+- Validation fails and the next action is ambiguous.
+- The worker did not update `HANDOFF.md`, `logs.md`, or the selected `fix_plan.md` item.
+- The next step would push, deploy, modify databases, modify secrets, or touch third-party systems.
+
+## Operational contract
+
+- Resumability: `state.json` is the state file; `fix_plan.md`, `HANDOFF.md`, and `logs.md` are the human-readable checkpoint surfaces.
+- Resume command: rerun `long_loop.py launch-worker --dir {workspace}` after reviewing the latest handoff and git diff.
+- Robustness: every blocked or failed worker round must write `failure_summary`, `failed_examples`, and `failed_set` entries into `HANDOFF.md`.
+"""
+
+
+def v2_template_worker_prompt(goal: str, workspace: str, token_budget: str) -> str:
+    return f"""# Worker Prompt
+
+Goal: {goal}
+Workspace: {workspace}
+Token budget: {token_budget}
+
+You are executing one worker round for an agent-orchestrated long loop.
+
+## One-round contract
+
+1. Read `SPEC_OVERVIEW.md`, `fix_plan.md`, `qa.md`, `logs.md`, `ORCHESTRATOR.md`, `HANDOFF.md`, and the selected `phases/<id>/` files.
+2. Execute exactly one selected item or phase.
+3. Before editing, search the repository and update the phase `research.md` with code facts and evidence paths.
+4. Update the phase `plan.md` with scope, files, steps, validation, and rollback notes.
+5. Update the phase `qa.md` with the phase acceptance checks and evidence.
+6. Implement the item fully. Do not add placeholder, toy, or fake implementations.
+7. Run the phase QA and relevant repository validators.
+8. Update `logs.md`, `fix_plan.md`, and `HANDOFF.md` with actions, validation evidence, blockers, risks, `failure_summary`, `failed_examples`, and `failed_set`.
+9. Do not start the next round. Stop after this one worker round.
+10. Do not push, deploy, modify databases, modify secrets, or touch third-party systems.
+
+Resumability: `state.json` is the state file and the resume command is `long_loop.py launch-worker --dir {workspace}`.
+"""
+
+
+def v2_template_handoff() -> str:
+    return """# Latest Worker Handoff
+
+- Status: pending
+- Selected item: none
+- Phase: none
+- Files changed: none
+- Validation: not run
+- Blockers: none
+- Risks: none
+- failure_summary: none
+- failed_examples: none
+- failed_set: none
+- Resume command: long_loop.py launch-worker --dir <workspace>
+- Next recommended action: orchestrator selects the first worker round.
+"""
+
+
+def v2_template_worker_config() -> str:
+    return json.dumps(
+        {
+            "agent": "droid",
+            "model": "inherit",
+            "reasoningEffort": "inherit",
+            "autonomyLevel": "medium",
+            "tmuxMode": "split-right",
+            "maxWorkers": 1,
+            "timeoutSeconds": 0,
+            "paneTitleTemplate": "LL {item_id} {phase_slug}",
+        },
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
+
+
+def default_worker_config() -> dict:
+    return json.loads(v2_template_worker_config())
+
+
+def markdown_token(raw: str) -> str:
+    return raw.strip().strip("`").strip()
+
+
+def phase_slug(phase: str) -> str:
+    cleaned = markdown_token(phase)
+    return Path(cleaned).name if cleaned else "unknown_phase"
+
+
+def item_id(title: str) -> str:
+    return title.split(":", 1)[0].strip().replace(" ", "-") or "item"
+
+
+def v2_ensure_agent_contract(paths: LoopPaths, state: dict) -> list[Path]:
+    goal = str(state.get("goal") or "long-loop task")
+    token_budget = str(state.get("token_budget") or "500K")
+    workspace = str(paths.root.resolve())
+    created: list[Path] = []
+    templates = [
+        (paths.orchestrator, v2_template_orchestrator(goal, workspace, token_budget)),
+        (paths.worker_prompt, v2_template_worker_prompt(goal, workspace, token_budget)),
+        (paths.handoff, v2_template_handoff()),
+        (paths.worker_config, v2_template_worker_config()),
+    ]
+    for path, content in templates:
+        if path.exists():
+            continue
+        path.write_text(content, encoding="utf-8")
+        created.append(path)
+    return created
+
+
+def v2_ensure_contract_workspace(args: argparse.Namespace) -> int:
+    paths = LoopPaths(resolve_workspace_root(args.dir).expanduser().resolve())
+    v2_require_workspace(paths)
+    state = read_state(paths)
+    v2_require_harness_state(state)
+    created = v2_ensure_agent_contract(paths, state)
+    relative = [str(path.relative_to(paths.root)) for path in created]
+    sys.stdout.write(f"contract-ready: {paths.root.resolve()}\n")
+    sys.stdout.write("created: " + (", ".join(relative) if relative else "none") + "\n")
+    return 0
+
+
+def read_worker_config(paths: LoopPaths) -> dict:
+    config = default_worker_config()
+    if paths.worker_config.exists():
+        try:
+            raw = json.loads(paths.worker_config.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"invalid WORKER_CONFIG.json: {exc}") from exc
+        raw_is_dict = isinstance(raw, dict)
+        if raw_is_dict is False:
+            raise RuntimeError("invalid WORKER_CONFIG.json: expected object")
+        config.update(raw)
+    return config
+
+
+def selected_worker_item(paths: LoopPaths, item_title: str | None, phase: str | None) -> PlanItem:
+    items = plan_items(paths)
+    has_plan_items = bool(items)
+    if has_plan_items is False:
+        raise RuntimeError("fix_plan.md has no plan items")
+    if item_title:
+        wanted = markdown_token(item_title)
+        for item in items:
+            if item.title == wanted:
+                return item
+        raise RuntimeError(f"selected item not found in fix_plan.md: {wanted}")
+    if phase:
+        wanted_phase = markdown_token(phase)
+        for item in items:
+            if markdown_token(item.phase) == wanted_phase and item.status in {"pending", "in_progress", "blocked"}:
+                return item
+        raise RuntimeError(f"no actionable item found for phase: {wanted_phase}")
+    item = v2_next_actionable_item(paths)
+    if isinstance(item, PlanItem):
+        return item
+    raise RuntimeError("no pending or in-progress fix_plan item")
+
+
+def v2_worker_launch_prompt(paths: LoopPaths, item: PlanItem, repo_root: Path) -> str:
+    return "\n".join(
+        [
+            "# Long-loop Worker Launch",
+            "",
+            f"Workspace: `{paths.root.resolve()}`",
+            f"Repo root: `{repo_root}`",
+            "",
+            "Selected item:",
+            item.as_context(),
+            "",
+            "Read `WORKER_PROMPT.md` first, then execute this phase in three stages:",
+            "",
+            "## Spec stage",
+            "- Re-read workspace files and the selected phase files.",
+            "- Re-investigate the repository before editing.",
+            "- Update phase `research.md`, `spec.md`, `plan.md`, and `qa.md` with concrete evidence.",
+            "",
+            "## Implementation and debug stage",
+            "- Implement only the selected item.",
+            "- Run phase QA and relevant repository validators.",
+            "- Debug failures until the selected item is either done or blocked.",
+            "",
+            "## Handoff stage",
+            "- Update `HANDOFF.md`, `logs.md`, `fix_plan.md`, and phase QA evidence.",
+            "- Include failure_summary, failed_examples, and failed_set when anything is blocked or fails.",
+            f"- Resume command: `long_loop.py launch-worker --dir {paths.root.resolve()}`.",
+            "- Stop after this one phase. Do not start the next phase.",
+        ]
+    ) + "\n"
+
+
+def write_worker_settings(paths: LoopPaths, *, model: str, reasoning_effort: str, autonomy_level: str) -> Path:
+    settings: dict = {"sessionDefaultSettings": {"interactionMode": "auto", "autonomyLevel": autonomy_level}}
+    if model != "inherit":
+        settings["model"] = model
+    if reasoning_effort != "inherit":
+        settings["reasoningEffort"] = reasoning_effort
+    paths.worker_settings.write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return paths.worker_settings.resolve()
+
+
+def build_worker_command(
+    *,
+    agent: str,
+    repo_root: Path,
+    paths: LoopPaths,
+    prompt_text: str,
+    model: str,
+    reasoning_effort: str,
+    autonomy_level: str,
+    agent_cmd: str | None,
+) -> str:
+    if agent == "droid":
+        settings = write_worker_settings(paths, model=model, reasoning_effort=reasoning_effort, autonomy_level=autonomy_level)
+        prompt_path = paths.worker_launch_prompt.resolve()
+        initial_prompt = f"Read {prompt_path} and execute exactly one long-loop worker round."
+        return " ".join(
+            [
+                "droid",
+                "--cwd",
+                shlex.quote(str(repo_root)),
+                "--settings",
+                shlex.quote(str(settings)),
+                shlex.quote(initial_prompt),
+            ]
+        )
+    if agent == "claude":
+        parts = ["claude"]
+        if model != "inherit":
+            parts.extend(["--model", model])
+        if reasoning_effort != "inherit":
+            parts.extend(["--effort", reasoning_effort])
+        parts.append(prompt_text)
+        return " ".join(shlex.quote(part) for part in parts)
+    if agent == "custom":
+        if agent_cmd:
+            return agent_cmd
+        raise RuntimeError("--agent-cmd is required when --agent custom")
+    raise RuntimeError(f"unsupported worker agent: {agent}")
+
+
+def tmux_split_args(tmux_mode: str, target_pane: str, repo_root: Path, command: str) -> list[str]:
+    if tmux_mode == "split-right":
+        return ["tmux", "split-window", "-t", target_pane, "-h", "-P", "-F", "#{pane_id}", "-c", str(repo_root), command]
+    if tmux_mode == "split-down":
+        return ["tmux", "split-window", "-t", target_pane, "-v", "-P", "-F", "#{pane_id}", "-c", str(repo_root), command]
+    if tmux_mode == "window":
+        return ["tmux", "new-window", "-P", "-F", "#{pane_id}", "-c", str(repo_root), command]
+    raise RuntimeError(f"unsupported tmuxMode: {tmux_mode}")
+
+
+def v2_print_manual_worker_launch(paths: LoopPaths, item: PlanItem, repo_root: Path) -> None:
+    sys.stdout.write(
+        "\n".join(
+            [
+                "tmux not detected; no worker pane was launched.",
+                "",
+                f"Workspace: `{paths.root.resolve()}`",
+                f"Repo root: `{repo_root}`",
+                f"Selected item: {item.title}",
+                "",
+                "Manual fallback:",
+                f"1. cd {shlex.quote(str(repo_root))}",
+                "2. start your coding agent in a new pane",
+                f"3. ask it to read `{paths.worker_launch_prompt.resolve()}` and `WORKER_PROMPT.md`",
+                "",
+            ]
+        )
+    )
+
+
+def v2_launch_worker(args: argparse.Namespace) -> int:
+    paths = LoopPaths(resolve_workspace_root(args.dir).expanduser().resolve())
+    v2_require_workspace(paths)
+    state = read_state(paths)
+    v2_require_harness_state(state)
+    require_valid_plan_statuses(paths)
+    v2_ensure_agent_contract(paths, state)
+    repo_root = Path(args.repo_root or state.get("repo_root") or Path.cwd()).expanduser().resolve()
+    item = selected_worker_item(paths, args.item, args.phase)
+    if item.status == "blocked":
+        raise RuntimeError(f"selected item is blocked: {item.title}")
+    config = read_worker_config(paths)
+    max_workers = int(config.get("maxWorkers") or 1)
+    if max_workers != 1:
+        raise RuntimeError("launch-worker supports exactly one worker per invocation; set maxWorkers to 1")
+    agent = args.agent or str(config.get("agent") or "droid")
+    model = args.model or str(config.get("model") or "inherit")
+    reasoning_effort = args.reasoning_effort or str(config.get("reasoningEffort") or "inherit")
+    autonomy_level = args.autonomy_level or str(config.get("autonomyLevel") or "medium")
+    tmux_mode = args.tmux_mode or str(config.get("tmuxMode") or "split-right")
+    if tmux_mode == "window" and not args.allow_new_window:
+        raise RuntimeError("refusing to open a new tmux window without --allow-new-window; use split-right/split-down to stay in the coordinator tab")
+    prompt_text = v2_worker_launch_prompt(paths, item, repo_root)
+    paths.worker_launch_prompt.write_text(prompt_text, encoding="utf-8")
+    target_pane = os.environ.get("TMUX_PANE", "")
+    tmux_available = bool(os.environ.get("TMUX") and target_pane and shutil.which("tmux"))
+    if tmux_available:
+        command = build_worker_command(
+            agent=agent,
+            repo_root=repo_root,
+            paths=paths,
+            prompt_text=prompt_text,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            autonomy_level=autonomy_level,
+            agent_cmd=args.agent_cmd,
+        )
+        split = subprocess.run(tmux_split_args(tmux_mode, target_pane, repo_root, command), text=True, capture_output=True, check=False)
+        if split.returncode != 0:
+            raise RuntimeError((split.stderr or split.stdout or "tmux failed").strip())
+        pane = split.stdout.strip()
+        title_template = str(config.get("paneTitleTemplate") or "LL {item_id} {phase_slug}")
+        title = title_template.format(item_id=item_id(item.title), phase_slug=phase_slug(item.phase))
+        subprocess.run(["tmux", "select-pane", "-t", pane, "-T", title], text=True, capture_output=True, check=False)
+        sys.stdout.write(f"worker-launched: {pane}\n")
+        sys.stdout.write(f"title: {title}\n")
+        sys.stdout.write(f"prompt: {paths.worker_launch_prompt.resolve()}\n")
+        return 0
+    v2_print_manual_worker_launch(paths, item, repo_root)
+    return 0
+
+
+
+
 def v2_template_spec_overview(goal: str, token_budget: str) -> str:
     return f"""# Spec Overview
 
@@ -1234,6 +1611,10 @@ def v2_template_phase_file(title: str, body: str) -> str:
 
 def v2_format_review_bundle(paths: LoopPaths) -> str:
     files = [
+        ("ORCHESTRATOR.md", paths.orchestrator),
+        ("WORKER_PROMPT.md", paths.worker_prompt),
+        ("HANDOFF.md", paths.handoff),
+        ("WORKER_CONFIG.json", paths.worker_config),
         ("SPEC_OVERVIEW.md", paths.spec_overview),
         ("fix_plan.md", paths.fix_plan),
         ("qa.md", paths.qa),
@@ -1244,13 +1625,21 @@ def v2_format_review_bundle(paths: LoopPaths) -> str:
         "",
         f"Workspace: `{paths.root}`",
         "",
-        "Review and enrich these files with code-aware context before running the loop.",
+        "Review and enrich these files with code-aware context before launching a worker round.",
+        "",
+        "Use the harness launcher, not hand-written tmux:",
+        f"`{harness_invocation()} launch-worker --dir {paths.root}`",
+        "",
+        "Do not use `tmux new-session`, `tmux new-window`, or `droid exec` directly; the launcher binds the split to the coordinator `TMUX_PANE` and starts an interactive coding agent.",
     ]
     for label, path in files:
         sections.extend(["", f"## {label}", "", "```markdown", path.read_text(encoding="utf-8").strip(), "```"])
     sections.extend(
         [
             "",
+            "Current agent should act as orchestrator. Use the launcher above to split the current tmux pane and start a worker that reads `WORKER_PROMPT.md`.",
+            "",
+            "Legacy helper, if explicitly needed:",
             f"Next: `{harness_invocation()} run --dir {paths.root} --repo-root {shlex.quote(str(Path.cwd().resolve()))} --max-iterations 3 --idle-timeout-seconds 1800 --agent-cmd \"...\"`",
             "",
         ]
@@ -1274,6 +1663,10 @@ def v2_plan_workspace(args: argparse.Namespace) -> int:
     phase = paths.phases / "01_initial"
     phase.mkdir(parents=True, exist_ok=True)
     paths.prompt.write_text(v2_template_prompt(args.goal, str(paths.root), token_budget), encoding="utf-8")
+    paths.orchestrator.write_text(v2_template_orchestrator(args.goal, str(paths.root), token_budget), encoding="utf-8")
+    paths.worker_prompt.write_text(v2_template_worker_prompt(args.goal, str(paths.root), token_budget), encoding="utf-8")
+    paths.handoff.write_text(v2_template_handoff(), encoding="utf-8")
+    paths.worker_config.write_text(v2_template_worker_config(), encoding="utf-8")
     paths.spec_overview.write_text(v2_template_spec_overview(args.goal, token_budget), encoding="utf-8")
     paths.fix_plan.write_text(v2_template_fix_plan(args.goal), encoding="utf-8")
     paths.qa.write_text(v2_template_qa(), encoding="utf-8")
@@ -1840,6 +2233,24 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--log-lines", type=int, default=80)
     add_workspace_arg(observe)
     observe.set_defaults(func=v2_observe_workspace)
+
+    ensure = subparsers.add_parser("ensure-contract", help="Backfill agent-orchestrated worker contract files.")
+    add_workspace_arg(ensure)
+    ensure.set_defaults(func=v2_ensure_contract_workspace)
+
+    launch = subparsers.add_parser("launch-worker", help="Launch one tmux worker pane for a selected item.")
+    launch.add_argument("--item")
+    launch.add_argument("--phase")
+    launch.add_argument("--repo-root")
+    launch.add_argument("--agent", choices=["droid", "claude", "custom"])
+    launch.add_argument("--agent-cmd")
+    launch.add_argument("--model")
+    launch.add_argument("--reasoning-effort")
+    launch.add_argument("--autonomy-level", choices=["off", "low", "medium", "high"])
+    launch.add_argument("--tmux-mode", choices=["split-right", "split-down", "window"])
+    launch.add_argument("--allow-new-window", action="store_true")
+    add_workspace_arg(launch)
+    launch.set_defaults(func=v2_launch_worker)
 
     run = subparsers.add_parser("run", help="Run one or more bounded iterations.")
     run.add_argument("--agent-cmd")

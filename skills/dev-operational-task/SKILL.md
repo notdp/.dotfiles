@@ -146,8 +146,10 @@ dry-run 不是 smoke test。合格 dry-run 至少输出以下证据：
 本仓库提供 advisory scanner：
 
 ```bash
-scripts/scan_operational_task_contract.py --strict
+"<dotfiles_root>/scripts/scan_operational_task_contract.py" --strict
 ```
+
+不要假设目标项目有 `scripts/scan_operational_task_contract.py`；该 helper 来自 dotfiles，运行 cwd 才是目标仓库。
 
 默认扫描 staged、unstaged 和 untracked diff 中 operational-looking 文件。第一版是启发式检查，不替代人工判断；误报时在交付说明中解释。
 
