@@ -14,9 +14,14 @@ RISK_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("observability-routing", re.compile(r"(metric|metrics|埋点|指标)", re.I)),
     ("data-source", re.compile(r"(data source|数据源|canonical|snapshot)", re.I)),
     ("shared-path", re.compile(r"(封装|wrap|wrapper|包装|包一层|接入|对接|集成|adapter|integration|service\s+wrap)", re.I)),
-    ("context-surface", re.compile(r"(context|hook|prompt|capsule|CLAUDE\.md|AGENTS\.md)", re.I)),
+    ("context-surface", re.compile(r"(context|hook|prompt|capsule|CLAUDE\.md|AGENTS\.md|PreToolUse|PostToolUse|UserPromptSubmit)", re.I)),
     ("limit-default-fallback", re.compile(r"(sampling|limit|fallback|default|默认值|上限|兜底)", re.I)),
     ("operational-side-effect", re.compile(r"(prod|生产)", re.I)),
+)
+CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
+CONTEXT_SURFACE_PATH_RE = re.compile(
+    r"(^|/)(agents/AGENTS\.md|\.claude/settings\.json|\.factory/settings\.json|scripts/hooks/|scripts/hook_|agents/context-capsules/|skills/|commands/)",
+    re.I,
 )
 FACT_FIELD_RE = re.compile(
     r"^\s*-?\s*(Boundary facts|Boundary decisions|Risk types|Callers|Contract cases|Data source|Metric route|"
@@ -97,7 +102,24 @@ def recent_user_prompt_index(records: list[dict[str, Any]]) -> tuple[int, str]:
 
 
 def classify_risks(prompt: str) -> set[str]:
-    return {risk for risk, pattern in RISK_RULES if pattern.search(prompt)}
+    return {risk for risk, pattern in RISK_RULES if pattern.search(CODE_FENCE_RE.sub("", prompt))}
+
+
+def tool_target_path(hook_input: dict[str, Any]) -> str:
+    tool_input = hook_input.get("tool_input") or hook_input.get("toolInput") or {}
+    if not isinstance(tool_input, dict):
+        return ""
+    for key in ("file_path", "path"):
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+def filter_risks_for_target(risks: set[str], target_path: str) -> set[str]:
+    if "context-surface" not in risks or not target_path or CONTEXT_SURFACE_PATH_RE.search(target_path):
+        return risks
+    return risks - {"context-surface"}
 
 
 def field_has_value(raw_value: str) -> bool:
@@ -153,14 +175,14 @@ def missing_boundary_facts(risks: set[str], records_after_prompt: list[dict[str,
     return missing
 
 
-def should_gate(tool_name: str, transcript: str) -> tuple[bool, list[str]]:
+def should_gate(tool_name: str, transcript: str, target_path: str = "") -> tuple[bool, list[str]]:
     if tool_name not in EDIT_TOOLS:
         return False, []
     records = transcript_records(transcript)
     prompt_index, prompt = recent_user_prompt_index(records)
     if prompt_index < 0:
         return True, ["recent user prompt"]
-    risks = classify_risks(prompt)
+    risks = filter_risks_for_target(classify_risks(prompt), target_path)
     if not risks:
         return False, []
     missing = missing_boundary_facts(risks, records[prompt_index + 1 :])
@@ -183,7 +205,7 @@ def main() -> int:
     tool_name = str(hook_input.get("tool_name") or hook_input.get("toolName") or "")
     transcript = transcript_text(hook_input.get("transcript_path"))
     mode = os.environ.get("BOUNDARY_GATE_MODE", "advisory").lower()
-    should_warn, missing = should_gate(tool_name, transcript)
+    should_warn, missing = should_gate(tool_name, transcript, tool_target_path(hook_input))
     if should_warn:
         sys.stdout.write(json.dumps(gate_payload(mode, missing), ensure_ascii=False) + "\n")
     else:

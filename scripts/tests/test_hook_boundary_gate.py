@@ -19,9 +19,15 @@ class HookBoundaryGateTests(unittest.TestCase):
         tool_name: str = "Edit",
         mode: str = "advisory",
         script: Path = SCRIPT,
+        tool_input: dict | None = None,
     ) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "FACTORY_PROJECT_DIR": str(repo), "BOUNDARY_GATE_MODE": mode}
-        payload = {"hook_event_name": "PreToolUse", "tool_name": tool_name, "transcript_path": str(transcript)}
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": tool_name,
+            "transcript_path": str(transcript),
+            "tool_input": tool_input or {},
+        }
         return subprocess.run(
             ["python3", str(script)],
             input=json.dumps(payload),
@@ -215,6 +221,49 @@ class HookBoundaryGateTests(unittest.TestCase):
         self.assertEqual(execute.returncode, 0, execute.stdout + execute.stderr)
         self.assertTrue(json.loads(low_risk.stdout)["suppressOutput"])
         self.assertTrue(json.loads(execute.stdout)["suppressOutput"])
+
+    def test_ignores_schema_words_inside_frontend_code_fence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(
+                transcript,
+                {
+                    "type": "user",
+                    "message": {
+                        "content": (
+                            "修 React 保存逻辑：\n\n"
+                            "```tsx\n"
+                            "const response = await fetch('/api/save')\n"
+                            "const request = { defaultValue: true }\n"
+                            "```\n"
+                        )
+                    },
+                },
+            )
+
+            result = self.run_gate(repo, transcript)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_hook_word_does_not_gate_non_context_surface_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(
+                transcript,
+                {"type": "user", "message": {"content": "Hook 误报，前端 HTTP 调用不是长任务。修第二条前先看 doSave 完整逻辑。"}},
+            )
+
+            result = self.run_gate(
+                repo,
+                transcript,
+                tool_input={"file_path": "ordo-fe/src/components/campaign/commit/CommitSettingsPanel.tsx"},
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
     def test_legacy_wrapper_delegates_to_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

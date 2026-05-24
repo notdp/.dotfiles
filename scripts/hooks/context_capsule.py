@@ -17,14 +17,20 @@ CRITICAL_OPERATION_PROMPT_RE = re.compile(
     re.I,
 )
 OPERATIONAL_PROMPT_RE = re.compile(
-    r"(刷数据|同步|迁移|回填|修复数据|批处理|dry-?run|apply|run-until-empty|concurrenc|"
-    r"backfill|migration|migrate|sync|pipeline|batch|etl|repair|reconcile)",
+    r"(刷数据|同步|迁移|回填|修复数据|批处理|"
+    r"(?<![A-Za-z0-9_])(?:dry-?run|apply|run-until-empty|concurrenc\w*|"
+    r"backfill|migration|migrate|sync|pipeline|batch|etl|repair|reconcile)(?![A-Za-z0-9_]))",
     re.I,
 )
+CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
 CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "security-gitops.md",
-        re.compile(r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm)", re.I),
+        re.compile(
+            r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm|"
+            r"external target|exploit|c2|phishing|credential access|lateral movement|brute[- ]?force|auth bypass)",
+            re.I,
+        ),
     ),
     ("operational-task.md", re.compile(rf"(?:{OPERATIONAL_PROMPT_RE.pattern})|(?:{CRITICAL_OPERATION_PROMPT_RE.pattern})", re.I)),
     (
@@ -75,11 +81,16 @@ def capsule_heading(capsule: str) -> str:
     return ""
 
 
+def prompt_for_matching(prompt: str) -> str:
+    return CODE_FENCE_RE.sub("", prompt)
+
+
 def matching_capsules(prompt: str) -> list[tuple[str, re.Pattern[str], str]]:
+    searchable_prompt = prompt_for_matching(prompt)
     return [
         (name, pattern, capsule)
         for name, pattern in CAPSULE_RULES
-        if pattern.search(prompt)
+        if pattern.search(searchable_prompt)
         for capsule in [read_capsule(name)]
         if capsule
     ]
@@ -118,8 +129,18 @@ def prompt_context(hook_input: dict) -> str:
     if not matches:
         return json.dumps({"suppressOutput": True})
     capsules = [capsule for _, _, capsule in matches]
-    context = "\n\n---\n\n".join(capsules)[:MAX_PROMPT_CONTEXT_CHARS]
+    context = join_capsules(capsules)
     return json_context("UserPromptSubmit", context)
+
+
+def join_capsules(capsules: list[str]) -> str:
+    separator = "\n\n---\n\n"
+    context = separator.join(capsules)
+    if len(context) <= MAX_PROMPT_CONTEXT_CHARS:
+        return context
+    budget = MAX_PROMPT_CONTEXT_CHARS - (len(separator) * (len(capsules) - 1))
+    per_capsule_budget = max(1, budget // len(capsules))
+    return separator.join(capsule[:per_capsule_budget].rstrip() for capsule in capsules)[:MAX_PROMPT_CONTEXT_CHARS]
 
 
 def markdown_escape_cell(value: str) -> str:

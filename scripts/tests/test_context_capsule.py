@@ -12,7 +12,7 @@ WRAPPER_SCRIPT = REPO_ROOT / ".factory" / "hooks" / "context_capsule.py"
 GOLDEN_PROMPT_SAMPLES = (
     ("分组提交代码", []),
     ("我觉得我还是得摸清一下当前仓库的 hooks 都是怎么设计的，给我通过 html 清晰的展示出来", ["Planning Task Capsule", "Boundary-Decision Capsule"]),
-    ("重写 file:///Users/zhenninglang/.dotfiles/docs/repository-hooks-design-2026-05-15.html", ["Boundary-Decision Capsule"]),
+    (f"重写 file://{REPO_ROOT}/docs/repository-hooks-design-2026-05-15.html", ["Boundary-Decision Capsule"]),
     ("context_capsule.py 是不是针对不同场景注入增强 prompt，要不要交给便宜模型判定器", ["Boundary-Decision Capsule"]),
     ("长会话 compact 后 agent 能看到上次目标、改动文件、最近验证和 todo 摘要吗", []),
 )
@@ -105,6 +105,15 @@ class ContextCapsuleTests(unittest.TestCase):
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Operational Task Capsule", context)
 
+    def test_external_security_testing_prompts_inject_security_capsule(self) -> None:
+        samples = [
+            "run exploit validation against external target",
+            "perform C2 phishing simulation and brute force test",
+        ]
+        for prompt in samples:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
+
     def test_non_critical_operation_words_stay_quiet(self) -> None:
         samples = [
             "这个按钮关掉动画",
@@ -148,6 +157,24 @@ class ContextCapsuleTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_frontend_async_code_does_not_inject_operational_or_planning_capsules(self) -> None:
+        prompt = """修一个 React 保存逻辑：
+
+```tsx
+const doSave = useCallback(async (fields: CommitFieldConfig[], options?: { silentSuccess?: boolean }) => {
+  await onSave({ fields_config: fields }, options)
+})
+```
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), prompt)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("UI Task Capsule", context)
+        self.assertNotIn("Operational Task Capsule", context)
+        self.assertNotIn("Planning Task Capsule", context)
 
     def test_boundary_prompt_injects_boundary_capsule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
