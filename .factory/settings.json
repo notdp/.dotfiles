@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/context_capsule.py --event prompt",
+            "command": "\"/Users/zhenninglang/.dotfiles/scripts/hooks/context_capsule.py\" --event prompt",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/context_capsule.py --event post-tool",
+            "command": "\"/Users/zhenninglang/.dotfiles/scripts/hooks/context_capsule.py\" --event post-tool",
             "timeout": 15
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/boundary_gate.py",
+            "command": "\"/Users/zhenninglang/.dotfiles/scripts/hooks/boundary_gate.py\"",
             "timeout": 10
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/command_guard.py",
+            "command": "\"/Users/zhenninglang/.dotfiles/scripts/hooks/command_guard.py\"",
             "timeout": 10
           }
         ]
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$FACTORY_PROJECT_DIR\"/scripts/hooks/stop_check.py",
+            "command": "\"/Users/zhenninglang/.dotfiles/scripts/hooks/stop_check.py\"",
             "timeout": 10
           }
         ]

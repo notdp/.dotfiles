@@ -9,65 +9,6 @@ from pathlib import Path
 from typing import Any
 
 
-DROID_HOOKS: dict[str, Any] = {
-    "UserPromptSubmit": [
-        {
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": '"$FACTORY_PROJECT_DIR"/scripts/hooks/context_capsule.py --event prompt',
-                    "timeout": 10,
-                }
-            ]
-        }
-    ],
-    "PostToolUse": [
-        {
-            "matcher": "ApplyPatch|Create|Edit",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": '"$FACTORY_PROJECT_DIR"/scripts/hooks/context_capsule.py --event post-tool',
-                    "timeout": 15,
-                }
-            ],
-        }
-    ],
-    "PreToolUse": [
-        {
-            "matcher": "ApplyPatch|Create|Edit",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": '"$FACTORY_PROJECT_DIR"/scripts/hooks/boundary_gate.py',
-                    "timeout": 10,
-                }
-            ],
-        },
-        {
-            "matcher": "Execute",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": '"$FACTORY_PROJECT_DIR"/scripts/hooks/command_guard.py',
-                    "timeout": 10,
-                }
-            ],
-        },
-    ],
-    "Stop": [
-        {
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": '"$FACTORY_PROJECT_DIR"/scripts/hooks/stop_check.py',
-                    "timeout": 10,
-                }
-            ]
-        }
-    ],
-}
-
 MANAGED_COMMAND_PARTS = (
     "/scripts/hooks/context_state.py",
     "/scripts/hooks/context_capsule.py",
@@ -87,6 +28,10 @@ MANAGED_COMMAND_PARTS = (
 )
 CODEX_HOOKS_BEGIN = "# dotfiles hooks: begin"
 CODEX_HOOKS_END = "# dotfiles hooks: end"
+AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
+AIDER_HOOKS_END = "# dotfiles aider config: end"
+CLIPROXY_BASE_URL = "http://localhost:8317/v1"
+CLIPROXY_MODELS = ("gpt-5.5-fast", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")
 
 
 def settings_path(project_dir: Path) -> Path:
@@ -101,6 +46,30 @@ def codex_config_path(project_dir: Path) -> Path:
     return project_dir / ".codex" / "config.toml"
 
 
+def opencode_config_path(config_dir: Path) -> Path:
+    return config_dir / "opencode.json"
+
+
+def aider_config_path(config_path: Path) -> Path:
+    return config_path
+
+
+def runtime_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def home_path() -> Path:
+    return Path.home()
+
+
+def default_opencode_config_dir() -> Path:
+    return home_path() / ".config" / "opencode"
+
+
+def default_aider_config_path() -> Path:
+    return home_path() / ".aider.conf.yml"
+
+
 def load_settings(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -111,15 +80,50 @@ def load_settings(path: Path) -> dict[str, Any]:
     return data
 
 
+def shell_command(script_name: str, args: str = "") -> str:
+    script_path = (runtime_root() / "scripts" / "hooks" / script_name).as_posix()
+    return f'"{script_path}"{(" " + args) if args else ""}'
+
+
+def desired_droid_hooks() -> dict[str, Any]:
+    return {
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {"type": "command", "command": shell_command("context_capsule.py", "--event prompt"), "timeout": 10}
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "ApplyPatch|Create|Edit",
+                "hooks": [
+                    {"type": "command", "command": shell_command("context_capsule.py", "--event post-tool"), "timeout": 15}
+                ],
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "ApplyPatch|Create|Edit",
+                "hooks": [{"type": "command", "command": shell_command("boundary_gate.py"), "timeout": 10}],
+            },
+            {
+                "matcher": "Execute",
+                "hooks": [{"type": "command", "command": shell_command("command_guard.py"), "timeout": 10}],
+            },
+        ],
+        "Stop": [
+            {
+                "hooks": [{"type": "command", "command": shell_command("stop_check.py"), "timeout": 10}]
+            }
+        ],
+    }
+
+
 def desired_droid_settings(current: dict[str, Any]) -> dict[str, Any]:
     next_settings = dict(current)
-    next_settings["hooks"] = DROID_HOOKS
+    next_settings["hooks"] = desired_droid_hooks()
     return next_settings
-
-
-def shell_command(project_dir: Path, script_name: str, args: str = "") -> str:
-    script_path = (project_dir / "scripts" / "hooks" / script_name).as_posix()
-    return f'"{script_path}"{(" " + args) if args else ""}'
 
 
 def desired_claude_hooks(project_dir: Path) -> dict[str, Any]:
@@ -127,7 +131,7 @@ def desired_claude_hooks(project_dir: Path) -> dict[str, Any]:
         "UserPromptSubmit": [
             {
                 "hooks": [
-                    {"type": "command", "command": shell_command(project_dir, "context_capsule.py", "--event prompt"), "timeout": 10}
+                    {"type": "command", "command": shell_command("context_capsule.py", "--event prompt"), "timeout": 10}
                 ]
             }
         ],
@@ -135,23 +139,23 @@ def desired_claude_hooks(project_dir: Path) -> dict[str, Any]:
             {
                 "matcher": "Edit|Write|MultiEdit",
                 "hooks": [
-                    {"type": "command", "command": shell_command(project_dir, "context_capsule.py", "--event post-tool"), "timeout": 15}
+                    {"type": "command", "command": shell_command("context_capsule.py", "--event post-tool"), "timeout": 15}
                 ],
             }
         ],
         "PreToolUse": [
             {
                 "matcher": "Edit|Write|MultiEdit",
-                "hooks": [{"type": "command", "command": shell_command(project_dir, "boundary_gate.py"), "timeout": 10}],
+                "hooks": [{"type": "command", "command": shell_command("boundary_gate.py"), "timeout": 10}],
             },
             {
                 "matcher": "Bash",
-                "hooks": [{"type": "command", "command": shell_command(project_dir, "command_guard.py"), "timeout": 10}],
+                "hooks": [{"type": "command", "command": shell_command("command_guard.py"), "timeout": 10}],
             },
         ],
         "Stop": [
             {
-                "hooks": [{"type": "command", "command": shell_command(project_dir, "stop_check.py"), "timeout": 10}]
+                "hooks": [{"type": "command", "command": shell_command("stop_check.py"), "timeout": 10}]
             }
         ],
     }
@@ -211,6 +215,28 @@ def render_json(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
+def cliproxy_api_key() -> str:
+    settings = load_settings(home_path() / ".factory" / "settings.json")
+    for model in settings.get("customModels", []):
+        if isinstance(model, dict) and model.get("baseUrl") == CLIPROXY_BASE_URL:
+            api_key = model.get("apiKey")
+            if isinstance(api_key, str) and api_key:
+                return api_key
+    return "hellowd"
+
+
+def dotfiles_agents_path() -> str:
+    return (runtime_root() / "agents" / "AGENTS.md").as_posix()
+
+
+def dotfiles_skills_path() -> str:
+    return (runtime_root() / "skills").as_posix()
+
+
+def opencode_plugin_path() -> str:
+    return (runtime_root() / "scripts" / "opencode" / "dotfiles_hooks.mjs").as_posix()
+
+
 def load_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -239,11 +265,11 @@ def codex_hook_table(event_name: str, command: str, matcher: str | None = None) 
 
 def desired_codex_hook_block(project_dir: Path) -> str:
     entries = [
-        codex_hook_table("UserPromptSubmit", shell_command(project_dir, "context_capsule.py", "--event prompt")),
-        codex_hook_table("PreToolUse", shell_command(project_dir, "boundary_gate.py"), "*"),
-        codex_hook_table("PreToolUse", shell_command(project_dir, "command_guard.py"), "*"),
-        codex_hook_table("PostToolUse", shell_command(project_dir, "context_capsule.py", "--event post-tool"), "*"),
-        codex_hook_table("Stop", shell_command(project_dir, "stop_check.py")),
+        codex_hook_table("UserPromptSubmit", shell_command("context_capsule.py", "--event prompt")),
+        codex_hook_table("PreToolUse", shell_command("boundary_gate.py"), "*"),
+        codex_hook_table("PreToolUse", shell_command("command_guard.py"), "*"),
+        codex_hook_table("PostToolUse", shell_command("context_capsule.py", "--event post-tool"), "*"),
+        codex_hook_table("Stop", shell_command("stop_check.py")),
     ]
     return "\n".join([CODEX_HOOKS_BEGIN, *entries, CODEX_HOOKS_END, ""])
 
@@ -282,10 +308,100 @@ def desired_codex_config(current: str, project_dir: Path) -> str:
     return base + "\n\n" + desired_codex_hook_block(project_dir)
 
 
+def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
+    next_config = dict(current)
+    next_config.setdefault("$schema", "https://opencode.ai/config.json")
+    next_config["model"] = "cliproxy/gpt-5.5-fast"
+    next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+    instructions = [item for item in next_config.get("instructions", []) if isinstance(item, str)]
+    if dotfiles_agents_path() not in instructions:
+        instructions.append(dotfiles_agents_path())
+    next_config["instructions"] = instructions
+
+    skills = next_config.get("skills") if isinstance(next_config.get("skills"), dict) else {}
+    paths = [item for item in skills.get("paths", []) if isinstance(item, str)]
+    if dotfiles_skills_path() not in paths:
+        paths.append(dotfiles_skills_path())
+    next_config["skills"] = {**skills, "paths": paths}
+
+    plugins = [item for item in next_config.get("plugin", []) if isinstance(item, (str, list))]
+    if opencode_plugin_path() not in plugins:
+        plugins.append(opencode_plugin_path())
+    next_config["plugin"] = plugins
+
+    provider = next_config.get("provider") if isinstance(next_config.get("provider"), dict) else {}
+    models = {}
+    for model in CLIPROXY_MODELS:
+        model_config = {
+            "name": model,
+            "family": "gpt-5",
+            "reasoning": True,
+            "tool_call": True,
+        }
+        if model == "gpt-5.5-fast":
+            model_config["id"] = "gpt-5.5"
+            model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
+        models[model] = model_config
+    provider["cliproxy"] = {
+        "name": "CLIProxyAPI",
+        "npm": "@ai-sdk/openai-compatible",
+        "options": {"baseURL": CLIPROXY_BASE_URL, "apiKey": cliproxy_api_key()},
+        "models": models,
+    }
+    next_config["provider"] = provider
+    return next_config
+
+
+def opencode_package_json(current: dict[str, Any]) -> dict[str, Any]:
+    next_package = dict(current)
+    dependencies = next_package.get("dependencies") if isinstance(next_package.get("dependencies"), dict) else {}
+    dependencies.setdefault("@opencode-ai/plugin", "1.15.10")
+    dependencies["@ai-sdk/openai-compatible"] = "^1.0.22"
+    next_package["dependencies"] = dependencies
+    return next_package
+
+
+def strip_aider_block(content: str) -> str:
+    pattern = re.compile(
+        rf"\n?{re.escape(AIDER_HOOKS_BEGIN)}.*?{re.escape(AIDER_HOOKS_END)}\n?",
+        re.S,
+    )
+    return pattern.sub("\n", content).strip() + ("\n" if content.strip() else "")
+
+
+def desired_aider_block() -> str:
+    agents_path = dotfiles_agents_path()
+    return "\n".join(
+        [
+            AIDER_HOOKS_BEGIN,
+            "model: gpt-5.5",
+            "reasoning-effort: low",
+            "check-model-accepts-settings: false",
+            f"openai-api-base: {CLIPROXY_BASE_URL}",
+            f"openai-api-key: {cliproxy_api_key()}",
+            "read:",
+            f"  - {agents_path}",
+            "auto-commits: false",
+            "dirty-commits: false",
+            "attribute-author: false",
+            "attribute-committer: false",
+            "analytics-disable: true",
+            AIDER_HOOKS_END,
+            "",
+        ]
+    )
+
+
+def desired_aider_config(current: str) -> str:
+    base = strip_aider_block(current).rstrip()
+    block = desired_aider_block()
+    return (base + "\n\n" if base else "") + block
+
+
 def droid_check(project_dir: Path) -> int:
     path = settings_path(project_dir)
     current = load_settings(path)
-    if current.get("hooks") == DROID_HOOKS:
+    if current.get("hooks") == desired_droid_hooks():
         sys.stdout.write(f"ok: {path} uses scripts/hooks runtime\n")
         return 0
     sys.stdout.write(f"mismatch: {path} does not match scripts/hooks runtime\n")
@@ -355,15 +471,66 @@ def codex_apply(project_dir: Path) -> int:
     return 0
 
 
+def opencode_check(config_dir: Path) -> int:
+    path = opencode_config_path(config_dir)
+    current = load_settings(path)
+    if current == desired_opencode_config(current):
+        sys.stdout.write(f"ok: {path} uses dotfiles model/context configuration\n")
+        return 0
+    sys.stdout.write(f"mismatch: {path} does not match dotfiles model/context configuration\n")
+    return 1
+
+
+def opencode_print(config_dir: Path) -> int:
+    sys.stdout.write(render_json(desired_opencode_config(load_settings(opencode_config_path(config_dir)))))
+    return 0
+
+
+def opencode_apply(config_dir: Path) -> int:
+    path = opencode_config_path(config_dir)
+    current = load_settings(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_json(desired_opencode_config(current)), encoding="utf-8")
+    package_path = config_dir / "package.json"
+    package_path.write_text(render_json(opencode_package_json(load_settings(package_path))), encoding="utf-8")
+    sys.stdout.write(f"updated: {path}\n")
+    return 0
+
+
+def aider_check(config_path: Path) -> int:
+    path = aider_config_path(config_path)
+    current = load_text(path)
+    if current == desired_aider_config(current):
+        sys.stdout.write(f"ok: {path} uses dotfiles model/context configuration\n")
+        return 0
+    sys.stdout.write(f"mismatch: {path} does not match dotfiles model/context configuration\n")
+    return 1
+
+
+def aider_print(config_path: Path) -> int:
+    sys.stdout.write(desired_aider_config(load_text(aider_config_path(config_path))))
+    return 0
+
+
+def aider_apply(config_path: Path) -> int:
+    path = aider_config_path(config_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(desired_aider_config(load_text(path)), encoding="utf-8")
+    sys.stdout.write(f"updated: {path}\n")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check, print, or apply hook adapter configuration.")
-    parser.add_argument("--target", choices=["droid", "claude", "codex"], required=True)
+    parser.add_argument("--target", choices=["droid", "claude", "codex", "opencode", "aider"], required=True)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--print", action="store_true")
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Confirm --apply writes project hook configuration.")
     parser.add_argument("--project-dir", default=".", help="Project directory, defaults to current working directory.")
+    parser.add_argument("--config-dir", type=Path, default=default_opencode_config_dir(), help="OpenCode config directory.")
+    parser.add_argument("--config-path", type=Path, default=default_aider_config_path(), help="Aider config file path.")
     args = parser.parse_args()
 
     project_dir = Path(args.project_dir).resolve()
@@ -384,6 +551,22 @@ def main() -> int:
         if args.print:
             return claude_print(project_dir)
         return claude_apply(project_dir)
+
+    if args.target == "opencode":
+        config_dir = args.config_dir.expanduser().resolve()
+        if args.check:
+            return opencode_check(config_dir)
+        if args.print:
+            return opencode_print(config_dir)
+        return opencode_apply(config_dir)
+
+    if args.target == "aider":
+        config_path = args.config_path.expanduser().resolve()
+        if args.check:
+            return aider_check(config_path)
+        if args.print:
+            return aider_print(config_path)
+        return aider_apply(config_path)
 
     if args.check:
         return codex_check(project_dir)

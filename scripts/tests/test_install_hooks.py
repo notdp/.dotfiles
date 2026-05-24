@@ -40,6 +40,23 @@ class InstallHooksTests(unittest.TestCase):
         self.assertIn("scripts/hooks/context_capsule.py", rendered)
         self.assertIn("scripts/hooks/command_guard.py", rendered)
 
+    def test_hook_commands_use_dotfiles_runtime_outside_target_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target_hook_path = repo / "scripts" / "hooks" / "context_capsule.py"
+            runtime_hook_path = REPO_ROOT / "scripts" / "hooks" / "context_capsule.py"
+
+            droid = self.run_install("--target", "droid", "--print", cwd=repo)
+            claude = self.run_install("--target", "claude", "--print", cwd=repo)
+            codex = self.run_install("--target", "codex", "--print", cwd=repo)
+
+        self.assertEqual(droid.returncode, 0, droid.stdout + droid.stderr)
+        self.assertEqual(claude.returncode, 0, claude.stdout + claude.stderr)
+        self.assertEqual(codex.returncode, 0, codex.stdout + codex.stderr)
+        combined = droid.stdout + claude.stdout + codex.stdout
+        self.assertIn(str(runtime_hook_path), combined)
+        self.assertNotIn(str(target_hook_path), combined)
+
     def test_droid_apply_requires_yes_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -175,6 +192,76 @@ class InstallHooksTests(unittest.TestCase):
         self.assertIn('[profiles.default]\nmodel = "test"', config)
         self.assertIn("# dotfiles hooks: begin", config)
         self.assertIn("[[hooks.UserPromptSubmit.hooks]]", config)
+
+    def test_opencode_print_preserves_config_and_adds_dotfiles_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            config_dir = repo / ".config" / "opencode"
+            config_dir.mkdir(parents=True)
+            (config_dir / "opencode.json").write_text(
+                json.dumps(
+                    {
+                        "$schema": "https://opencode.ai/config.json",
+                        "mcp": {"keep": {"type": "local", "command": ["keep"]}},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_install(
+                "--target",
+                "opencode",
+                "--print",
+                "--config-dir",
+                str(config_dir),
+                cwd=repo,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        rendered = json.dumps(payload)
+        self.assertEqual(payload["mcp"]["keep"]["command"], ["keep"])
+        self.assertEqual(payload["provider"]["cliproxy"]["options"]["baseURL"], "http://localhost:8317/v1")
+        self.assertEqual(payload["provider"]["cliproxy"]["npm"], "@ai-sdk/openai-compatible")
+        self.assertEqual(payload["model"], "cliproxy/gpt-5.5-fast")
+        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["id"], "gpt-5.5")
+        self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
+        self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
+        self.assertIn("scripts/opencode/dotfiles_hooks.mjs", rendered)
+
+    def test_aider_print_renders_model_config_without_loading_all_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            config_path = repo / ".aider.conf.yml"
+            config_path.write_text("dark-mode: true\n", encoding="utf-8")
+
+            result = self.run_install(
+                "--target",
+                "aider",
+                "--print",
+                "--config-path",
+                str(config_path),
+                cwd=repo,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("model: gpt-5.5", result.stdout)
+        self.assertIn("reasoning-effort: low", result.stdout)
+        self.assertIn("check-model-accepts-settings: false", result.stdout)
+        self.assertIn("openai-api-base: http://localhost:8317/v1", result.stdout)
+        self.assertIn("openai-api-key:", result.stdout)
+        self.assertIn(f"- {REPO_ROOT / 'agents' / 'AGENTS.md'}", result.stdout)
+        self.assertNotIn(f"{REPO_ROOT / 'skills'}", result.stdout)
+
+    def test_user_config_apply_requires_yes_confirmation(self) -> None:
+        opencode = self.run_install("--target", "opencode", "--apply")
+        aider = self.run_install("--target", "aider", "--apply")
+
+        self.assertEqual(opencode.returncode, 1, opencode.stdout + opencode.stderr)
+        self.assertIn("--yes", opencode.stdout)
+        self.assertEqual(aider.returncode, 1, aider.stdout + aider.stderr)
+        self.assertIn("--yes", aider.stdout)
 
     def test_cross_target_apply_requires_yes_confirmation(self) -> None:
         claude = self.run_install("--target", "claude", "--apply")
