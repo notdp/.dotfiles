@@ -121,3 +121,6 @@
 [submodule "refs/humanlayer/12-factor-agents"]
 	path = refs/humanlayer/12-factor-agents
 	url = https://github.com/humanlayer/12-factor-agents.git
+[submodule "refs/mukul975/Anthropic-Cybersecurity-Skills"]
+	path = refs/mukul975/Anthropic-Cybersecurity-Skills
+	url = https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git

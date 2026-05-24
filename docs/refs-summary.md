@@ -19,6 +19,7 @@
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`addyosmani/agent-skills`、`automazeio/ccpm`、`garrytan/gstack`、`gsd-build/get-shit-done`、`obra/superpowers`
 - **最佳实践 / 知识库**：围绕 Agent / Claude Code 概念地图、LLM 应用工程方法论、目录约定、功能导航与实践经验整理。 代表项目：`humanlayer/12-factor-agents`、`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
+- **安全 / 网络安全技能库**：围绕安全审查、威胁狩猎、事件响应、取证、云安全、红队/渗透测试、framework mapping 与安全 playbook。 代表项目：`mukul975/Anthropic-Cybersecurity-Skills`
 - **MCP / 工具链 / 安装分发**：围绕 MCP、CLI、安装器、技能包管理、多 Agent 兼容与基础设施。 代表项目：`vercel-labs/skills`
 - **行为协议 / 提示工程**：围绕提示协议、行为约束、激励/约束机制、触发词和 hook 协同。 代表项目：`HughYau/qiushi-skill`、`multica-ai/andrej-karpathy-skills`、`tanweai/pua`
 - **Agent 配置管理 / 工具链**：围绕跨 Agent 统一配置、安装分发、二进制修改与工具增强。 代表项目：`notdp/.dotfiles`
@@ -50,6 +51,7 @@
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
 | [`msitarzewski/agency-agents`](./refs-details/msitarzewski/agency-agents.md) | Agent 角色库 / 多工具 Agent 资产 | 144 个 Markdown agent + 转换/安装脚本 + NEXUS 编排方法论，适合作为 agent catalog、handoff/quality-gate 模板和多工具适配参考。 |
 | [`multica-ai/andrej-karpathy-skills`](./refs-details/multica-ai/andrej-karpathy-skills.md) | 行为协议 / 提示工程 | 轻量编码行为指南，把先澄清、少抽象、精准改动和目标驱动验证打包成 Claude Code / Cursor / skill 可复用规则。 |
+| [`mukul975/Anthropic-Cybersecurity-Skills`](./refs-details/mukul975/Anthropic-Cybersecurity-Skills.md) | 安全 / 网络安全技能库 | 大规模 AI agent 网络安全 skill 库，覆盖防守、检测、响应、取证、云安全、红队/渗透测试与 framework mapping。 |
 | [`muratcankoylan/Agent-Skills-for-Context-Engineering`](./refs-details/muratcankoylan/Agent-Skills-for-Context-Engineering.md) | 上下文 / 记忆管理 | 围绕 context engineering 的 Agent Skills 集合，重点讲生产级 agent 的上下文设计、记忆、工具与评测。 |
 | [`nextlevelbuilder/ui-ux-pro-max-skill`](./refs-details/nextlevelbuilder/ui-ux-pro-max-skill.md) | 前端 UI / 设计系统 | 面向 UI/UX 生成的设计情报包，结合大规模 CSV 规则库、Claude skills 与安装 CLI。 |
 | [`nexu-io/open-design`](./refs-details/nexu-io/open-design.md) | 前端 UI / 设计系统 | 本地优先的 AI 设计工作台，用 daemon 调用用户已有 Agent CLI，并把 Skills、DESIGN.md、项目文件和 sandbox 预览串成 artifact 工作流。 |
@@ -134,6 +136,7 @@
 - `awslabs/agentcore-samples` 是 Bedrock AgentCore 能力地图和样例索引，适合参考 Runtime/Gateway/Identity/Memory/Observability/Evaluation/Policy/IaC 分类；实际运行会创建 AWS 资源并可能产生费用。
 - `msitarzewski/agency-agents` 是大规模 Markdown agent 角色库，适合借鉴 agent frontmatter、转换脚本、NEXUS handoff 和 quality-gate 模板，不适合作为直接运行时依赖。
 - `multica-ai/andrej-karpathy-skills` 是轻量行为指南，适合把“每条改动可追溯到用户请求”“不为一次性代码建抽象”“成功标准先行”下沉到 `think-plan`、`dev-simplify`、`guard-close`、`guard-verify`；不适合整包追加到 `agents/AGENTS.md` 或新增 always-on skill。
+- `mukul975/Anthropic-Cybersecurity-Skills` 是大规模网络安全 skill 库，适合借鉴安全领域 taxonomy、framework coverage 表达、`references/` 分册和模板化输出；不适合整包吸收到默认 skills，也不适合把 exploit/C2/post-exploitation 类 workflow 做成自动触发能力。
 - `humanlayer/12-factor-agents` 是生产级 LLM 应用工程方法论，最值得吸收的是“小而聚焦 agent + 确定性外层控制流”、prompt/context/tool schema 一等资产化、错误压缩进上下文、人类审批作为结构化 tool call、以及高概率上下文预取；不适合直接引入 HumanLayer/A2H 运行时、TypeScript/BAML 模板或外部 webhook/channel 依赖。
 - `github/awesome-copilot` 是 Copilot 生态“官方中心化 registry + 规范试验场”：横跨 curated catalog、CLI 分发（`copilot plugin install ...@awesome-copilot`）和六类资源规范（agents / instructions / skills / hooks / agentic workflows / plugins）。从**轻量 skills** 角度看，307 个 skill 里 70% 只有单个 SKILL.md、35% 在 100 行以内，最短的 6 行，验证了“单动作 skill 20-40 行足够”这条路径；值得直接吸收的模式是：触发语义写进 `description`（`INVOKE ... when`）、反向提问型 skill（`what-context-needed` / `first-ask`）、micro-prompt 作为独立挂载项（`remember-interactive-programming`）、以及 `{{var}}` 输入 + 固定输出表格收窄 agent 自由度（`context-map`）。详见 `docs/refs-details/github/awesome-copilot.md` 的 Skills 子集专题。
 - `travisvn/awesome-claude-Skills`、`libukai/awesome-agent-Skills` 更偏导航/市场/索引；适合找来源，不适合直接当能力实现。
