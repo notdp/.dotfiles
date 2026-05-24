@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod/compensations/comp_universal.py")
+SCRIPT = Path(__file__).resolve().parents[1] / "compensations" / "comp_universal.py"
 
 spec = importlib.util.spec_from_file_location("comp_universal", SCRIPT)
 comp_universal = importlib.util.module_from_spec(spec)

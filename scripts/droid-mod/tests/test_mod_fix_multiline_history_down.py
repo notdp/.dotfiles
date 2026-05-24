@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod/mods/mod_fix_multiline_history_down.py")
-STATUS = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod/status.py")
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "mods" / "mod_fix_multiline_history_down.py"
+STATUS = ROOT / "status.py"
 
 CURRENT_ORIGINAL = (
     b"if(BH&&hR.downArrow&&lR){let GR=BH.navigateNext();return!0}}"

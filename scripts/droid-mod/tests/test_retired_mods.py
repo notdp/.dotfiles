@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod")
+ROOT = Path(__file__).resolve().parents[1]
 RETIRED_MOD = "mod-unlock-max-custom-effort"
 
 

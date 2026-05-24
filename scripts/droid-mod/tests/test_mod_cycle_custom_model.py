@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod/mods/mod_cycle_custom_model.py")
-STATUS = Path("/Users/zhenninglang/.dotfiles/scripts/droid-mod/status.py")
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "mods" / "mod_cycle_custom_model.py"
+STATUS = ROOT / "status.py"
 
 
 # 真实 0.103.0 二进制里 mT1 (basic ModelSelector) 的 list builder 工厂区原文
