@@ -211,6 +211,36 @@ class NotifyTmuxTitleTests(unittest.TestCase):
             ["pane-name:%1:芒果", "sound:/System/Library/Sounds/Ping.aiff"],
         )
 
+    def test_opencode_stop_says_window_plus_pane(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            _make_fake_tmux(tmp_path / "bin", "opencode-test", "海獭")
+
+            result = self.run_hook(
+                "--app", "opencode",
+                "--event", "stop",
+                env={
+                    "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+                    "TMUX_PANE": "%1",
+                    "NOTIFY_TMUX_TITLE_PANE_NAMES": "海獭",
+                },
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+
+    def test_opencode_notification_falls_back_to_sound_without_tmux_pane(self) -> None:
+        result = self.run_hook(
+            "--app",
+            "opencode",
+            "--event",
+            "notification",
+            env={"TMUX_PANE": ""},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip(), "sound:/System/Library/Sounds/Funk.aiff")
+
     def test_rejects_unknown_app_event_pair(self) -> None:
         result = self.run_hook("--app", "droid", "--event", "unknown")
 

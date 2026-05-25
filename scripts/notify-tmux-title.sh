@@ -3,7 +3,7 @@
 # name so the audio cue maps to a visible pane label.
 #
 # Behaviour
-#   1. Read --app (cc|droid) and --event (stop|notification) from argv.
+#   1. Read --app (cc|droid|opencode) and --event (stop|notification) from argv.
 #   2. If TMUX_PANE exists, assign/read stable names for panes in the same
 #      window and keep them visible via pane-border-status.
 #   3. If tmux window title is non-empty: `say <window title> <pane name>`.
@@ -44,7 +44,7 @@ done
 
 # Validate app/event up front so misconfigured hooks fail loudly.
 case "$APP:$EVENT" in
-  droid:stop|droid:notification|cc:stop|cc:notification) ;;
+  droid:stop|droid:notification|cc:stop|cc:notification|opencode:stop|opencode:notification) ;;
   *)
     echo "unsupported app/event: $APP/$EVENT" >&2
     exit 2
@@ -73,6 +73,8 @@ sound_for() {
     droid:notification) echo "${HOME}/.factory/sounds/fx-ack01.wav" ;;
     cc:stop) echo "/System/Library/Sounds/Ping.aiff" ;;
     cc:notification) echo "/System/Library/Sounds/Funk.aiff" ;;
+    opencode:stop) echo "/System/Library/Sounds/Glass.aiff" ;;
+    opencode:notification) echo "/System/Library/Sounds/Funk.aiff" ;;
   esac
 }
 

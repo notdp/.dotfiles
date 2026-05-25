@@ -32,6 +32,10 @@ AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
 AIDER_HOOKS_END = "# dotfiles aider config: end"
 CLIPROXY_BASE_URL = "http://localhost:8317/v1"
 CLIPROXY_MODELS = ("gpt-5.5-fast", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")
+OPENCODE_CONTEXT_LIMIT = 360000
+OPENCODE_OUTPUT_LIMIT = 128000
+OPENCODE_COMPACTION_RESERVED = 20000
+OPENCODE_COMPACTION_PRESERVE_RECENT = 20000
 
 
 def settings_path(project_dir: Path) -> Path:
@@ -313,6 +317,11 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config.setdefault("$schema", "https://opencode.ai/config.json")
     next_config["model"] = "cliproxy/gpt-5.5-fast"
     next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+    next_config["compaction"] = {
+        "auto": True,
+        "reserved": OPENCODE_COMPACTION_RESERVED,
+        "preserve_recent_tokens": OPENCODE_COMPACTION_PRESERVE_RECENT,
+    }
     instructions = [item for item in next_config.get("instructions", []) if isinstance(item, str)]
     if dotfiles_agents_path() not in instructions:
         instructions.append(dotfiles_agents_path())
@@ -337,6 +346,11 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
             "family": "gpt-5",
             "reasoning": True,
             "tool_call": True,
+            "limit": {
+                "context": OPENCODE_CONTEXT_LIMIT,
+                "input": OPENCODE_CONTEXT_LIMIT,
+                "output": OPENCODE_OUTPUT_LIMIT,
+            },
         }
         if model == "gpt-5.5-fast":
             model_config["id"] = "gpt-5.5"
