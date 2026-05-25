@@ -369,6 +369,61 @@ def xargs_inner_segment(segment: list[str]) -> list[str]:
     return []
 
 
+GIT_PUSH_PROTECTED_BRANCHES = {"main", "master"}
+GIT_FORCE_PUSH_FLAGS = {"--force", "--force-with-lease", "-f"}
+GIT_PUSH_VALUE_OPTIONS = {"-o", "--push-option", "--repo", "--exec", "--receive-pack"}
+
+
+def git_push_target_branches(push_args: list[str]) -> tuple[list[str], bool]:
+    """Parse `git push` args (lowercased, without the leading 'push') into
+    (explicit destination branch names, pushes_all_branches).
+
+    `HEAD` and a bare remote resolve to the current branch, which the command
+    string can't reveal, so they are treated as non-explicit (ambiguous)."""
+    operands: list[str] = []
+    pushes_all = False
+    index = 0
+    while index < len(push_args):
+        token = push_args[index]
+        if token == "--":
+            operands.extend(push_args[index + 1 :])
+            break
+        if token in {"--all", "--mirror"}:
+            pushes_all = True
+            index += 1
+            continue
+        if token in GIT_PUSH_VALUE_OPTIONS:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        operands.append(token)
+        index += 1
+    refspecs = operands[1:]  # operands[0] is the remote
+    branches: list[str] = []
+    for spec in refspecs:
+        spec = spec.lstrip("+")
+        dst = spec.split(":", 1)[1] if ":" in spec else spec
+        dst = dst.removeprefix("refs/heads/")
+        if dst and dst != "head":
+            branches.append(dst)
+    return branches, pushes_all
+
+
+def git_push_decision(push_args: list[str]) -> Decision | None:
+    if any(arg in GIT_FORCE_PUSH_FLAGS for arg in push_args):
+        return Decision("deny", "git force push can overwrite remote history; do not run automatically.")
+    branches, pushes_all = git_push_target_branches(push_args)
+    if pushes_all:
+        return Decision("deny", "git push --all/--mirror can update protected branches (main/master); route through /guard-gitops and push feature branches explicitly.")
+    if any(branch in GIT_PUSH_PROTECTED_BRANCHES for branch in branches):
+        return Decision("deny", "pushing to a protected branch (main/master) modifies shared history; route through /guard-gitops and obtain explicit user approval before proceeding.")
+    if not branches:
+        return Decision("deny", "bare 'git push' has an ambiguous target branch; run 'git push <remote> <feature-branch>' so the guard can confirm it is not main/master. Route through /guard-gitops for protected branches.")
+    return None
+
+
 def segment_decision(segment: list[str]) -> Decision | None:
     if not segment:
         return None
@@ -377,9 +432,7 @@ def segment_decision(segment: list[str]) -> Decision | None:
     all_words = re.findall(r"[a-z_]+", " ".join([cmd.name, *args]))
 
     if cmd.name == "git" and args[:1] == ["push"]:
-        if any(arg in {"--force", "--force-with-lease", "-f"} for arg in args):
-            return Decision("deny", "git force push can overwrite remote history; do not run automatically.")
-        return Decision("deny", "git push modifies remote repository state; route through /guard-gitops and obtain explicit user approval before proceeding.")
+        return git_push_decision(args[1:])
     if cmd.name == "git" and args[:1] == ["clean"] and not is_dry_run(args):
         if any("x" in arg for arg in args if arg.startswith("-")):
             return Decision("deny", "destructive git cleanup including ignored files is too risky for automatic execution.")

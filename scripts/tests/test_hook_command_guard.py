@@ -76,6 +76,31 @@ class HookCommandGuardTests(unittest.TestCase):
 
         self.assert_denied(result, "guard-gitops")
 
+    def test_denies_push_to_master(self) -> None:
+        self.assert_denied(self.run_guard("git push origin master"), "guard-gitops")
+
+    def test_denies_push_refspec_targeting_main(self) -> None:
+        self.assert_denied(self.run_guard("git push origin HEAD:main"), "guard-gitops")
+        self.assert_denied(self.run_guard("git push origin feature:refs/heads/main"), "guard-gitops")
+
+    def test_denies_push_all_and_mirror(self) -> None:
+        self.assert_denied(self.run_guard("git push --all origin"), "guard-gitops")
+        self.assert_denied(self.run_guard("git push --mirror origin"), "guard-gitops")
+
+    def test_denies_ambiguous_bare_push(self) -> None:
+        self.assert_denied(self.run_guard("git push"), "guard-gitops")
+        self.assert_denied(self.run_guard("git push origin"), "guard-gitops")
+        self.assert_denied(self.run_guard("git push origin HEAD"), "guard-gitops")
+
+    def test_denies_force_push_to_feature_branch(self) -> None:
+        self.assert_denied(self.run_guard("git push --force origin feature/x"), "force")
+        self.assert_denied(self.run_guard("git push -f origin feature/x"), "force")
+
+    def test_allows_push_to_feature_branch(self) -> None:
+        self.assert_suppressed(self.run_guard("git push origin fix/campaign-commit-writeback-fields"))
+        self.assert_suppressed(self.run_guard("git push -u origin feature/new-thing"))
+        self.assert_suppressed(self.run_guard("git push origin local-main:feature/x"))
+
     def test_allows_read_only_git_status(self) -> None:
         result = self.run_guard("git status --short")
 
