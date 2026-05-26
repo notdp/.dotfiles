@@ -33,14 +33,26 @@ AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
 AIDER_HOOKS_END = "# dotfiles aider config: end"
 CLIPROXY_BASE_URL = "http://localhost:8317/v1"
 CLIPROXY_MODELS = ("gpt-5.5-fast", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")
-OPENCODE_CONTEXT_LIMIT = 360000
-OPENCODE_OUTPUT_LIMIT = 128000
+LOCAL_MODEL_CONTEXT_LIMIT = 1_000_000
+LOCAL_MODEL_INPUT_LIMIT = 1_000_000
+LOCAL_MODEL_OUTPUT_LIMIT = 128_000
+COMPACTION_THRESHOLD_PERCENT = 60
+DROID_COMPACTION_TOKEN_LIMIT = 600_000
 OPENCODE_COMPACTION_RESERVED = 20000
 OPENCODE_COMPACTION_PRESERVE_RECENT = 20000
+OPEN_EXTERNAL_DIRECTORIES = (
+    "/Users/zhenninglang/.config/paw/images/**",
+    "/Users/zhenninglang/Downloads/**",
+    "/Users/zhenninglang/Projects/**",
+)
 
 
 def settings_path(project_dir: Path) -> Path:
     return project_dir / ".factory" / "settings.json"
+
+
+def user_settings_path() -> Path:
+    return home_path() / ".factory" / "settings.json"
 
 
 def claude_settings_path(project_dir: Path) -> Path:
@@ -197,6 +209,24 @@ def desired_droid_hooks() -> dict[str, Any]:
 def desired_droid_settings(current: dict[str, Any]) -> dict[str, Any]:
     next_settings = dict(current)
     next_settings["hooks"] = desired_droid_hooks()
+    return next_settings
+
+
+def desired_droid_model_settings(current: dict[str, Any]) -> dict[str, Any]:
+    next_settings = dict(current)
+    next_settings["compactionTokenLimit"] = DROID_COMPACTION_TOKEN_LIMIT
+    per_model = (
+        dict(next_settings.get("compactionTokenLimitPerModel"))
+        if isinstance(next_settings.get("compactionTokenLimitPerModel"), dict)
+        else {}
+    )
+    for model in next_settings.get("customModels", []):
+        if not isinstance(model, dict):
+            continue
+        model_id = model.get("id")
+        if isinstance(model_id, str) and model_id:
+            per_model[model_id] = DROID_COMPACTION_TOKEN_LIMIT
+    next_settings["compactionTokenLimitPerModel"] = per_model
     return next_settings
 
 
@@ -393,6 +423,7 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config["small_model"] = "cliproxy/gpt-5.4-mini"
     next_config["compaction"] = {
         "auto": True,
+        "threshold_percent": COMPACTION_THRESHOLD_PERCENT,
         "reserved": OPENCODE_COMPACTION_RESERVED,
         "preserve_recent_tokens": OPENCODE_COMPACTION_PRESERVE_RECENT,
     }
@@ -418,12 +449,14 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
         model_config = {
             "name": model,
             "family": "gpt-5",
+            "attachment": True,
             "reasoning": True,
             "tool_call": True,
+            "modalities": {"input": ["text", "image"], "output": ["text"]},
             "limit": {
-                "context": OPENCODE_CONTEXT_LIMIT,
-                "input": OPENCODE_CONTEXT_LIMIT,
-                "output": OPENCODE_OUTPUT_LIMIT,
+                "context": LOCAL_MODEL_CONTEXT_LIMIT,
+                "input": LOCAL_MODEL_INPUT_LIMIT,
+                "output": LOCAL_MODEL_OUTPUT_LIMIT,
             },
         }
         if model == "gpt-5.5-fast":
@@ -445,6 +478,12 @@ def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config.setdefault("$schema", "https://app.kilo.ai/config.json")
     next_config["model"] = "cliproxy/gpt-5.5-fast"
     next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+    next_config["compaction"] = {
+        "auto": True,
+        "threshold_percent": COMPACTION_THRESHOLD_PERCENT,
+        "reserved": OPENCODE_COMPACTION_RESERVED,
+        "preserve_recent_tokens": OPENCODE_COMPACTION_PRESERVE_RECENT,
+    }
 
     instructions = [item for item in next_config.get("instructions", []) if isinstance(item, str)]
     if dotfiles_agents_path() not in instructions:
@@ -468,12 +507,14 @@ def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
         model_config = {
             "name": model,
             "family": "gpt-5",
+            "attachment": True,
             "reasoning": True,
             "tool_call": True,
+            "modalities": {"input": ["text", "image"], "output": ["text"]},
             "limit": {
-                "context": OPENCODE_CONTEXT_LIMIT,
-                "input": OPENCODE_CONTEXT_LIMIT,
-                "output": OPENCODE_OUTPUT_LIMIT,
+                "context": LOCAL_MODEL_CONTEXT_LIMIT,
+                "input": LOCAL_MODEL_INPUT_LIMIT,
+                "output": LOCAL_MODEL_OUTPUT_LIMIT,
             },
         }
         if model == "gpt-5.5-fast":
@@ -496,6 +537,8 @@ def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
     )
     read_permission[dotfiles_glob] = "allow"
     external_directory[dotfiles_glob] = "allow"
+    for directory_glob in OPEN_EXTERNAL_DIRECTORIES:
+        external_directory[directory_glob] = "allow"
     next_config["permission"] = {
         **permission,
         "read": read_permission,
@@ -580,6 +623,28 @@ def droid_apply(project_dir: Path) -> int:
     current = load_settings(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_json(desired_droid_settings(current)), encoding="utf-8")
+    sys.stdout.write(f"updated: {path}\n")
+    return 0
+
+
+def droid_models_check(path: Path) -> int:
+    current = load_settings(path)
+    if current == desired_droid_model_settings(current):
+        sys.stdout.write(f"ok: {path} uses 600K compaction configuration\n")
+        return 0
+    sys.stdout.write(f"mismatch: {path} does not match 600K compaction configuration\n")
+    return 1
+
+
+def droid_models_print(path: Path) -> int:
+    sys.stdout.write(render_json(desired_droid_model_settings(load_settings(path))))
+    return 0
+
+
+def droid_models_apply(path: Path) -> int:
+    current = load_settings(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_json(desired_droid_model_settings(current)), encoding="utf-8")
     sys.stdout.write(f"updated: {path}\n")
     return 0
 
@@ -710,13 +775,18 @@ def aider_apply(config_path: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check, print, or apply hook adapter configuration.")
-    parser.add_argument("--target", choices=["droid", "claude", "codex", "opencode", "kilo", "aider"], required=True)
+    parser.add_argument(
+        "--target",
+        choices=["droid", "droid-models", "claude", "codex", "opencode", "kilo", "aider"],
+        required=True,
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--print", action="store_true")
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Confirm --apply writes project hook configuration.")
     parser.add_argument("--project-dir", default=".", help="Project directory, defaults to current working directory.")
+    parser.add_argument("--settings-path", type=Path, default=user_settings_path(), help="Droid user settings file path.")
     parser.add_argument("--config-dir", type=Path, default=None, help="OpenCode or Kilo config directory.")
     parser.add_argument("--config-path", type=Path, default=default_aider_config_path(), help="Aider config file path.")
     args = parser.parse_args()
@@ -732,6 +802,14 @@ def main() -> int:
         if args.print:
             return droid_print(project_dir)
         return droid_apply(project_dir)
+
+    if args.target == "droid-models":
+        path = args.settings_path.expanduser().resolve()
+        if args.check:
+            return droid_models_check(path)
+        if args.print:
+            return droid_models_print(path)
+        return droid_models_apply(path)
 
     if args.target == "claude":
         if args.check:
