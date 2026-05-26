@@ -36,6 +36,27 @@ function runCommandGuard(command) {
   return runPythonHook(COMMAND_GUARD, { tool_input: { command } });
 }
 
+function maybeCommandFromToolHook(input, output) {
+  const tool = String(input?.tool || "").toLowerCase();
+  if (!["bash", "shell", "execute"].includes(tool)) {
+    return "";
+  }
+  return String(output?.args?.command || input?.args?.command || "").trim();
+}
+
+function applyCommandGuard(command, output) {
+  const decision = runCommandGuard(command);
+  const hookOutput = decision.hookSpecificOutput || {};
+  if (hookOutput.permissionDecision === "deny") {
+    const reason = hookOutput.permissionDecisionReason || "Command denied by dotfiles command guard.";
+    appendTextPart(output, reason);
+    throw new Error(reason);
+  }
+  if (decision.systemMessage) {
+    appendTextPart(output, decision.systemMessage);
+  }
+}
+
 function runStopCheck(directory) {
   return runPythonHook(STOP_CHECK, {}, directory);
 }
@@ -122,15 +143,12 @@ export const DotfilesHooksPlugin = async ({ client, directory } = {}) => {
     },
     "command.execute.before": async (input, output) => {
       const command = [input.command, input.arguments].filter(Boolean).join(" ").trim();
-      const decision = runCommandGuard(command);
-      const hookOutput = decision.hookSpecificOutput || {};
-      if (hookOutput.permissionDecision === "deny") {
-        const reason = hookOutput.permissionDecisionReason || "Command denied by dotfiles command guard.";
-        appendTextPart(output, reason);
-        throw new Error(reason);
-      }
-      if (decision.systemMessage) {
-        appendTextPart(output, decision.systemMessage);
+      applyCommandGuard(command, output);
+    },
+    "tool.execute.before": async (input, output) => {
+      const command = maybeCommandFromToolHook(input, output);
+      if (command) {
+        applyCommandGuard(command, output);
       }
     },
   };
