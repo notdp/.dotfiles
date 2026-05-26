@@ -15,6 +15,8 @@
 #   NOTIFY_TMUX_TITLE_PANE_NAMES            Space-separated pane name pool
 #   NOTIFY_TMUX_TITLE_RANDOM_SEED           Deterministic random seed for tests
 #   NOTIFY_TMUX_TITLE_DRY_RUN=1             Print actions instead of executing
+#   NOTIFY_TMUX_TITLE_DEDUPE_SECONDS        Suppress duplicate say text within N seconds (default: 5)
+#   NOTIFY_TMUX_TITLE_DEDUPE_DIR            State directory for duplicate suppression
 #
 # Exit codes
 #   0  ok
@@ -79,6 +81,8 @@ sound_for() {
 }
 
 FALLBACK_SOUND="$(sound_for)"
+DEDUPE_SECONDS="${NOTIFY_TMUX_TITLE_DEDUPE_SECONDS:-5}"
+DEDUPE_DIR="${NOTIFY_TMUX_TITLE_DEDUPE_DIR:-${TMPDIR:-/tmp}/notify-tmux-title-dedupe}"
 
 DEFAULT_PANE_NAMES=(
   "及时雨宋江" "玉麒麟卢俊义" "智多星吴用" "入云龙公孙胜"
@@ -232,7 +236,53 @@ if [[ -n "${TMUX_PANE:-}" ]] && command -v tmux >/dev/null 2>&1; then
 fi
 
 # --- Emit --------------------------------------------------------------------
+dedupe_hash() {
+  python3 - "$APP" "$EVENT" "$1" "$2" <<'PY'
+import hashlib, sys
+sys.stdout.write(hashlib.sha256("\0".join(sys.argv[1:]).encode("utf-8")).hexdigest() + "\n")
+PY
+}
+
+dedupe_suppressed() {
+  local kind="$1"
+  local text="$2"
+  local seconds="$DEDUPE_SECONDS"
+  [[ "$seconds" =~ ^[0-9]+$ ]] || seconds=5
+  [[ "$seconds" -le 0 ]] && return 1
+
+  mkdir -p "$DEDUPE_DIR" 2>/dev/null || return 1
+  local lock_dir="${DEDUPE_DIR}/.lock"
+  local acquired=""
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      acquired="1"
+      break
+    fi
+    sleep 0.05
+  done
+  [[ -z "$acquired" ]] && return 1
+
+  local key state_file now last
+  key="$(dedupe_hash "$kind" "$text")"
+  state_file="${DEDUPE_DIR}/${key}"
+  now="$(date +%s)"
+  last="$(cat "$state_file" 2>/dev/null || true)"
+  if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last < seconds )); then
+    rmdir "$lock_dir" 2>/dev/null || true
+    return 0
+  fi
+  printf '%s\n' "$now" > "$state_file" 2>/dev/null || true
+  rmdir "$lock_dir" 2>/dev/null || true
+  return 1
+}
+
 emit_say() {
+  if dedupe_suppressed "say" "$1"; then
+    if [[ "${NOTIFY_TMUX_TITLE_DRY_RUN:-}" == "1" ]]; then
+      printf 'suppressed:say:%s\n' "$1"
+    fi
+    return 0
+  fi
   if [[ "${NOTIFY_TMUX_TITLE_DRY_RUN:-}" == "1" ]]; then
     printf 'say:%s\n' "$1"
   else

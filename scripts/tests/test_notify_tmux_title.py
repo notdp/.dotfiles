@@ -229,6 +229,73 @@ class NotifyTmuxTitleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
 
+    def test_suppresses_duplicate_say_content_within_dedupe_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            _make_fake_tmux(tmp_path / "bin", "opencode-test", "ignored")
+            env = {
+                "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+                "TMUX_PANE": "%1",
+                "NOTIFY_TMUX_TITLE_PANE_NAMES": "海獭",
+                "NOTIFY_TMUX_TITLE_DEDUPE_DIR": str(tmp_path / "dedupe"),
+                "NOTIFY_TMUX_TITLE_DEDUPE_SECONDS": "5",
+            }
+
+            first = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+            second = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(first.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+        self.assertEqual(
+            second.stdout.strip().splitlines(),
+            ["pane-name:%1:海獭", "suppressed:say:opencode-test 海獭"],
+        )
+
+    def test_dedupe_can_be_disabled_for_say_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            _make_fake_tmux(tmp_path / "bin", "opencode-test", "ignored")
+            env = {
+                "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+                "TMUX_PANE": "%1",
+                "NOTIFY_TMUX_TITLE_PANE_NAMES": "海獭",
+                "NOTIFY_TMUX_TITLE_DEDUPE_DIR": str(tmp_path / "dedupe"),
+                "NOTIFY_TMUX_TITLE_DEDUPE_SECONDS": "0",
+            }
+
+            first = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+            second = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(first.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+        self.assertEqual(second.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+
+    def test_dedupe_allows_say_content_after_window_expires(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            dedupe_dir = tmp_path / "dedupe"
+            _make_fake_tmux(tmp_path / "bin", "opencode-test", "ignored")
+            env = {
+                "PATH": f"{tmp_path / 'bin'}:{os.environ['PATH']}",
+                "TMUX_PANE": "%1",
+                "NOTIFY_TMUX_TITLE_PANE_NAMES": "海獭",
+                "NOTIFY_TMUX_TITLE_DEDUPE_DIR": str(dedupe_dir),
+                "NOTIFY_TMUX_TITLE_DEDUPE_SECONDS": "5",
+            }
+
+            first = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+            for state_file in dedupe_dir.glob("*"):
+                if state_file.is_file():
+                    state_file.write_text("0\n", encoding="utf-8")
+            second = self.run_hook("--app", "opencode", "--event", "stop", env=env)
+
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(first.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+        self.assertEqual(second.stdout.strip().splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+
     def test_opencode_notification_falls_back_to_sound_without_tmux_pane(self) -> None:
         result = self.run_hook(
             "--app",

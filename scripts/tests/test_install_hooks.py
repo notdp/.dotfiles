@@ -444,6 +444,7 @@ class InstallHooksTests(unittest.TestCase):
                 import {{ pathToFileURL }} from "node:url";
                 process.env.DOTFILES_OPENCODE_NOTIFY_LOG = {json.dumps(str(notify_log))};
                 process.env.NOTIFY_TMUX_TITLE_DRY_RUN = "1";
+                process.env.NOTIFY_TMUX_TITLE_DEDUPE_DIR = {json.dumps(str(repo / "dedupe"))};
                 process.env.NOTIFY_TMUX_TITLE_PANE_NAMES = "海獭";
                 process.env.PATH = {json.dumps(str(fake_bin))} + ":" + process.env.PATH;
                 process.env.TMUX_PANE = "%1";
@@ -489,6 +490,7 @@ class InstallHooksTests(unittest.TestCase):
                 import {{ pathToFileURL }} from "node:url";
                 process.env.DOTFILES_OPENCODE_NOTIFY_LOG = {json.dumps(str(notify_log))};
                 process.env.NOTIFY_TMUX_TITLE_DRY_RUN = "1";
+                process.env.NOTIFY_TMUX_TITLE_DEDUPE_DIR = {json.dumps(str(repo / "dedupe"))};
                 process.env.NOTIFY_TMUX_TITLE_PANE_NAMES = "海獭";
                 process.env.PATH = {json.dumps(str(fake_bin))} + ":" + process.env.PATH;
                 process.env.TMUX_PANE = "%1";
@@ -530,6 +532,7 @@ class InstallHooksTests(unittest.TestCase):
                 import {{ pathToFileURL }} from "node:url";
                 process.env.DOTFILES_OPENCODE_NOTIFY_LOG = {json.dumps(str(notify_log))};
                 process.env.NOTIFY_TMUX_TITLE_DRY_RUN = "1";
+                process.env.NOTIFY_TMUX_TITLE_DEDUPE_DIR = {json.dumps(str(repo / "dedupe"))};
                 process.env.NOTIFY_TMUX_TITLE_PANE_NAMES = "海獭";
                 process.env.PATH = {json.dumps(str(fake_bin))} + ":" + process.env.PATH;
                 process.env.TMUX_PANE = "%1";
