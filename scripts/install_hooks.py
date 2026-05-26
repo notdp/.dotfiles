@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -54,6 +55,13 @@ def opencode_config_path(config_dir: Path) -> Path:
     return config_dir / "opencode.json"
 
 
+def kilo_config_path(config_dir: Path) -> Path:
+    jsonc_path = config_dir / "kilo.jsonc"
+    if jsonc_path.exists():
+        return jsonc_path
+    return config_dir / "kilo.json"
+
+
 def aider_config_path(config_path: Path) -> Path:
     return config_path
 
@@ -70,6 +78,16 @@ def default_opencode_config_dir() -> Path:
     return home_path() / ".config" / "opencode"
 
 
+def default_kilo_config_dir() -> Path:
+    if config_dir := os.environ.get("KILO_CONFIG_DIR"):
+        return Path(config_dir).expanduser()
+    if config_path := os.environ.get("KILO_CONFIG"):
+        return Path(config_path).expanduser().parent
+    if xdg_config_home := os.environ.get("XDG_CONFIG_HOME"):
+        return Path(xdg_config_home).expanduser() / "kilo"
+    return home_path() / ".config" / "kilo"
+
+
 def default_aider_config_path() -> Path:
     return home_path() / ".aider.conf.yml"
 
@@ -79,6 +97,58 @@ def load_settings(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def strip_jsonc_comments(content: str) -> str:
+    result: list[str] = []
+    index = 0
+    in_string = False
+    quote = ""
+    escape = False
+    while index < len(content):
+        char = content[index]
+        next_char = content[index + 1] if index + 1 < len(content) else ""
+        if in_string:
+            result.append(char)
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == quote:
+                in_string = False
+            index += 1
+            continue
+        if char in {'"', "'"}:
+            in_string = True
+            quote = char
+            result.append(char)
+            index += 1
+            continue
+        if char == "/" and next_char == "/":
+            index += 2
+            while index < len(content) and content[index] not in "\r\n":
+                index += 1
+            continue
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < len(content) and content[index : index + 2] != "*/":
+                index += 1
+            index += 2
+            continue
+        result.append(char)
+        index += 1
+    return re.sub(r",(\s*[}\]])", r"\1", "".join(result))
+
+
+def load_jsonc_settings(path: Path) -> dict[str, Any]:
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    data = json.loads(strip_jsonc_comments(content))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
@@ -241,6 +311,10 @@ def opencode_plugin_path() -> str:
     return (runtime_root() / "scripts" / "opencode" / "dotfiles_hooks.mjs").as_posix()
 
 
+def kilo_plugin_path() -> str:
+    return (runtime_root() / "scripts" / "kilo" / "dotfiles_hooks.mjs").as_posix()
+
+
 def load_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -366,10 +440,83 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     return next_config
 
 
+def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
+    next_config = dict(current)
+    next_config.setdefault("$schema", "https://app.kilo.ai/config.json")
+    next_config["model"] = "cliproxy/gpt-5.5-fast"
+    next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+
+    instructions = [item for item in next_config.get("instructions", []) if isinstance(item, str)]
+    if dotfiles_agents_path() not in instructions:
+        instructions.append(dotfiles_agents_path())
+    next_config["instructions"] = instructions
+
+    skills = next_config.get("skills") if isinstance(next_config.get("skills"), dict) else {}
+    paths = [item for item in skills.get("paths", []) if isinstance(item, str)]
+    if dotfiles_skills_path() not in paths:
+        paths.append(dotfiles_skills_path())
+    next_config["skills"] = {**skills, "paths": paths}
+
+    plugins = [item for item in next_config.get("plugin", []) if isinstance(item, (str, list))]
+    if kilo_plugin_path() not in plugins:
+        plugins.append(kilo_plugin_path())
+    next_config["plugin"] = plugins
+
+    provider = next_config.get("provider") if isinstance(next_config.get("provider"), dict) else {}
+    models = {}
+    for model in CLIPROXY_MODELS:
+        model_config = {
+            "name": model,
+            "family": "gpt-5",
+            "reasoning": True,
+            "tool_call": True,
+            "limit": {
+                "context": OPENCODE_CONTEXT_LIMIT,
+                "input": OPENCODE_CONTEXT_LIMIT,
+                "output": OPENCODE_OUTPUT_LIMIT,
+            },
+        }
+        if model == "gpt-5.5-fast":
+            model_config["id"] = "gpt-5.5"
+            model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
+        models[model] = model_config
+    provider["cliproxy"] = {
+        "name": "CLIProxyAPI",
+        "npm": "@ai-sdk/openai-compatible",
+        "options": {"baseURL": CLIPROXY_BASE_URL, "apiKey": cliproxy_api_key()},
+        "models": models,
+    }
+    next_config["provider"] = provider
+
+    permission = next_config.get("permission") if isinstance(next_config.get("permission"), dict) else {}
+    dotfiles_glob = f"{runtime_root().as_posix()}/*"
+    read_permission = permission.get("read") if isinstance(permission.get("read"), dict) else {}
+    external_directory = (
+        permission.get("external_directory") if isinstance(permission.get("external_directory"), dict) else {}
+    )
+    read_permission[dotfiles_glob] = "allow"
+    external_directory[dotfiles_glob] = "allow"
+    next_config["permission"] = {
+        **permission,
+        "read": read_permission,
+        "external_directory": external_directory,
+    }
+    return next_config
+
+
 def opencode_package_json(current: dict[str, Any]) -> dict[str, Any]:
     next_package = dict(current)
     dependencies = next_package.get("dependencies") if isinstance(next_package.get("dependencies"), dict) else {}
     dependencies.setdefault("@opencode-ai/plugin", "1.15.10")
+    dependencies["@ai-sdk/openai-compatible"] = "^1.0.22"
+    next_package["dependencies"] = dependencies
+    return next_package
+
+
+def kilo_package_json(current: dict[str, Any]) -> dict[str, Any]:
+    next_package = dict(current)
+    dependencies = next_package.get("dependencies") if isinstance(next_package.get("dependencies"), dict) else {}
+    dependencies.setdefault("@kilocode/plugin", "7.3.1")
     dependencies["@ai-sdk/openai-compatible"] = "^1.0.22"
     next_package["dependencies"] = dependencies
     return next_package
@@ -511,6 +658,33 @@ def opencode_apply(config_dir: Path) -> int:
     return 0
 
 
+def kilo_check(config_dir: Path) -> int:
+    path = kilo_config_path(config_dir)
+    current = load_jsonc_settings(path)
+    if current == desired_kilo_config(current):
+        sys.stdout.write(f"ok: {path} uses dotfiles model/context configuration\n")
+        return 0
+    sys.stdout.write(f"mismatch: {path} does not match dotfiles model/context configuration\n")
+    return 1
+
+
+def kilo_print(config_dir: Path) -> int:
+    path = kilo_config_path(config_dir)
+    sys.stdout.write(render_json(desired_kilo_config(load_jsonc_settings(path))))
+    return 0
+
+
+def kilo_apply(config_dir: Path) -> int:
+    path = kilo_config_path(config_dir)
+    current = load_jsonc_settings(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_json(desired_kilo_config(current)), encoding="utf-8")
+    package_path = config_dir / "package.json"
+    package_path.write_text(render_json(kilo_package_json(load_settings(package_path))), encoding="utf-8")
+    sys.stdout.write(f"updated: {path}\n")
+    return 0
+
+
 def aider_check(config_path: Path) -> int:
     path = aider_config_path(config_path)
     current = load_text(path)
@@ -536,14 +710,14 @@ def aider_apply(config_path: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check, print, or apply hook adapter configuration.")
-    parser.add_argument("--target", choices=["droid", "claude", "codex", "opencode", "aider"], required=True)
+    parser.add_argument("--target", choices=["droid", "claude", "codex", "opencode", "kilo", "aider"], required=True)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--print", action="store_true")
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Confirm --apply writes project hook configuration.")
     parser.add_argument("--project-dir", default=".", help="Project directory, defaults to current working directory.")
-    parser.add_argument("--config-dir", type=Path, default=default_opencode_config_dir(), help="OpenCode config directory.")
+    parser.add_argument("--config-dir", type=Path, default=None, help="OpenCode or Kilo config directory.")
     parser.add_argument("--config-path", type=Path, default=default_aider_config_path(), help="Aider config file path.")
     args = parser.parse_args()
 
@@ -567,12 +741,20 @@ def main() -> int:
         return claude_apply(project_dir)
 
     if args.target == "opencode":
-        config_dir = args.config_dir.expanduser().resolve()
+        config_dir = (args.config_dir or default_opencode_config_dir()).expanduser().resolve()
         if args.check:
             return opencode_check(config_dir)
         if args.print:
             return opencode_print(config_dir)
         return opencode_apply(config_dir)
+
+    if args.target == "kilo":
+        config_dir = (args.config_dir or default_kilo_config_dir()).expanduser().resolve()
+        if args.check:
+            return kilo_check(config_dir)
+        if args.print:
+            return kilo_print(config_dir)
+        return kilo_apply(config_dir)
 
     if args.target == "aider":
         config_path = args.config_path.expanduser().resolve()

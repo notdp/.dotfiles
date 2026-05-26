@@ -250,6 +250,68 @@ class InstallHooksTests(unittest.TestCase):
         self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
         self.assertIn("scripts/opencode/dotfiles_hooks.mjs", rendered)
 
+    def test_kilo_print_preserves_config_and_adds_dotfiles_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            config_dir = repo / ".config" / "kilo"
+            config_dir.mkdir(parents=True)
+            (config_dir / "kilo.json").write_text(
+                json.dumps(
+                    {
+                        "$schema": "https://app.kilo.ai/config.json",
+                        "mcp": {"keep": {"type": "local", "command": ["keep"]}},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_install(
+                "--target",
+                "kilo",
+                "--print",
+                "--config-dir",
+                str(config_dir),
+                cwd=repo,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        rendered = json.dumps(payload)
+        dotfiles_glob = f"{REPO_ROOT}/*"
+        self.assertEqual(payload["mcp"]["keep"]["command"], ["keep"])
+        self.assertEqual(payload["$schema"], "https://app.kilo.ai/config.json")
+        self.assertEqual(payload["provider"]["cliproxy"]["options"]["baseURL"], "http://localhost:8317/v1")
+        self.assertEqual(payload["provider"]["cliproxy"]["npm"], "@ai-sdk/openai-compatible")
+        self.assertEqual(payload["model"], "cliproxy/gpt-5.5-fast")
+        self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
+        self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
+        self.assertIn("scripts/kilo/dotfiles_hooks.mjs", rendered)
+        self.assertEqual(payload["permission"]["read"][dotfiles_glob], "allow")
+        self.assertEqual(payload["permission"]["external_directory"][dotfiles_glob], "allow")
+
+    def test_kilo_apply_writes_package_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            config_dir = repo / ".config" / "kilo"
+
+            result = self.run_install(
+                "--target",
+                "kilo",
+                "--apply",
+                "--yes",
+                "--config-dir",
+                str(config_dir),
+                cwd=repo,
+            )
+            config = json.loads((config_dir / "kilo.json").read_text(encoding="utf-8"))
+            package = json.loads((config_dir / "package.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(config["model"], "cliproxy/gpt-5.5-fast")
+        self.assertIn("@kilocode/plugin", package["dependencies"])
+        self.assertIn("@ai-sdk/openai-compatible", package["dependencies"])
+
     def test_opencode_plugin_warns_on_idle_with_unvalidated_code_changes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -409,11 +471,14 @@ class InstallHooksTests(unittest.TestCase):
     def test_user_config_apply_requires_yes_confirmation(self) -> None:
         opencode = self.run_install("--target", "opencode", "--apply")
         aider = self.run_install("--target", "aider", "--apply")
+        kilo = self.run_install("--target", "kilo", "--apply")
 
         self.assertEqual(opencode.returncode, 1, opencode.stdout + opencode.stderr)
         self.assertIn("--yes", opencode.stdout)
         self.assertEqual(aider.returncode, 1, aider.stdout + aider.stderr)
         self.assertIn("--yes", aider.stdout)
+        self.assertEqual(kilo.returncode, 1, kilo.stdout + kilo.stderr)
+        self.assertIn("--yes", kilo.stdout)
 
     def test_cross_target_apply_requires_yes_confirmation(self) -> None:
         claude = self.run_install("--target", "claude", "--apply")
