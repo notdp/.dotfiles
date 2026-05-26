@@ -244,11 +244,50 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["model"], "cliproxy/gpt-5.5-fast")
         self.assertEqual(payload["compaction"]["reserved"], 20000)
         self.assertEqual(payload["compaction"]["preserve_recent_tokens"], 20000)
+        self.assertEqual(payload["compaction"]["threshold_percent"], 60)
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["id"], "gpt-5.5")
-        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["input"], 360000)
+        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["context"], 1000000)
+        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["input"], 1000000)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
         self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
         self.assertIn("scripts/opencode/dotfiles_hooks.mjs", rendered)
+
+    def test_droid_models_print_updates_supported_compaction_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            settings_path = repo / ".factory" / "settings.json"
+            settings_path.parent.mkdir()
+            settings_path.write_text(
+                json.dumps(
+                    {
+                        "compactionTokenLimit": 300000,
+                        "compactionTokenLimitPerModel": {"existing": 111111},
+                        "customModels": [
+                            {"id": "custom:gpt", "model": "gpt-5.5"},
+                            {"id": "custom:claude", "model": "claude-opus-4-7"},
+                        ],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_install(
+                "--target",
+                "droid-models",
+                "--print",
+                "--settings-path",
+                str(settings_path),
+                cwd=repo,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["compactionTokenLimit"], 600000)
+        self.assertEqual(payload["compactionTokenLimitPerModel"]["existing"], 111111)
+        self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:gpt"], 600000)
+        self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:claude"], 600000)
+        self.assertNotIn("contextWindow", json.dumps(payload))
 
     def test_kilo_print_preserves_config_and_adds_dotfiles_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -279,16 +318,28 @@ class InstallHooksTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         rendered = json.dumps(payload)
         dotfiles_glob = f"{REPO_ROOT}/*"
+        paw_images_glob = "/Users/zhenninglang/.config/paw/images/**"
         self.assertEqual(payload["mcp"]["keep"]["command"], ["keep"])
         self.assertEqual(payload["$schema"], "https://app.kilo.ai/config.json")
         self.assertEqual(payload["provider"]["cliproxy"]["options"]["baseURL"], "http://localhost:8317/v1")
         self.assertEqual(payload["provider"]["cliproxy"]["npm"], "@ai-sdk/openai-compatible")
         self.assertEqual(payload["model"], "cliproxy/gpt-5.5-fast")
+        self.assertEqual(payload["compaction"]["threshold_percent"], 60)
+        self.assertTrue(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["attachment"])
+        self.assertEqual(
+            payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["modalities"]["input"],
+            ["text", "image"],
+        )
+        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["context"], 1000000)
+        self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["input"], 1000000)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
         self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
         self.assertIn("scripts/kilo/dotfiles_hooks.mjs", rendered)
         self.assertEqual(payload["permission"]["read"][dotfiles_glob], "allow")
         self.assertEqual(payload["permission"]["external_directory"][dotfiles_glob], "allow")
+        self.assertEqual(payload["permission"]["external_directory"][paw_images_glob], "allow")
+        self.assertEqual(payload["permission"]["external_directory"]["/Users/zhenninglang/Downloads/**"], "allow")
+        self.assertEqual(payload["permission"]["external_directory"]["/Users/zhenninglang/Projects/**"], "allow")
 
     def test_kilo_apply_writes_package_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -311,6 +362,70 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(config["model"], "cliproxy/gpt-5.5-fast")
         self.assertIn("@kilocode/plugin", package["dependencies"])
         self.assertIn("@ai-sdk/openai-compatible", package["dependencies"])
+
+    def test_kilo_plugin_guards_tool_execute_before_shell_command(self) -> None:
+        plugin_path = REPO_ROOT / "scripts" / "kilo" / "dotfiles_hooks.mjs"
+        script = f"""
+            import {{ pathToFileURL }} from "node:url";
+            const plugin = await import(pathToFileURL({json.dumps(str(plugin_path))}));
+            const hooks = await plugin.default.server({{ directory: {json.dumps(str(REPO_ROOT))} }});
+            const output = {{ args: {{ command: "rm -rf /" }} }};
+            let denied = false;
+            try {{
+              await hooks["tool.execute.before"]({{ tool: "bash", sessionID: "s", callID: "c" }}, output);
+            }} catch (error) {{
+              denied = String(error.message).includes("wide destructive cleanup");
+            }}
+            console.log(JSON.stringify({{
+              id: plugin.default.id,
+              hasServer: typeof plugin.default.server === "function",
+              denied
+            }}));
+        """
+
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["id"], "dotfiles-hooks")
+        self.assertTrue(payload["hasServer"])
+        self.assertTrue(payload["denied"])
+
+    def test_kilo_plugin_guards_permission_ask_shell_command(self) -> None:
+        plugin_path = REPO_ROOT / "scripts" / "kilo" / "dotfiles_hooks.mjs"
+        script = f"""
+            import {{ pathToFileURL }} from "node:url";
+            const plugin = await import(pathToFileURL({json.dumps(str(plugin_path))}));
+            const hooks = await plugin.default.server({{ directory: {json.dumps(str(REPO_ROOT))} }});
+            const output = {{ status: "ask" }};
+            await hooks["permission.ask"]({{
+              id: "p",
+              type: "bash",
+              pattern: "rm -rf /",
+              sessionID: "s",
+              messageID: "m",
+              title: "Run rm -rf /",
+              metadata: {{ command: "rm -rf /" }},
+              time: {{ created: 0 }}
+            }}, output);
+            console.log(JSON.stringify(output));
+        """
+
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["status"], "deny")
 
     def test_opencode_plugin_warns_on_idle_with_unvalidated_code_changes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -472,6 +587,7 @@ class InstallHooksTests(unittest.TestCase):
         opencode = self.run_install("--target", "opencode", "--apply")
         aider = self.run_install("--target", "aider", "--apply")
         kilo = self.run_install("--target", "kilo", "--apply")
+        droid_models = self.run_install("--target", "droid-models", "--apply")
 
         self.assertEqual(opencode.returncode, 1, opencode.stdout + opencode.stderr)
         self.assertIn("--yes", opencode.stdout)
@@ -479,6 +595,8 @@ class InstallHooksTests(unittest.TestCase):
         self.assertIn("--yes", aider.stdout)
         self.assertEqual(kilo.returncode, 1, kilo.stdout + kilo.stderr)
         self.assertIn("--yes", kilo.stdout)
+        self.assertEqual(droid_models.returncode, 1, droid_models.stdout + droid_models.stderr)
+        self.assertIn("--yes", droid_models.stdout)
 
     def test_cross_target_apply_requires_yes_confirmation(self) -> None:
         claude = self.run_install("--target", "claude", "--apply")

@@ -36,12 +36,41 @@ function runCommandGuard(command) {
   return runPythonHook(COMMAND_GUARD, { tool_input: { command } });
 }
 
+function isShellLikeName(value) {
+  const name = String(value || "").toLowerCase();
+  return ["bash", "shell", "execute", "terminal", "command"].some((part) => name.includes(part));
+}
+
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
 function maybeCommandFromToolHook(input, output) {
-  const tool = String(input?.tool || "").toLowerCase();
-  if (!["bash", "shell", "execute"].includes(tool)) {
+  if (!isShellLikeName(input?.tool)) {
     return "";
   }
-  return String(output?.args?.command || input?.args?.command || "").trim();
+  const args = output?.args || input?.args || {};
+  return firstString(args.command, args.cmd, args.script, input?.command);
+}
+
+function maybeCommandFromPermission(input) {
+  const metadata = input?.metadata || {};
+  const command = firstString(metadata.command, metadata.cmd, metadata.script);
+  if (command) {
+    return command;
+  }
+  if (!isShellLikeName(input?.type) && !isShellLikeName(input?.title)) {
+    return "";
+  }
+  if (typeof input?.pattern === "string") {
+    return input.pattern.trim();
+  }
+  return firstString(input?.title);
 }
 
 function applyCommandGuard(command, output) {
@@ -54,6 +83,14 @@ function applyCommandGuard(command, output) {
   }
   if (decision.systemMessage) {
     appendTextPart(output, decision.systemMessage);
+  }
+}
+
+function applyPermissionGuard(command, output) {
+  const decision = runCommandGuard(command);
+  const hookOutput = decision.hookSpecificOutput || {};
+  if (hookOutput.permissionDecision === "deny") {
+    output.status = "deny";
   }
 }
 
@@ -149,6 +186,12 @@ export const DotfilesHooksPlugin = async ({ client, directory } = {}) => {
       const command = maybeCommandFromToolHook(input, output);
       if (command) {
         applyCommandGuard(command, output);
+      }
+    },
+    "permission.ask": async (input, output) => {
+      const command = maybeCommandFromPermission(input);
+      if (command) {
+        applyPermissionGuard(command, output);
       }
     },
   };
