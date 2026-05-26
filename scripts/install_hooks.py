@@ -33,9 +33,17 @@ AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
 AIDER_HOOKS_END = "# dotfiles aider config: end"
 CLIPROXY_BASE_URL = "http://localhost:8317/v1"
 CLIPROXY_MODELS = ("gpt-5.5-fast", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")
+CLIPROXY_CLAUDE_MODELS = (
+    ("claude-opus-4-7", "Claude Opus 4.7"),
+    ("claude-opus-4-6", "Claude Opus 4.6"),
+    ("claude-sonnet-4-6", "Claude Sonnet 4.6"),
+    ("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
+    ("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
+)
 LOCAL_MODEL_CONTEXT_LIMIT = 1_000_000
 LOCAL_MODEL_INPUT_LIMIT = 1_000_000
 LOCAL_MODEL_OUTPUT_LIMIT = 128_000
+LOCAL_CLAUDE_OUTPUT_LIMIT = 64_000
 COMPACTION_THRESHOLD_PERCENT = 60
 DROID_COMPACTION_TOKEN_LIMIT = 600_000
 OPENCODE_COMPACTION_RESERVED = 20000
@@ -345,6 +353,14 @@ def kilo_plugin_path() -> str:
     return (runtime_root() / "scripts" / "kilo" / "dotfiles_hooks.mjs").as_posix()
 
 
+def local_model_limit(output: int = LOCAL_MODEL_OUTPUT_LIMIT) -> dict[str, int]:
+    return {
+        "context": LOCAL_MODEL_CONTEXT_LIMIT,
+        "input": LOCAL_MODEL_INPUT_LIMIT,
+        "output": output,
+    }
+
+
 def load_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -453,16 +469,22 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
             "reasoning": True,
             "tool_call": True,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": {
-                "context": LOCAL_MODEL_CONTEXT_LIMIT,
-                "input": LOCAL_MODEL_INPUT_LIMIT,
-                "output": LOCAL_MODEL_OUTPUT_LIMIT,
-            },
+            "limit": local_model_limit(),
         }
         if model == "gpt-5.5-fast":
             model_config["id"] = "gpt-5.5"
             model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
         models[model] = model_config
+    for model, name in CLIPROXY_CLAUDE_MODELS:
+        models[model] = {
+            "name": name,
+            "family": "claude",
+            "attachment": True,
+            "reasoning": True,
+            "tool_call": True,
+            "modalities": {"input": ["text", "image"], "output": ["text"]},
+            "limit": local_model_limit(LOCAL_CLAUDE_OUTPUT_LIMIT),
+        }
     provider["cliproxy"] = {
         "name": "CLIProxyAPI",
         "npm": "@ai-sdk/openai-compatible",
@@ -511,16 +533,22 @@ def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
             "reasoning": True,
             "tool_call": True,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": {
-                "context": LOCAL_MODEL_CONTEXT_LIMIT,
-                "input": LOCAL_MODEL_INPUT_LIMIT,
-                "output": LOCAL_MODEL_OUTPUT_LIMIT,
-            },
+            "limit": local_model_limit(),
         }
         if model == "gpt-5.5-fast":
             model_config["id"] = "gpt-5.5"
             model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
         models[model] = model_config
+    for model, name in CLIPROXY_CLAUDE_MODELS:
+        models[model] = {
+            "name": name,
+            "family": "claude",
+            "attachment": True,
+            "reasoning": True,
+            "tool_call": True,
+            "modalities": {"input": ["text", "image"], "output": ["text"]},
+            "limit": local_model_limit(LOCAL_CLAUDE_OUTPUT_LIMIT),
+        }
     provider["cliproxy"] = {
         "name": "CLIProxyAPI",
         "npm": "@ai-sdk/openai-compatible",
