@@ -1,6 +1,7 @@
 ---
 name: guard-diff-scan
 description: 当改动已完成但未 commit、需要确认没留调试遗留物时使用；扫描 git diff 中的 TODO/FIXME/调试语句。
+argument-hint: <留空=当前工作树|--staged|路径>
 ---
 
 # Diff Scan

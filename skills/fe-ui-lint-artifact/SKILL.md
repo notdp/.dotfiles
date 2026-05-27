@@ -5,7 +5,16 @@ description: 当需要确定性扫描 UI artifact、HTML/CSS/组件代码中的 
 
 # UI Artifact Lint
 
-用 grep / DOM / 代码扫描找确定性视觉质量问题。它不替代设计审查，只负责低成本、可复现的信号。
+用脚本 / grep / DOM / 代码扫描找确定性视觉质量问题。它不替代设计审查，只负责低成本、可复现的信号。
+
+优先运行仓库 scanner：
+
+```bash
+python3 scripts/scan_ui_artifact.py <scope>
+python3 scripts/scan_ui_artifact.py --format json <scope>
+```
+
+没有脚本或目标不在仓库内时，再降级使用下面的 grep 候选清单。
 
 ## 范围
 
@@ -71,6 +80,24 @@ rg 'modal|dialog|drawer' -i <scope>
 1. ...
 ```
 
+脚本 JSON 输出契约：
+
+```json
+{
+  "findings": [
+    {
+      "priority": "P0|P1|P2",
+      "id": "finding-id",
+      "file": "path",
+      "line": 1,
+      "snippet": "source line",
+      "issue": "why this matters",
+      "fix": "actionable fix"
+    }
+  ]
+}
+```
+
 ## 规则
 
 - Grep 命中只是候选；报告前必须看上下文。
@@ -78,6 +105,12 @@ rg 'modal|dialog|drawer' -i <scope>
 - 如果颜色在 `:root` / theme token 中定义且由 design system 明确要求，不报默认色问题；下游应使用 token。
 - `overflow-hidden` 只有在装饰性裁切、可访问替代明确时才允许。
 - 不用“像 AI”作为 issue；必须指出具体模式。
+
+## Verification
+
+- Scanner 变更后运行 `python3 -m unittest scripts.tests.test_scan_ui_artifact -v`。
+- Skill 文档变更后运行 `python3 scripts/verify_skills.py`。
+- 交付前至少保留一个 JSON 或 Markdown scanner 输出作为 deterministic evidence。
 
 ## 关联技能
 

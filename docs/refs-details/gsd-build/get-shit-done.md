@@ -28,6 +28,14 @@
 - `docs/AGENTS.md`
 - `commands/gsd/`
 
+## 2026-05-27 本地 range 调研
+
+- [事实] 本轮 range：`8b679959cc6d5889ecfaa28dbd5e9c4328e15fba..837114c1d0a4bec91983bb198a2b0d9f42a9446f`。
+- [事实] 上游新增/强化 CJS/SDK hard seam、STATE/configuration/workstream inventory/project-root generator、shared manifests、`QueryRuntimeBridge.executeForCjs`、state router delegation、graphify auto-update hook、Codex install skill surface、runtime-aware slash formatter、CLI negative matrix harness。
+- [事实] 安全与可靠性修复包括 `check.ship-ready` argv-based subprocess、planning path traversal validation，以及 phase/roadmap 回归测试。
+- [推断] 演进方向是从 workflow 命令集合转向 typed SDK + generated CJS adapters + parity tests 的跨 runtime 系统。
+- [推断] 本仓库应优先吸收 shared manifest、generator、parity/negative tests、runtime adapter 输出格式这些工程化模式；不应导入完整 GSD workflow 以免和现有 `think-*` / `dev-*` / `guard-*` 路由竞争。
+
 ## 备注
 
 - 架构文档中的数量统计与当前目录树略有差异。

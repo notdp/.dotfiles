@@ -27,6 +27,15 @@
 - `skills/react-native-skills/SKILL.md`
 - `skills/deploy-to-vercel/SKILL.md`
 
+## 2026-05-27 本地 range 调研
+
+- [事实] 本轮 range：`b9c8ee0643d87d3c5a953d1e22382ff2ead39229..180115660cfb8a86b808f117475a01f54caf3bc5`。
+- [事实] 上游新增大型 `vercel-optimize` skill，资产包括 `SKILL.md`、README、AGENTS、metadata、`lib/`、`scripts/`、`references/`、`playbooks/`、`support-topics/`、tests 与 fixtures。
+- [事实] 该 skill 覆盖 Vercel 成本/性能优化、Observability Plus、metrics collection、budget summary、deep dive、gate investigations、report rendering、candidate reconciliation、scanner-driven gates、verification 与 claim extraction。
+- [事实] 后续提交多次 harden public launch safety、frontmatter YAML、framework preflight、cache policy guard、Observability Plus access preflight、CLI token redaction、data gap reporting、project scope preflight、linked team scope、plan detection、workflow guidance 与 observation safety。
+- [推断] 本 ref 正从 React/UI 最佳实践集合演进为“带数据采集、scope preflight、redaction、claim verification 和报告再生成”的垂直诊断系统。
+- [推断] 对本仓库最可吸收的是复杂 verification / operational skill 的结构：`scope preflight`、`data gap reporting`、`claim verification`、fixtures/tests，而不是 Vercel-specific metrics 数据本体。
+
 ## 备注
 
 - README 中的名字与实际目录/skill name 有少量漂移；web-design-guidelines 的规则需运行时远程抓取。

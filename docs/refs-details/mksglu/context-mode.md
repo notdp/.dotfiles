@@ -28,6 +28,15 @@
 - `hooks/hooks.json`
 - `src/session/db.ts`
 
+## 2026-05-27 本地与联网刷新调研
+
+- [事实] 初稿 range：`17587f6f64604cb856b160e10ed1745ba322a9a0..276c2ad9136c2edd7c8f8ec84c7b5c185358c71f`；联网刷新后 remote-tracking 更新到 `188833f8a0712bbd7dfa5aae7aaff1ab470acb85`。
+- [事实] 上游发布 `1.0.132` 到 `1.0.151`，强化 `CONTEXT_MODE_DATA_DIR`、SessionDB path、projectDir-scoped memory、runtime storage override、directory indexing、per-call cache TTL、surrogate-safe preview truncation、OpenCode native plugin ctx tools。
+- [事实] 还包含 tool description audit、WebFetch refusal、duplicate hook doctor warning、Codex session log cwd recovery、AGENTS rules capture on session start、pack integrity 和 stale cache path healing。
+- [事实] 刷新后新增 `276c2ad..188833f` 主要包括 install stats 更新、release title convention 文档、cross-platform cwd assertion 测试修复和 bundle refresh；未改变前述主要吸收结论。
+- [推断] 上游重点从上下文压缩/检索扩展到跨 runtime deployment、storage isolation、doctor 可诊断性、tool routing safety 与 session continuity。
+- [推断] 本仓库应把 projectDir-scoped memory、storage override、context-surface、tool description/refusal 纳入安全与 hook 设计检查；不应默认用 ctx_execute 替代现有工具纪律。
+
 ## 备注
 
 - 并非所有平台都有完整 hook 支持；许可证是 Elastic-2.0。

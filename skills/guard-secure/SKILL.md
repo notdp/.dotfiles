@@ -1,6 +1,6 @@
 ---
 name: guard-secure
-description: 当改动触及认证、授权、数据处理、网络边界或外部依赖，或需要做漏洞扫描和攻击面评估时使用；基于 STRIDE 威胁建模。
+description: 当改动触及认证、授权、数据处理、网络边界或外部依赖，或需要做漏洞扫描和攻击面评估时使用；只读代码安全审查可直接做，外部目标扫描、攻击模拟或 offensive 验证必须先取得授权范围、允许动作和停止条件；基于 STRIDE 威胁建模。
 argument-hint: <pr|weekly|full|staged|commit-range|文件/目录|功能描述|留空=pr>
 ---
 
@@ -130,7 +130,17 @@ git diff <range> --name-only
 - [ ] 新增依赖经过 license + supply chain 审查
 - [ ] 高危 CVE 有跟进计划（不要求每个都立即修，但要可见）
 
-## 6. 输出
+## 6. MCP / Browser Tool 边界检查
+
+当 diff、任务或验证步骤触及 browser automation、MCP tool、CDP、截图、下载、HAR、auth state 或本地 daemon 时，额外检查：
+
+- `filePath` / download / screenshot / PDF / HAR / state 文件是否经过 realpath 约束，且没有逃逸 workspace、临时目录或用户批准目录。
+- Tool schema 是否 fail-loud：unknown args、unsupported options、类型不匹配、空 selector/ref 不应被静默忽略。
+- browser session、stream server、daemon、临时 profile 是否有 shutdown / cleanup 路径；失败路径也要覆盖。
+- cookies、localStorage、profile、auth vault、state JSON 是否按 secret 处理，不进入 git、不进入日志、不在报告中复述。
+- 外部站点、登录态、下载文件、表单提交是否有明确授权 scope、允许动作和停止条件。
+
+## 7. 输出
 
 ```markdown
 ### Scan Context
@@ -151,14 +161,14 @@ git diff <range> --name-only
 
 ### 缓解措施验证
 - [ ] 已有的认证 / 鉴权 / 加密 / 日志 / rate limit 是否覆盖本次改动
-- [ ] 依赖 CVE 检查（见第 4 节）
+- [ ] 依赖 CVE 检查（见第 5 节）
 
 ### 总体评估
 - 安全风险等级：高 / 中 / 低
 - Ready for merge?: Yes / No / With fixes
 ```
 
-## 7. 规则
+## 8. 规则
 
 - 只报告有证据的风险，不报告理论上的可能性
 - 每个 finding 必须给：威胁类型 + file:line + 触发路径 + 缓解建议

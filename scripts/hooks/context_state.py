@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,11 @@ VALIDATION_RE = re.compile(r"(run-verify\.sh|pytest|npm test|tsc|verify_skills\.
 BOUNDARY_DECISION_RE = re.compile(r"Boundary decisions:\s*(.*?)(?:\n\n|\Z)", re.I | re.S)
 BLOCKER_RE = re.compile(r"^\s*(?:\b(?:Blocked|Blocker)\b|阻塞)[:：]\s*(.+)", re.I | re.M)
 MAX_CONTEXT_CHARS = 2000
+STATE_TTL_DAYS = 14
+SECRET_RE = re.compile(
+    r"(?i)(sk-[A-Za-z0-9_-]{8,}|(?:api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+)"
+)
+URL_RE = re.compile(r"https?://[^\s)>'\"]+")
 
 
 def project_root() -> Path:
@@ -82,6 +87,11 @@ def stringify(value: Any) -> str:
     return str(value) if value is not None else ""
 
 
+def redact(text: str) -> str:
+    text = SECRET_RE.sub("[REDACTED_SECRET]", text)
+    return URL_RE.sub("[REDACTED_URL]", text)
+
+
 def transcript_lines(path: str | None, *, max_lines: int = 400) -> list[dict]:
     if not path:
         return []
@@ -105,12 +115,12 @@ def last_user_prompt(records: list[dict]) -> str:
         if record.get("role") == "user":
             content = stringify(record.get("content")).strip()
             if content:
-                return content[:500]
+                return redact(content)[:500]
         message = record.get("message")
         if isinstance(message, dict) and message.get("role") == "user":
             content = stringify(message.get("content")).strip()
             if content:
-                return content[:500]
+                return redact(content)[:500]
     return ""
 
 
@@ -119,7 +129,7 @@ def recent_validation(records: list[dict]) -> str:
     for record in records[-120:]:
         text = stringify(record)
         if VALIDATION_RE.search(text):
-            snippets.append(re.sub(r"\s+", " ", text).strip()[:240])
+            snippets.append(redact(re.sub(r"\s+", " ", text).strip())[:240])
     return " | ".join(snippets[-3:])
 
 
@@ -130,7 +140,7 @@ def boundary_decisions(records: list[dict]) -> str:
         for match in BOUNDARY_DECISION_RE.finditer(text):
             body = re.sub(r"\s+", " ", match.group(1)).strip()
             if body:
-                decisions.append(body[:240])
+                decisions.append(redact(body)[:240])
     return " | ".join(decisions[-3:])
 
 
@@ -139,7 +149,7 @@ def blockers(records: list[dict]) -> str:
     for record in records[-120:]:
         text = stringify(record)
         for match in BLOCKER_RE.finditer(text):
-            found.append(match.group(1).strip()[:240])
+            found.append(redact(match.group(1).strip())[:240])
     return " | ".join(found[-3:])
 
 
@@ -175,11 +185,47 @@ def build_state(root: Path, hook_input: dict) -> dict:
     }
 
 
+def ensure_agent_state_ignored(root: Path) -> None:
+    gitignore = root / ".gitignore"
+    try:
+        current = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+        if any(line.strip() == ".agent-state/" for line in current.splitlines()):
+            return
+        suffix = "" if not current or current.endswith("\n") else "\n"
+        gitignore.write_text(current + suffix + ".agent-state/\n", encoding="utf-8")
+    except OSError:
+        return
+
+
 def save_state(root: Path, hook_input: dict) -> dict:
     path = state_path(root, hook_input)
     path.parent.mkdir(parents=True, exist_ok=True)
+    cleanup_expired_states(path.parent)
+    ensure_agent_state_ignored(root)
     path.write_text(json.dumps(build_state(root, hook_input), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return suppress()
+
+
+def parse_updated_at(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def cleanup_expired_states(directory: Path) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=STATE_TTL_DAYS)
+    for path in directory.glob("*.json"):
+        state = read_json(path)
+        updated_at = parse_updated_at(state.get("updated_at"))
+        if updated_at is None or updated_at >= cutoff:
+            continue
+        remove_state_file(path)
 
 
 def read_json(path: Path) -> dict:

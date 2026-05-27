@@ -1,6 +1,6 @@
 ---
 name: agent-browser
-description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction.
+description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating browser tasks; external sites, login state, user browser state, credentials, or saved auth files require explicit authorization scope and secret handling.
 argument-hint: <URL|页面任务|自动化目标>
 allowed-tools: Bash(npx agent-browser:*), Bash(agent-browser:*)
 ---
@@ -24,7 +24,7 @@ agent-browser snapshot -i
 # Output: @e1 [input type="email"], @e2 [input type="password"], @e3 [button] "Submit"
 
 agent-browser fill @e1 "user@example.com"
-agent-browser fill @e2 "password123"
+agent-browser fill @e2 "$PASSWORD"
 agent-browser click @e3
 agent-browser wait --load networkidle
 agent-browser snapshot -i  # Check result
@@ -39,7 +39,7 @@ Commands can be chained with `&&` in a single shell invocation. The browser pers
 agent-browser open https://example.com && agent-browser wait --load networkidle && agent-browser snapshot -i
 
 # Chain multiple interactions
-agent-browser fill @e1 "user@example.com" && agent-browser fill @e2 "password123" && agent-browser click @e3
+agent-browser fill @e1 "user@example.com" && agent-browser fill @e2 "$PASSWORD" && agent-browser click @e3
 
 # Navigate and capture
 agent-browser open https://example.com && agent-browser wait --load networkidle && agent-browser screenshot page.png
@@ -51,8 +51,22 @@ agent-browser open https://example.com && agent-browser wait --load networkidle 
 
 - 交互前先 `snapshot -i` 拿最新元素引用；DOM 变了还复用旧 `@e1` 很容易点错
 - 需要读取中间输出时不要盲目链式执行；先看结果再继续
+- 任何 `filePath`、download、screenshot、PDF、HAR、state 文件路径在执行前都必须解析为 realpath，并确认没有逃逸当前 workspace 或用户明确批准的目录
+- 不认识的参数、unsupported CLI option、无法解析的 selector/ref 必须 fail-loud；不要在输出不明确时继续下一步
+- 自动化结束后关闭不再需要的 session、stream、daemon 或临时 profile；长任务至少记录 cleanup 状态
 - 认证状态文件包含敏感会话信息，只能本地临时使用，并加入 `.gitignore`
+- 不在命令、日志或最终答复中复述 secret；密码使用环境变量、stdin 或 auth vault
 - browser automation 适合执行和取证，不替代业务判断；发现异常后仍要回到 `/dev-debug`、`/guard-review` 或 `/guard-verify`
+
+## MCP / Browser Safety Checklist
+
+执行 browser/MCP 相关任务前，用这组契约做边界检查：
+
+- **Path boundary**：`screenshot`、`pdf`、`download`、`wait --download`、`network har stop`、`state save/load`、`--download-path`、`--screenshot-dir` 的路径必须落在 workspace、临时目录或用户批准目录；相对路径按当前工作目录解析后再判断。
+- **Schema strictness**：命令参数来自用户、脚本或 MCP wrapper 时，未知字段、未知 flag、类型不匹配、空 selector/ref 都应停止并报告；不要静默忽略。
+- **Session cleanup**：任务结束或失败后，按实际使用情况执行 `agent-browser close`、`agent-browser close --all` 或 `agent-browser stream disable`；保存 auth/profile/session 时说明保留原因和清理条件。
+- **Auth state**：cookies、localStorage、profile、auth vault、state JSON 都按 secret 处理；不得 commit，不在最终答复中展开内容。
+- **External scope**：访问外部站点、登录态、下载文件或表单提交前，确认用户授权的 URL、账号、动作范围和停止条件。
 
 ## Handling Authentication
 

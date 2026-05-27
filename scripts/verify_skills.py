@@ -123,6 +123,13 @@ class MarkdownSection:
     lines: list[str]
 
 
+@dataclass(frozen=True)
+class AssetValidationSummary:
+    agents: int = 0
+    commands: int = 0
+    plugin_manifests: int = 0
+
+
 def fail(message: str) -> None:
     raise ValidationError(message)
 
@@ -250,6 +257,34 @@ def parse_frontmatter(skill_file: Path) -> dict[str, str]:
         fail(f"MISSING FRONTMATTER NAME: {skill_file}")
     if not fields.get("description"):
         fail(f"MISSING FRONTMATTER DESCRIPTION: {skill_file}")
+    return fields
+
+
+def parse_markdown_frontmatter(markdown_file: Path) -> dict[str, Any]:
+    lines = markdown_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    if not lines or lines[0] != "---":
+        fail(f"INVALID FRONTMATTER: {markdown_file}")
+
+    try:
+        end_index = lines.index("---", 1)
+    except ValueError as exc:
+        raise ValidationError(f"MISSING FRONTMATTER END: {markdown_file}") from exc
+
+    fields: dict[str, Any] = {}
+    current_key: str | None = None
+    for line in lines[1:end_index]:
+        if not line.strip():
+            continue
+        if not line.startswith((" ", "\t")) and ":" in line:
+            key, raw_value = line.split(":", 1)
+            key = key.strip()
+            value = raw_value.strip()
+            fields[key] = value if value else {}
+            current_key = key
+            continue
+        if current_key and isinstance(fields.get(current_key), dict) and ":" in line:
+            key, raw_value = line.split(":", 1)
+            fields[current_key][key.strip()] = raw_value.strip()
     return fields
 
 
@@ -473,6 +508,134 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
     return collect_high_risk_capability_warnings(entry, full_text)
 
 
+def routing_cases_path(context: ValidationContext) -> Path:
+    return context.repo_root / "scripts" / "fixtures" / "skill_routing_cases.json"
+
+
+def validate_routing_cases(context: ValidationContext, entries: list[SkillEntry], skill_names: set[str]) -> int:
+    path = routing_cases_path(context)
+    if not path.exists():
+        return 0
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"INVALID ROUTING CASES JSON: {path}: {exc}") from exc
+    if not isinstance(payload, list) or not payload:
+        fail(f"INVALID ROUTING CASES: {path} must contain a non-empty list")
+
+    skill_text_by_name = {
+        entry.name: (entry.path / "SKILL.md").read_text(encoding="utf-8", errors="replace")
+        for entry in entries
+    }
+    seen_ids: set[str] = set()
+    for index, case in enumerate(payload, start=1):
+        if not isinstance(case, dict):
+            fail(f"INVALID ROUTING CASE: index={index} must be an object")
+        case_id = case.get("id")
+        if not isinstance(case_id, str) or not case_id:
+            fail(f"INVALID ROUTING CASE: index={index} missing id")
+        if case_id in seen_ids:
+            fail(f"DUPLICATE ROUTING CASE: {case_id}")
+        seen_ids.add(case_id)
+
+        expected = case.get("expected_skills")
+        rejected = case.get("reject_skills", [])
+        terms = case.get("match_terms")
+        if not isinstance(expected, list) or not expected:
+            fail(f"INVALID ROUTING CASE: {case_id} expected_skills must be a non-empty list")
+        if not isinstance(rejected, list):
+            fail(f"INVALID ROUTING CASE: {case_id} reject_skills must be a list")
+        if not isinstance(terms, list) or not all(isinstance(term, str) and term for term in terms):
+            fail(f"INVALID ROUTING CASE: {case_id} match_terms must be non-empty strings")
+
+        for skill in [*expected, *rejected]:
+            if not isinstance(skill, str) or not skill:
+                fail(f"INVALID ROUTING CASE: {case_id} skill names must be non-empty strings")
+            if skill not in skill_names:
+                fail(f"UNKNOWN ROUTING SKILL: {case_id} references {skill}")
+        overlap = set(expected).intersection(rejected)
+        if overlap:
+            fail(f"ROUTING CASE CONFLICT: {case_id} both expects and rejects {', '.join(sorted(overlap))}")
+
+        for skill in expected:
+            text = skill_text_by_name[skill]
+            if not any(term in text for term in terms):
+                fail(f"ROUTING CASE UNCOVERED: {case_id} expected {skill} to mention one of match_terms")
+    return len(payload)
+
+
+def validate_command_asset(command_file: Path) -> None:
+    frontmatter = parse_markdown_frontmatter(command_file)
+    if not isinstance(frontmatter.get("description"), str) or not frontmatter["description"]:
+        fail(f"COMMAND ASSET MISSING FIELD: {command_file} field=description")
+    content = command_file.read_text(encoding="utf-8", errors="replace")
+    if "$ARGUMENTS" in content and not frontmatter.get("argument-hint"):
+        fail(f"COMMAND ASSET MISSING FIELD: {command_file} field=argument-hint")
+
+
+def validate_agent_asset(agent_file: Path) -> None:
+    frontmatter = parse_markdown_frontmatter(agent_file)
+    for field in ("description", "mode", "model", "permission"):
+        if not frontmatter.get(field):
+            fail(f"AGENT ASSET MISSING FIELD: {agent_file} field={field}")
+    permission = frontmatter.get("permission")
+    if not isinstance(permission, dict) or not permission:
+        fail(f"AGENT ASSET INVALID PERMISSION: {agent_file}")
+    for tool, value in permission.items():
+        if value not in {"allow", "deny", "ask"}:
+            fail(f"AGENT ASSET INVALID PERMISSION: {agent_file} {tool}={value!r}")
+
+
+def validate_relative_manifest_path(context: ValidationContext, manifest: Path, raw_path: Any, field: str) -> None:
+    if raw_path in (None, ""):
+        return
+    if not isinstance(raw_path, str):
+        fail(f"PLUGIN MANIFEST INVALID PATH: {manifest} field={field}")
+    target = (manifest.parent / raw_path).resolve()
+    if not target.is_relative_to(context.repo_root.resolve()):
+        fail(f"PLUGIN MANIFEST PATH ESCAPES REPO: {manifest} field={field} path={raw_path}")
+
+
+def validate_plugin_manifest(context: ValidationContext, manifest: Path) -> None:
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"PLUGIN MANIFEST INVALID JSON: {manifest}: {exc}") from exc
+    if not isinstance(payload, dict):
+        fail(f"PLUGIN MANIFEST INVALID JSON: {manifest} root must be an object")
+    for field in ("name", "version"):
+        if not isinstance(payload.get(field), str) or not payload[field]:
+            fail(f"PLUGIN MANIFEST MISSING FIELD: {manifest} field={field}")
+    for field in ("entry", "source", "main"):
+        validate_relative_manifest_path(context, manifest, payload.get(field), field)
+
+
+def iter_repo_plugin_manifests(context: ValidationContext) -> list[Path]:
+    candidates = [
+        context.repo_root / ".codex-plugin" / "plugin.json",
+        context.repo_root / ".claude-plugin" / "plugin.json",
+        context.repo_root / ".agents" / "plugins" / "marketplace.json",
+    ]
+    return [path for path in candidates if path.exists()]
+
+
+def validate_agent_assets(context: ValidationContext) -> AssetValidationSummary:
+    agent_files = sorted((context.repo_root / ".kilo" / "agent").glob("*.md")) if (context.repo_root / ".kilo" / "agent").exists() else []
+    command_files = sorted((context.repo_root / "commands").glob("*.md")) if (context.repo_root / "commands").exists() else []
+    manifests = iter_repo_plugin_manifests(context)
+    for agent_file in agent_files:
+        validate_agent_asset(agent_file)
+    for command_file in command_files:
+        validate_command_asset(command_file)
+    for manifest in manifests:
+        validate_plugin_manifest(context, manifest)
+    return AssetValidationSummary(
+        agents=len(agent_files),
+        commands=len(command_files),
+        plugin_manifests=len(manifests),
+    )
+
+
 def main() -> int:
     try:
         repo_root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
@@ -486,7 +649,15 @@ def main() -> int:
                 sys.stdout.write(f"{warning}\n")
             warnings.clear()
             print(f"ok: {entry.name} -> {entry.path.relative_to(context.repo_root)}")
+        routing_case_count = validate_routing_cases(context, entries, skill_names)
+        asset_summary = validate_agent_assets(context)
         print(f"validated {len(entries)} skills")
+        print(f"validated {routing_case_count} skill routing cases")
+        print(
+            "validated agent assets: "
+            f"agents={asset_summary.agents} commands={asset_summary.commands} "
+            f"plugin_manifests={asset_summary.plugin_manifests}"
+        )
     except ValidationError as error:
         print(str(error), file=sys.stderr)
         return 1

@@ -28,6 +28,14 @@
 - `source/skills/frontend-design/SKILL.md`
 - `scripts/build.js`
 
+## 2026-05-27 本地 range 调研
+
+- [事实] 本轮 range：`dc715c7359cc44f7d20c638deaec2f17e6b2f4b3..84135db0e6bdd58d22828f7bc8331cae7bde3e7f`。
+- [事实] 上游新增 Detector architecture v2，拆出 browser injected bundle、CLI main、regex/static-html/browser/visual engines、CSS cascade、contrast、profiler、antipattern registry、rules checks、benchmark detector、detector lab 页面和 fixtures。
+- [事实] 新增 DeepSeek live E2E adapter，并强化 live server test 隔离、Windows-safe CLI entry-point 与 provider 目录分发。
+- [推断] UI 质量判断正在从纯 prompt critique 走向静态 HTML、浏览器运行时、视觉 contrast、regex 文本规则组合的混合检测。
+- [推断] 本仓库可将 detector v2 的规则组织方式吸收到 `fe-ui-lint-artifact` / `fe-ui-critique`，但不应复制其多 provider 目录结构。
+
 ## 备注
 
 - 当前快照重点是 source/build/website；文档中的 provider 数量说明与实际 build target 有版本差。

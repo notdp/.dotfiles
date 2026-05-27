@@ -110,6 +110,19 @@ def is_assistant_record(record: dict) -> bool:
     )
 
 
+def is_tool_result_record(record: dict) -> bool:
+    record_type = str(record.get("type") or record.get("role") or "").lower()
+    if record_type in {"tool_result", "tool-result", "function_result", "tool"}:
+        return True
+    if record.get("tool") or record.get("tool_name") or record.get("name") in {"bash", "execute", "shell"}:
+        return True
+    message = record.get("message")
+    if isinstance(message, dict):
+        message_type = str(message.get("type") or message.get("role") or "").lower()
+        return message_type in {"tool_result", "tool-result", "function_result", "tool"}
+    return False
+
+
 def current_window_records(records: list[dict]) -> list[dict]:
     for index in range(len(records) - 1, -1, -1):
         record = records[index]
@@ -126,6 +139,8 @@ def records_text(records: list[dict]) -> str:
 
 def validation_evidence_present(records: list[dict]) -> bool:
     for record in records:
+        if not is_tool_result_record(record):
+            continue
         text = record_text(record)
         if not VALIDATION_RE.search(text):
             continue

@@ -116,6 +116,7 @@ class ScanDiffResidueTests(unittest.TestCase):
             (repo / "scripts" / "scan_diff_residue.py").write_text('print("usage")\n', encoding="utf-8")
             (repo / "scripts" / "scan_operational_task_contract.py").write_text('print("json output")\n', encoding="utf-8")
             (repo / "scripts" / "scan_boundary_decisions.py").write_text('print("hook output")\n', encoding="utf-8")
+            (repo / "scripts" / "skill_maintenance_collect.py").write_text('print("json output")\n', encoding="utf-8")
             (repo / "scripts" / "hooks").mkdir()
             (repo / "scripts" / "hooks" / "context_capsule.py").write_text('print("preview output")\n', encoding="utf-8")
             (repo / ".factory" / "hooks").mkdir(parents=True)

@@ -92,8 +92,8 @@ rg 'overflow-hidden|backdrop-filter|scrollIntoView' <scope>
 
 检测项目类型后执行：
 
-- **React 项目**：调用 `npx react-doctor@latest . --verbose` 获取健康评分
-- **React 项目**：调用 `npx -y react-doctor@latest . --verbose --diff` 获取健康评分
+- **React 项目**：优先调用本仓库 `/react-doctor` skill 或项目本地已安装的 `react-doctor`；只有用户批准联网/拉包时，才使用 `npx react-doctor@latest . --verbose`
+- **React 项目**：需要 diff 模式时同样优先本地命令；`npx -y react-doctor@latest . --verbose --diff` 需要先说明联网副作用并等待用户批准
 - **所有项目**：检查 CSS 中的 magic number、!important 泛滥、过深嵌套（> 4 层）
 
 ## 2.1 输出契约

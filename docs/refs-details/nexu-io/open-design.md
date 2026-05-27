@@ -89,6 +89,15 @@
 - 把本地 daemon 作为唯一特权边界，Web 只做交互和预览。
 - 对不同 Agent CLI 统一抽象：detect、model list、build args、spawn、stream parser、capabilities。
 
+## 2026-05-27 联网刷新调研
+
+- [事实] 刷新后 range：`852a005b3219ce9cc4f8224ac5ebcc6ce1fcc6b1..a6a56099caf1266753da477a131ae21aea493251`。
+- [事实] 上游在该 range 内新增 plugin runtime 主干：plugin install/apply/trust/snapshot/doctor/validate/pack/search/publish/verify/simulate/canon/diff/upgrade/events/stats/purge 等 CLI 或 daemon 能力，并加入 marketplace registry、snapshot GC、pipeline runner、GenUI event/cache、connector gate、trust mutation 与 tool-token gate。
+- [事实] 上游新增 first-party atom/scenario plugin 资产，包含 `plugins/_official/atoms/*/SKILL.md`、`open-design.json`、scenario examples，以及 build-test、code-import、design-extract、diff-review、figma-extract、handoff、patch-edit、rewrite-plan、token-map 等 atom 实现与测试。
+- [事实] 上游补充 deployment/security substrate：Docker/Helm、per-cloud Helm values、bound API token guard、S3 project storage、SQLite inventory/verify/vacuum、plugin event ring buffer 与 SSE tail。
+- [事实] 最近提交还包括 official GSAP skill bundle、Community/Ambassadors 页面、agent report 清理、preview social sharing gating 和 file operations summary。
+- [推断] 对本仓库的启发是：如果要吸收 plugin/agent-skill 生态，优先吸收 manifest validation、author-side lint、event observability、artifact provenance 和 first-party atom `SKILL.md` 协议，而不是复制 daemon、Web UI 或全套 marketplace。
+
 ## 关键文件
 
 - `README.md`

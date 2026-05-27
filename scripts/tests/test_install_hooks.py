@@ -27,12 +27,18 @@ def _make_fake_tmux_for_notify(bindir: Path, window_title: str) -> None:
 
 
 class InstallHooksTests(unittest.TestCase):
-    def run_install(self, *args: str, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess[str]:
+    def run_install(
+        self,
+        *args: str,
+        cwd: Path = REPO_ROOT,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SCRIPT), *args],
             cwd=cwd,
             text=True,
             capture_output=True,
+            env={**os.environ, **(env or {})},
         )
 
     def test_droid_check_accepts_current_project_settings(self) -> None:
@@ -613,6 +619,40 @@ class InstallHooksTests(unittest.TestCase):
         self.assertIn("--yes", claude.stdout)
         self.assertEqual(codex.returncode, 1, codex.stdout + codex.stderr)
         self.assertIn("--yes", codex.stdout)
+
+    def test_agent_assets_apply_links_all_supported_agents(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_install("--target", "agent-assets", "--apply", "--yes", env={"HOME": str(home)})
+
+            expected_links = {
+                home / ".claude" / "commands": REPO_ROOT / "commands",
+                home / ".claude" / "skills": REPO_ROOT / "skills",
+                home / ".codex" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
+                home / ".codex" / "prompts": REPO_ROOT / "commands",
+                home / ".codex" / "skills": REPO_ROOT / "skills",
+                home / ".factory" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
+                home / ".factory" / "commands": REPO_ROOT / "commands",
+                home / ".factory" / "skills": REPO_ROOT / "skills",
+                home / ".config" / "opencode" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
+                home / ".config" / "opencode" / "commands": REPO_ROOT / "commands",
+                home / ".config" / "opencode" / "skills": REPO_ROOT / "skills",
+                home / ".config" / "kilo" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
+                home / ".config" / "kilo" / "commands": REPO_ROOT / "commands",
+                home / ".config" / "kilo" / "skills": REPO_ROOT / "skills",
+            }
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for link, target in expected_links.items():
+                self.assertTrue(link.is_symlink(), f"{link} is not a symlink")
+                self.assertEqual(link.resolve(), target.resolve())
+
+    def test_agent_assets_apply_requires_yes_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_install("--target", "agent-assets", "--apply", env={"HOME": tmp})
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("--yes", result.stdout)
 
 
 if __name__ == "__main__":

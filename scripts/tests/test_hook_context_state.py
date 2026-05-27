@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -41,7 +42,13 @@ class HookContextStateTests(unittest.TestCase):
             (repo / "src.py").write_text("print('changed')\n", encoding="utf-8")
             transcript = repo / "session.jsonl"
             transcript.write_text(
-                json.dumps({"role": "user", "content": "Fix the flaky sync bug"}) + "\n"
+                json.dumps(
+                    {
+                        "role": "user",
+                        "content": "Fix the flaky sync bug with token sk-live-abc123 and https://secret.example.com/path",
+                    }
+                )
+                + "\n"
                 + json.dumps({"role": "assistant", "content": "Boundary decisions:\n- context-surface: compact recovery keeps state small"}) + "\n"
                 + json.dumps({"role": "assistant", "content": "Blocked: waiting for failing fixture"}) + "\n"
                 + json.dumps({"role": "assistant", "content": "Ran `python3 scripts/run-verify.sh` pass"}) + "\n",
@@ -56,7 +63,10 @@ class HookContextStateTests(unittest.TestCase):
             self.assertEqual(len(states), 1)
             state = json.loads(states[0].read_text())
             self.assertFalse((repo / ".factory" / "scratch" / "compact-state.json").exists())
-            self.assertEqual(state["last_user_prompt"], "Fix the flaky sync bug")
+            self.assertNotIn("sk-live-abc123", json.dumps(state))
+            self.assertNotIn("secret.example.com", json.dumps(state))
+            self.assertIn("[REDACTED_SECRET]", state["last_user_prompt"])
+            self.assertIn("[REDACTED_URL]", state["last_user_prompt"])
             self.assertIn("src.py", state["changed_files"])
             self.assertIn("run-verify.sh", state["recent_validation"])
             self.assertIn("Fix the flaky sync bug", state["goal"])
@@ -150,6 +160,17 @@ class HookContextStateTests(unittest.TestCase):
             self.assertIn("Next action", context)
             self.assertNotIn("Recent todos", context)
             self.assertFalse((state_dir / "agent-a.json").exists())
+
+    def test_precompact_writes_gitignore_for_agent_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            transcript = self._write_transcript(repo, "session.jsonl", "Current task")
+
+            result = self.run_script(repo, {"transcript_path": str(transcript)}, "--event", "pre-compact")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn(".agent-state/", (repo / ".gitignore").read_text(encoding="utf-8"))
 
     def test_compact_state_uses_session_id_when_transcript_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -254,6 +275,30 @@ class HookContextStateTests(unittest.TestCase):
             self.assertEqual(restore.returncode, 0, restore.stdout + restore.stderr)
             context = json.loads(restore.stdout)["hookSpecificOutput"]["additionalContext"]
             self.assertIn("Same transcript survives", context)
+
+    def test_precompact_cleans_up_expired_compact_state_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            state_dir = repo / ".agent-state" / "hooks" / "compact-state"
+            state_dir.mkdir(parents=True)
+            expired = datetime.now(timezone.utc) - timedelta(days=30)
+            fresh = datetime.now(timezone.utc)
+            (state_dir / "expired.json").write_text(
+                json.dumps({"updated_at": expired.replace(microsecond=0).isoformat(), "last_user_prompt": "old"}),
+                encoding="utf-8",
+            )
+            (state_dir / "fresh.json").write_text(
+                json.dumps({"updated_at": fresh.replace(microsecond=0).isoformat(), "last_user_prompt": "fresh"}),
+                encoding="utf-8",
+            )
+            transcript = self._write_transcript(repo, "session.jsonl", "Current task")
+
+            result = self.run_script(repo, {"transcript_path": str(transcript)}, "--event", "pre-compact")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertFalse((state_dir / "expired.json").exists())
+            self.assertTrue((state_dir / "fresh.json").exists())
 
     def test_session_start_compact_reads_legacy_factory_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -17,8 +17,8 @@ argument-hint: <任务目标或需求>
 ## Decision Principles
 
 - 长任务的主要风险是目标漂移、上下文丢失、阶段边界不清和验证证据散落；workspace 是 SSOT。
-- 只有目标足够明确、影响面较大、需要多阶段验收或阶段后 commit 时才使用本 skill。
-- 每个 phase 必须能独立验证、独立提交、独立回滚。
+- 只有目标足够明确、影响面较大、需要多阶段验收或明确 phase 交付边界时才使用本 skill。
+- 每个 phase 必须能独立验证、独立描述提交边界、独立回滚。
 - `blocked` 是合法状态。遇到需求矛盾、权限缺口、secret、远端副作用或不可逆动作时停止等待用户。
 - 严格门禁不等于必须成功；允许 `partial`、`blocked`、`verification: none -- structural gap`。
 
@@ -90,7 +90,7 @@ Rules:
 - Before editing, confirm the selected phase and current git status.
 - After implementation, run the phase QA and relevant repository validators.
 - Update `logs.md`, `fix_plan.md`, and `phases/<id>/qa.md` with evidence.
-- Commit after the phase is complete and validated.
+- If the user explicitly requested phase commits, commit after the phase is complete and validated; otherwise output the commit boundary and suggested commit message.
 - Do not push unless the user explicitly asks.
 - If blocked, update the workspace and stop with the blocker, evidence, and options.
 ```
@@ -126,7 +126,7 @@ Rules:
 ## 质量门禁
 
 - 每个 phase 必须能独立验收；不能把“最终一起测”当成 phase QA。
-- 每个 phase 必须写 commit boundary：完成后应提交哪些类型的变更，哪些变更不应混入。
+- 每个 phase 必须写 commit boundary：完成后应提交哪些类型的变更，哪些变更不应混入；是否实际 commit 取决于用户是否明确批准。
 - `fix_plan.md` 不能只有技术层任务；必须能映射到用户可感知的交付物或必要的支撑工作。
 - 工作区创建后立即停止，等待用户选择 phase。
 - 如果 workspace 目录已存在，先读取并总结现状；未经用户明确同意，不覆盖已有文件。

@@ -37,6 +37,14 @@
 - `skills/read/SKILL.md`
 - `rules/english.md`
 
+## 2026-05-27 本地 range 调研
+
+- [事实] 本轮 range：`47ebdc8b68fba76cf7f5e4c84e4b782709b5b73c..24e207c87daf7123e5e7ce22bf81bcb69bfa3e9e`。
+- [事实] 上游新增 `waza-routing` rule，用于不具备 description auto-routing 的宿主；配套 structural check、`setup-rule.sh` 和测试。
+- [事实] `check` 增强 Project Audit Mode、audit guardrails、finding quality gate、worktree safety、CLI audit contract checks；`read` 增强 privacy-first cascade 和 fetched content untrusted data；verify shell 重构为 Python modules，并新增 package validator。
+- [推断] Waza 正从轻量 skill pack 演进为带显式 routing rule、verifier、host compatibility 和安全边界的小型 agent harness。
+- [推断] 本仓库应吸收“description auto-routing 不可靠时用显式 routing rule + verifier”的模式；不应为了模仿 Waza 的 8 skill hard cap 而合并现有细分技能。
+
 ## 备注
 
 - 它不是 `oh-my-claudecode` / `hive` 那类运行时平台，也不是 `superpowers` 那类强调完整流程治理的重型方法学包；更像“把工程师日常高频习惯压缩成一组可直接装上的 skill”。

@@ -264,10 +264,6 @@ refactor(billing): Replace Conditional with Polymorphism (PaymentMethod)
 - 子任务命名、调用方式、工具白名单由当前 agent 平台决定，不在 skill 内硬编码
 - 任何模式下"只读 + 预算 + 固定输出格式"三条不可降级
 
-## 扩展阅读
-
-- `docs/software-engineering-research/architecture-deepening.md`
-
 ### Framework-aware dead code 白名单
 
 删死代码前，必须排除以下模式（这些不是死代码，仅看显式引用会误删）：
@@ -303,6 +299,7 @@ refactor(billing): Replace Conditional with Polymorphism (PaymentMethod)
 
 ## 扩展阅读
 
+- `docs/software-engineering-research/architecture-deepening.md`
 - Fowler《Refactoring》（手法目录）
 - Beck《Tidy First?》（Tidy 与 behavior change 分离）
 - Tornhill《Your Code as a Crime Scene》/ code-maat（hotspot 分析）

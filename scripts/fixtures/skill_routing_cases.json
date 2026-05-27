@@ -1,0 +1,82 @@
+[
+  {
+    "id": "bug-repro-routes-debug",
+    "input": "修复一个复现不稳定的 bug，并先定位根因",
+    "expected_skills": ["dev-debug"],
+    "reject_skills": ["think-plan"],
+    "match_terms": ["bug", "错误", "异常", "复现"],
+    "why": "Bug diagnosis should enter debug before planning-only work."
+  },
+  {
+    "id": "behavior-change-routes-tdd",
+    "input": "新增一个行为变更，要求先写失败测试",
+    "expected_skills": ["dev-tdd"],
+    "reject_skills": [],
+    "match_terms": ["新增功能", "行为变更", "Bug 修复", "RED"],
+    "why": "Behavior changes require a test-first loop."
+  },
+  {
+    "id": "url-read-routes-web-read",
+    "input": "读取这个 GitHub 页面并整理成 Markdown",
+    "expected_skills": ["web-read"],
+    "reject_skills": [],
+    "match_terms": ["URL", "GitHub", "PDF", "Markdown"],
+    "why": "External URLs should use the dedicated web-read workflow."
+  },
+  {
+    "id": "code-review-routes-guard-review",
+    "input": "review 当前 PR diff，找 bug 和回归风险",
+    "expected_skills": ["guard-review"],
+    "reject_skills": [],
+    "match_terms": ["代码变更", "合并前", "review", "diff"],
+    "why": "Code review should use the guard review checklist."
+  },
+  {
+    "id": "ui-slop-routes-lint",
+    "input": "扫描 HTML artifact 里默认紫色渐变和 filler copy",
+    "expected_skills": ["fe-ui-lint-artifact"],
+    "reject_skills": [],
+    "match_terms": ["UI artifact", "HTML", "AI slop", "filler copy"],
+    "why": "Deterministic UI artifact checks belong to the lint artifact skill."
+  },
+  {
+    "id": "visual-quality-routes-critique",
+    "input": "看截图判断这个页面视觉层次和 CRAP 原则问题",
+    "expected_skills": ["fe-ui-critique"],
+    "reject_skills": [],
+    "match_terms": ["截图", "视觉", "CRAP", "诊断"],
+    "why": "Subjective visual diagnosis should route to critique."
+  },
+  {
+    "id": "remote-deploy-routes-gitops",
+    "input": "推送远程并触发部署前先检查仓库状态",
+    "expected_skills": ["guard-gitops"],
+    "reject_skills": [],
+    "match_terms": ["远程", "部署", "线上", "仓库"],
+    "why": "Remote-visible side effects require gitops gating."
+  },
+  {
+    "id": "security-auth-routes-secure",
+    "input": "审查认证和授权改动的攻击面",
+    "expected_skills": ["guard-secure"],
+    "reject_skills": [],
+    "match_terms": ["认证", "授权", "攻击面", "STRIDE"],
+    "why": "Authentication and authorization changes require security review."
+  },
+  {
+    "id": "browser-form-routes-agent-browser",
+    "input": "打开网站，填写表单并截图",
+    "expected_skills": ["agent-browser"],
+    "reject_skills": [],
+    "match_terms": ["websites", "forms", "screenshots", "browser"],
+    "why": "Browser automation should use agent-browser."
+  },
+  {
+    "id": "long-cli-routes-operational",
+    "input": "实现一个可 dry-run/apply 的长耗时批处理 CLI",
+    "expected_skills": ["dev-operational-task"],
+    "reject_skills": [],
+    "match_terms": ["长耗时", "批处理", "dry-run", "CLI"],
+    "why": "Operational tasks need resumability and observability contracts."
+  }
+]

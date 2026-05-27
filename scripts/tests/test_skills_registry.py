@@ -32,6 +32,11 @@ class SkillsRegistryTests(unittest.TestCase):
         "eng-unstuck",
         "eng-verify",
         "se-rewrite-readable",
+        "se-research",
+        "se-plan",
+        "se-tdd",
+        "se-unstuck",
+        "tuistory",
     }
 
     CANONICAL_NAMES = {
@@ -227,7 +232,120 @@ class SkillsRegistryTests(unittest.TestCase):
                 capture_output=True,
             )
 
-            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+
+    def test_verify_script_reports_routing_cases_summary(self) -> None:
+        result = subprocess.run(
+            ["python3", str(VERIFY_SCRIPT)],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("validated 10 skill routing cases", result.stdout)
+
+    def test_verify_script_rejects_unknown_routing_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            fixture_dir = repo / "scripts" / "fixtures"
+            skill_dir.mkdir(parents=True)
+            fixture_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试 routing 时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+            (fixture_dir / "skill_routing_cases.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "bad-skill",
+                            "input": "修 bug",
+                            "expected_skills": ["dev-missing"],
+                            "reject_skills": [],
+                            "match_terms": ["bug"],
+                            "why": "demo",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("UNKNOWN ROUTING SKILL", result.stderr)
+
+    def test_verify_script_reports_agent_asset_missing_required_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            agent_dir = repo / ".kilo" / "agent"
+            skill_dir.mkdir(parents=True)
+            agent_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试 asset 时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+            (agent_dir / "broken.md").write_text(
+                "---\ndescription: Missing permission\nmode: subagent\nmodel: test\n---\n# Broken\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("AGENT ASSET MISSING FIELD", result.stderr)
+
+    def test_verify_script_reports_asset_summary(self) -> None:
+        result = subprocess.run(
+            ["python3", str(VERIFY_SCRIPT)],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("validated agent assets:", result.stdout)
 
     def test_verify_script_reports_non_executable_repo_root_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

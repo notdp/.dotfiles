@@ -39,7 +39,7 @@ class HookStopCheckTests(unittest.TestCase):
             self.assertIn("systemMessage", payload)
             self.assertIn("guard-verify", payload["systemMessage"])
 
-    def test_stays_quiet_when_validation_is_present(self) -> None:
+    def test_assistant_validation_summary_is_not_validation_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
@@ -47,6 +47,31 @@ class HookStopCheckTests(unittest.TestCase):
             transcript = repo / "session.jsonl"
             transcript.write_text(
                 json.dumps({"role": "assistant", "content": "Ran python3 -m unittest discover -s tests OK"}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_stop_check(repo, transcript)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("systemMessage", payload)
+            self.assertIn("guard-verify", payload["systemMessage"])
+
+    def test_stays_quiet_when_tool_validation_result_is_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {
+                        "type": "tool_result",
+                        "tool": "bash",
+                        "content": "python3 -m unittest discover -s tests\nOK",
+                    }
+                )
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -257,13 +282,19 @@ class HookStopCheckTests(unittest.TestCase):
                                 "message": {
                                     "content": (
                                         "Boundary decision scan found possible boundary changes\n"
-                                        "Ran python3 -m unittest discover -s tests OK\n\n"
                                         "Boundary decisions:\n"
                                         "- rejection: added explicit 422 because user approved it (file:line, evidence: approved)"
                                     )
                                 },
                             }
-                        )
+                        ),
+                        json.dumps(
+                            {
+                                "type": "tool_result",
+                                "tool": "bash",
+                                "content": "python3 -m unittest discover -s tests\nOK",
+                            }
+                        ),
                     ]
                 )
                 + "\n",

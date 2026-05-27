@@ -345,6 +345,10 @@ def dotfiles_skills_path() -> str:
     return (runtime_root() / "skills").as_posix()
 
 
+def dotfiles_commands_path() -> str:
+    return (runtime_root() / "commands").as_posix()
+
+
 def opencode_plugin_path() -> str:
     return (runtime_root() / "scripts" / "opencode" / "dotfiles_hooks.mjs").as_posix()
 
@@ -630,6 +634,82 @@ def desired_aider_config(current: str) -> str:
     return (base + "\n\n" if base else "") + block
 
 
+def agent_asset_links() -> list[tuple[Path, Path]]:
+    agents = Path(dotfiles_agents_path())
+    skills = Path(dotfiles_skills_path())
+    commands = Path(dotfiles_commands_path())
+    opencode_dir = default_opencode_config_dir()
+    kilo_dir = default_kilo_config_dir()
+    return [
+        (home_path() / ".claude" / "commands", commands),
+        (home_path() / ".claude" / "skills", skills),
+        (home_path() / ".codex" / "AGENTS.md", agents),
+        (home_path() / ".codex" / "prompts", commands),
+        (home_path() / ".codex" / "skills", skills),
+        (home_path() / ".factory" / "AGENTS.md", agents),
+        (home_path() / ".factory" / "commands", commands),
+        (home_path() / ".factory" / "skills", skills),
+        (opencode_dir / "AGENTS.md", agents),
+        (opencode_dir / "commands", commands),
+        (opencode_dir / "skills", skills),
+        (kilo_dir / "AGENTS.md", agents),
+        (kilo_dir / "commands", commands),
+        (kilo_dir / "skills", skills),
+    ]
+
+
+def link_status(link: Path, target: Path) -> str:
+    if link.is_symlink():
+        try:
+            if link.resolve() == target.resolve():
+                return "ok"
+        except FileNotFoundError:
+            return "mismatch"
+        return "mismatch"
+    if link.exists():
+        return "blocked"
+    return "missing"
+
+
+def apply_agent_asset_link(link: Path, target: Path) -> str:
+    status = link_status(link, target)
+    if status == "ok":
+        return f"ok: {link} -> {target}"
+    if status == "blocked":
+        raise RuntimeError(f"blocked: {link} exists and is not a symlink")
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if status == "mismatch":
+        link.unlink()
+    link.symlink_to(target, target_is_directory=target.is_dir())
+    return f"linked: {link} -> {target}"
+
+
+def agent_assets_check() -> int:
+    failures = 0
+    for link, target in agent_asset_links():
+        status = link_status(link, target)
+        sys.stdout.write(f"{status}: {link} -> {target}\n")
+        if status != "ok":
+            failures += 1
+    return 1 if failures else 0
+
+
+def agent_assets_print() -> int:
+    for link, target in agent_asset_links():
+        sys.stdout.write(f"{link} -> {target}\n")
+    return 0
+
+
+def agent_assets_apply() -> int:
+    try:
+        for link, target in agent_asset_links():
+            sys.stdout.write(apply_agent_asset_link(link, target) + "\n")
+    except RuntimeError as error:
+        sys.stdout.write(str(error) + "\n")
+        return 1
+    return 0
+
+
 def droid_check(project_dir: Path) -> int:
     path = settings_path(project_dir)
     current = load_settings(path)
@@ -805,7 +885,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Check, print, or apply hook adapter configuration.")
     parser.add_argument(
         "--target",
-        choices=["droid", "droid-models", "claude", "codex", "opencode", "kilo", "aider"],
+        choices=["droid", "droid-models", "claude", "codex", "opencode", "kilo", "aider", "agent-assets"],
         required=True,
     )
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -823,6 +903,13 @@ def main() -> int:
     if args.apply and not args.yes:
         sys.stdout.write("refusing: --apply requires --yes confirmation\n")
         return 1
+
+    if args.target == "agent-assets":
+        if args.check:
+            return agent_assets_check()
+        if args.print:
+            return agent_assets_print()
+        return agent_assets_apply()
 
     if args.target == "droid":
         if args.check:

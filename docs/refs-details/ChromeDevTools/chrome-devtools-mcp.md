@@ -31,6 +31,14 @@
 
 - 默认会收集 usage statistics，可通过 flag/env 关闭；官方支持重点是 Chrome / Chrome for Testing。
 
+## 2026-05-27 联网刷新调研
+
+- [事实] 刷新后 range：`081c9033d601703e19e97072c69b4263efae5b6a..3ba70d350a135f5b444826f204724d08aaa9b924`。
+- [事实] 上游发布 `chrome-devtools-mcp` `1.0.0`、`1.0.1`、`1.1.0`、`1.1.1`，同步更新 `.claude-plugin`、`.cursor-plugin`、`.github/plugin.json`、`gemini-extension.json`、`server.json` 等分发元数据。
+- [事实] 工具契约变化包括：`pageId` 调整为 CLI 首个参数、`pageId` 变为 required、`evaluate_script` 支持 `filePath`、unknown tool arguments 显式报告、extra HTTP headers emulation。
+- [事实] 安全和运行时稳定性变化包括：MCP roots validation 改用 realpath、stdin EOF 和 SIGTERM/SIGINT/SIGHUP 时关闭 browser、PID file 创建修复、插件版本 pinning、CPU throttling/viewport/geolocation/emulation 修复。
+- [推断] 对本仓库的 MCP/浏览器自动化类 skill，tool schema 兼容性、realpath 文件边界、进程关闭语义和 plugin 分发版本 pinning 应进入 review checklist。
+
 ## 最近 14 天更新（2026-03-31 ~ 2026-04-14）
 <!-- recent-updates:start -->
 - [事实] 检查基线：`origin/main`
