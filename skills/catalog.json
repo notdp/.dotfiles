@@ -208,6 +208,12 @@
       "role": "canonical"
     },
     {
+      "name": "dev-long-run-v2",
+      "path": "skills/dev-long-run-v2",
+      "domain": "dev",
+      "role": "canonical"
+    },
+    {
       "name": "dev-long-task-scaffold",
       "path": "skills/dev-long-task-scaffold",
       "domain": "dev",

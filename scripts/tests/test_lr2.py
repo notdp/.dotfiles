@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "skills" / "long-run-v2"))
+sys.path.insert(0, str(REPO_ROOT / "skills" / "dev-long-run-v2"))
 
 import lr2  # noqa: E402
 

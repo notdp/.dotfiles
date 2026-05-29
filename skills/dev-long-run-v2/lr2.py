@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""long-run-v2 控制核心(纯逻辑部分)。
+"""dev-long-run-v2 控制核心(纯逻辑部分)。
 
 薄 wrapper，多 pane 调度脑在 loop orchestrator(LLM)里，本文件只放可单测的纯逻辑：
 config schema 校验、variant→effort 按 backend 分流(L17)、SESSIONS.md 表读写、
-state.json 扩字段、worktree/分支命名。spec: docs/specs/long-run-v2/overview.md
+state.json 扩字段、worktree/分支命名。spec: docs/specs/dev-long-run-v2/overview.md
 """
 from __future__ import annotations
 
@@ -354,7 +354,7 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
 def default_config_yaml(slug: str) -> str:
     return f"""version: 2
 
-# long-run-v2 角色配置。L19: TUI 用默认思考等级, variant 仅意图标注不注入。
+# dev-long-run-v2 角色配置。L19: TUI 用默认思考等级, variant 仅意图标注不注入。
 roles:
   scaffold_orchestrator:
     backend: kilo
@@ -541,7 +541,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="lr2", description="long-run-v2 multi-pane orchestration harness")
+    parser = argparse.ArgumentParser(prog="lr2", description="dev-long-run-v2 multi-pane orchestration harness")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("scaffold", help="建 worktree+workspace, 启动 scaffold orchestrator")

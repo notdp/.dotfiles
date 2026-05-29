@@ -1,4 +1,4 @@
-# long-run v2 — multi-agent orchestrated long-task workflow
+# dev-long-run-v2 — multi-agent orchestrated long-task workflow
 
 Status: spec draft (2026-05-29)
 Author: 郎振宁 (with assistant)
@@ -45,7 +45,7 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 |---|---|---|
 | ~~TBD-1~~ 已定 | spec 是否额外生成 HTML companion artifact | 不生成；待超过单文件再触发 `/readable-html-artifact` |
 | ~~TBD-2~~ 已定 | workspace 根目录路径 | 复用 `.long-loop/<date>_<slug>/`，避免双套并存 |
-| ~~TBD-3~~ 已定 | `lr2.py` 形态 | sibling 独立文件（`skills/long-run-v2/lr2.py`），不污染 `long_loop.py` 旧路径 |
+| ~~TBD-3~~ 已定 | `lr2.py` 形态 | sibling 独立文件（`skills/dev-long-run-v2/lr2.py`），不污染 `long_loop.py` 旧路径 |
 | ~~TBD-4 (S3)~~ 已解 | claude_cli `variant`→claude CLI 参数映射 | 实测解决，见 L17（variant→effort 按 backend 分流） |
 
 | ~~TBD-5~~ 已定 | kilo TUI 长驻 pane 如何接收 per-role variant | 用户决策(2026-05-29)：**不管思考等级，TUI 一律用默认**。见 L19，TBD-5 消解 |
@@ -108,12 +108,12 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 |---|---|
 | Actor | 用户在已有项目根，3 phase（数据脱敏 / 日志审计 / 接口鉴权） |
 | Step | (1) 用户与某 agent 讨论需求 → 产出 `~/scratch/REQUIREMENT.md` |
-| | (2) 用户跑 `/long-run-v2 scaffold --requirement ~/scratch/REQUIREMENT.md` |
+| | (2) 用户跑 `/dev-long-run-v2 scaffold --requirement ~/scratch/REQUIREMENT.md` |
 | | (3) `lr2.py scaffold` 建 worktree `../<repo>-lr2-compliance` + 分支 `lr2/20260529-compliance`（L16）→ mv `REQUIREMENT.md` 进 `.long-loop/20260529-compliance/` → state.json 记 worktree_path + branch |
 | | (4) scaffold orch (kilo + cliproxy/gpt-5.5 + xhigh) 启动 → 调 `/think-map /think-research` → 产 `SPEC_OVERVIEW.md` `fix_plan.md` `phases/*/spec.md` |
 | | (5) scaffold orch 调 launcher 开 reviewer pane (claude cli + opus 4.7 + max) → reviewer 写 `SCAFFOLD_REVIEW.md` → reviewer pane 关闭 |
 | | (6) scaffold orch 读 review 自改工作区 → 关 scaffold orch pane |
-| | (7) 用户跑 `/long-run-v2 develop` → loop orch (kilo + cliproxy/gpt-5.5-fast + low) 启动 |
+| | (7) 用户跑 `/dev-long-run-v2 develop` → loop orch (kilo + cliproxy/gpt-5.5-fast + low) 启动 |
 | | (8) loop orch 读 fix_plan，选 phase 01 → 开 planner pane (kilo + cliproxy/gpt-5.5 + xhigh) → planner 增强 `phases/01/{research,plan,qa}.md` → 关 planner |
 | | (9) loop orch 开 phase coder pane (kilo + cliproxy/gpt-5.5 + high)，cwd = worktree（L16）→ coder 实现 phase 01 → 写 HANDOFF + 不退出 pane |
 | | (10) loop orch 开 reviewer pane → reviewer 读 diff + spec 写 `phases/01/review.md`（debugger + refactor 两小节）→ 关 reviewer |
@@ -131,7 +131,7 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 | 维度 | 内容 |
 |---|---|
 | Actor | phase 02 中 loop orch pane 被误关 |
-| Step | (1) 用户跑 `/long-run-v2 resume --workspace <path>` |
+| Step | (1) 用户跑 `/dev-long-run-v2 resume --workspace <path>` |
 | | (2) 新 loop orch 启动 → 读 `state.json`（含 worktree_path + branch，L16）→ `git -C <worktree> worktree list` 校验 worktree 在、分支对 → 读 `HANDOFF.md` + `phases/02/qa.md` + worktree 内 git status |
 | | (3) 通过 `SESSIONS.md` 拿 phase coder pane_id → `tmux list-panes -F '#{pane_id}'` 验证 |
 | | (4) 存活 → loop orch 直接 send-keys 续上 |
@@ -238,7 +238,7 @@ tmux:
 
 ## 角色 Prompt 骨架
 
-每角色独立 prompt 文件，放 `skills/long-run-v2/prompts/<role>.md`。
+每角色独立 prompt 文件，放 `skills/dev-long-run-v2/prompts/<role>.md`。
 
 | 角色 | 必读输入 | 必写产出 | 关键约束 |
 |---|---|---|---|
@@ -253,13 +253,13 @@ tmux:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ScaffoldGen: /long-run-v2 scaffold
+    [*] --> ScaffoldGen: /dev-long-run-v2 scaffold
     ScaffoldGen --> ScaffoldReview: orch produced SPEC_OVERVIEW
     ScaffoldReview --> ScaffoldRevise: SCAFFOLD_REVIEW.md written
     ScaffoldRevise --> ScaffoldDone: orch applied revisions
     ScaffoldDone --> [*]
 
-    [*] --> LoopInit: /long-run-v2 develop
+    [*] --> LoopInit: /dev-long-run-v2 develop
     LoopInit --> PhasePlan: select next phase from fix_plan
     PhasePlan --> PhaseCode: planner closed, coder pane opened/reused
     PhaseCode --> PhaseReview: coder HANDOFF complete
@@ -317,11 +317,11 @@ stateDiagram-v2
 | `state.json` | **复用**，扩字段：`{ phase: int, role_in_flight: str, last_pane_event, state: scaffold|develop|wait_confirm|wrapup|blocked, worktree_path: str, branch: str }`（L16，resume 时据此定位 worktree） |
 | `ORCHESTRATOR.md` / `WORKER_PROMPT.md` 模板 | **覆盖**。v2 模板替换 v1 内容 |
 
-**新增独立资产**（不动 `dev-long-loop`）：
-- `skills/long-run-v2/SKILL.md`
-- `skills/long-run-v2/prompts/{scaffold_orch,scaffold_reviewer,loop_orch,planner,coder,reviewer}.md`
-- `skills/long-run-v2/lr2.py`（薄 wrapper，调下层 `long_loop.py` + 新 multi-pane 逻辑）
-- `commands/long-run-v2/{scaffold,develop,resume}.md`
+**新增独立资产**（不动 `dev-long-loop`，括号内为实现实际形态）：
+- `skills/dev-long-run-v2/SKILL.md` + `USAGE.md`（上手手册，配 `USAGE.html` companion）
+- `skills/dev-long-run-v2/prompts/{scaffold_orchestrator,scaffold_reviewer,loop_orchestrator,phase_planner,phase_coder,phase_reviewer}.md`（文件名 = config role key）
+- `skills/dev-long-run-v2/lr2.py`（实现偏离：**自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**；TUI 长驻模型与 long_loop 的 per-round launch 不同，自包含避免改 2278 行共享文件）
+- `commands/dev-long-run-v2.md`（实现偏离：**单文件 + 子命令 arg**，非嵌套目录；匹配仓库 droid-mod 模式 + 跨 agent 可移植）
 
 `dev-long-loop` 和 `dev-long-task-scaffold` 保留不动，避免破坏现有用户。
 
@@ -329,7 +329,7 @@ stateDiagram-v2
 
 | 故障 | 检测 | 恢复 |
 |---|---|---|
-| loop orch pane 误关 | 用户手动发现 | `/long-run-v2 resume --workspace <path>` |
+| loop orch pane 误关 | 用户手动发现 | `/dev-long-run-v2 resume --workspace <path>` |
 | phase coder pane 死掉 | resume 时 `tmux list-panes` 不见 | 报告丢失 → 用户选"重开 fresh + 读 HANDOFF 续" 或 "标 phase failed" |
 | reviewer 全 blocker 被 coder reject | coder ack.md 全 reject | loop orch 不仲裁；写 BACKLOG.md `disputed` 项；escalate 给用户 |
 | coder context 爆 | coder 自报 or HANDOFF 长度超阈值 | coder 写 "需 compact" 标记 → loop orch 关 pane → 开新 coder pane（fresh + 读 HANDOFF + phase 文件续） |
@@ -397,7 +397,7 @@ stateDiagram-v2
 | 旧 `dev-long-loop` 用户被误改 | 低 | 完全不动旧 skill，全新独立 skill 和 command |
 | claude CLI alias 中的 token 泄露 | 中 | YAML 里只允许引用 `$VAR`，不允许写 token 字面值；落盘前校验 |
 
-**回退点**：v2 出问题时，`/dev-long-loop` 始终可用；删除 `skills/long-run-v2/` 和 `commands/long-run-v2/` 即可完全回退。因开发在独立 worktree + 分支（L16），`main` 始终干净；丢弃整个尝试 = 删 worktree + 删分支，main 无残留。
+**回退点**：v2 出问题时，`/dev-long-loop` 始终可用；删除 `skills/dev-long-run-v2/` 和 `commands/dev-long-run-v2.md` 即可完全回退。因开发在独立 worktree + 分支（L16），`main` 始终干净；丢弃整个尝试 = 删 worktree + 删分支，main 无残留。
 
 ## 实施步骤（高层）
 
@@ -408,9 +408,9 @@ stateDiagram-v2
    - **[claude 启动握手，launcher 必须处理]** claude 首次进新目录弹 **trust-folder 对话框**（"Is this a project you trust?"），`--dangerously-skip-permissions` **不跳过**；首个 send-keys 会被对话框吞掉（spike 的 P1 即因此失败）。launcher 启动 claude 后必须先消费 trust 对话框（预发 Enter 选"Yes, I trust"，或预先把 worktree 加入 claude 信任列表），再发真 prompt。kilo 无此对话框 → launcher 需 per-backend 启动握手。
    - **[低风险，已验证] ✅** kilo run 跑 cliproxy 模型 + `--variant` 档位生效（2026-05-29，见 Prerequisites 对照表，reasoning token 单调递增）。
    - 三条 Premise 对 kilo 与 claude 两路径均已解除；剩余只是 launcher 的 per-backend 启动握手工程细节，非架构风险。
-2. **新建 skill + commands**：`skills/long-run-v2/SKILL.md` 和 `commands/long-run-v2/{scaffold,develop,resume}.md`
+2. **新建 skill + command**：`skills/dev-long-run-v2/SKILL.md` 和单文件 `commands/dev-long-run-v2.md`(子命令作 arg)
 3. **扩展 `long_loop.py`**：加 `kilo` agent enum + `--role` 参数，不动核心逻辑
-4. **写 `lr2.py` wrapper**：3 个 subcommand（scaffold / develop / resume），调下层 `long_loop.py plan/launch-worker/observe` + 新 multi-pane 调度 + worktree/分支创建与校验（L16，coder pane cwd 指向 worktree）
+4. **写 `lr2.py`**：subcommand（scaffold / develop / resume + orchestrator 用的 launch / send / sessions / pane-alive）；**实现为自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**（见旧资产边界注）+ worktree/分支创建与校验（L16，coder pane cwd 指向 worktree）
 5. **写 6 份 prompt 文件**：按角色矩阵和约束表
 6. **TDD 关键路径**：SESSIONS.md 读写、pane 存活检查、状态机迁移、resume 路径
 7. **跑场景 1 端到端**（真实 repo + 真实任务），acceptance 验收
@@ -422,4 +422,4 @@ stateDiagram-v2
 
 - 参考：`skills/dev-long-loop/SKILL.md`、`skills/dev-long-task-scaffold/SKILL.md`
 - Prerequisites：`scripts/install_hooks.py`（已改）+ `scripts/tests/test_install_hooks.py`（已加 variants 测试）
-- Skill 路由：实施后在 `agents/AGENTS.md` 加 `/long-run-v2` 入口；与 `/dev-long-loop` 并存，按场景路由（小/中任务用 dev-long-loop，复杂多 phase 协作用 long-run-v2）
+- Skill 路由：实施后在 `agents/AGENTS.md` 加 `/dev-long-run-v2` 入口；与 `/dev-long-loop` 并存，按场景路由（小/中任务用 dev-long-loop，复杂多 phase 协作用 dev-long-run-v2）

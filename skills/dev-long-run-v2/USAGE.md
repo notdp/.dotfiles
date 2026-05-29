@@ -1,4 +1,4 @@
-# long-run-v2 上手操作手册(首次使用)
+# dev-long-run-v2 上手操作手册(首次使用)
 
 > 状态:v0。整条管道实测跑通过,但完整多 phase 自动循环还没在真实任务上跑完过 —— 你这次是第一次实战,盯紧点。代码只落在独立 worktree + `lr2/<slug>` 分支,**main 永远不会被碰**,出事直接删 worktree + 删分支即可全退。
 
@@ -15,7 +15,7 @@
 记住一个变量,后面都用它:
 
 ```
-LR2=~/.dotfiles/skills/long-run-v2/lr2.py
+LR2=~/.dotfiles/skills/dev-long-run-v2/lr2.py
 ```
 
 ## 前提(三个,缺一不可)
