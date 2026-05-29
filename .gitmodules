@@ -124,3 +124,9 @@
 [submodule "refs/mukul975/Anthropic-Cybersecurity-Skills"]
 	path = refs/mukul975/Anthropic-Cybersecurity-Skills
 	url = https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git
+[submodule "refs/rjs/shaping-skills"]
+	path = refs/rjs/shaping-skills
+	url = https://github.com/rjs/shaping-skills
+[submodule "refs/EveryInc/compound-engineering-plugin"]
+	path = refs/EveryInc/compound-engineering-plugin
+	url = https://github.com/EveryInc/compound-engineering-plugin

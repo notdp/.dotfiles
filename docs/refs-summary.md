@@ -5,6 +5,7 @@
 - refs 吸收裁决的 SSOT：[`docs/software-engineering-research/refs-absorption-methodology.md`](./software-engineering-research/refs-absorption-methodology.md)
 - 后续拉取 refs 最新改动、判断是否吸收到本仓库时，必须按该方法论输出 commit range、候选吸收项、吸收层级、风险和证据。
 - 最近一次全量 refs 更新吸收分析：[`docs/refs-update-absorption-2026-05-14.md`](./refs-update-absorption-2026-05-14.md)
+- 零散短参考登记入口：[`docs/refs-micro-index.md`](./refs-micro-index.md)
 
 ## 分类说明
 
@@ -38,6 +39,7 @@
 | [`awslabs/agentcore-samples`](./refs-details/awslabs/agentcore-samples.md) | AWS / Bedrock AgentCore 样例库 | 覆盖 AgentCore 入门、能力专题、端到端业务用例、第三方集成、IaC 部署和完整 Blueprint 的官方样例集合。 |
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 浏览器自动化与前端调试 | 通过 MCP 控制真实 Chrome，提供自动化、调试、性能分析和配套 skills。 |
 | [`Dimillian/Skills`](./refs-details/Dimillian/Skills.md) | 技能集合与市场 | 偏精选型的 skills 集合，覆盖 Apple 平台开发、GitHub 操作、review swarm、React 性能和重构。 |
+| [`EveryInc/compound-engineering-plugin`](./refs-details/EveryInc/compound-engineering-plugin.md) | 研发流程 / 经验复利工作流 | Every 的多平台 AI 工程工作流插件（37+ skills、50+ agents），把计划→执行→审查→沉淀做成复利闭环，核心是 `docs/solutions/` 这个带受控 frontmatter、可被未来 agent grep 检索并默认前置消费的机构记忆库。 |
 | [`garrytan/gstack`](./refs-details/garrytan/gstack.md) | 研发流程 / 多智能体工程工作流 | 面向 Claude Code 及多种 AI 编码代理的工程工作流套件，把产品规划、架构评审、浏览器 QA、代码审查、安全审计、发布部署和跨会话记忆组织成可安装 skill 与本地浏览器运行时。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 技能集合与市场 | GitHub 官方运营的 Copilot 资源集合，统一管理 agents / instructions / skills / hooks / agentic workflows / plugins，并配套 marketplace、网站与 CLI 安装。 |
 | [`glittercowboy/taches-cc-resources`](./refs-details/glittercowboy/taches-cc-resources.md) | 技能集合与市场 | 面向 Claude Code 的资源仓库，主打技能开发、规划分层、MCP 服务生成、调试方法论与 Ralph 自治循环。 |
@@ -61,6 +63,7 @@
 | [`obra/superpowers`](./refs-details/obra/superpowers.md) | 研发流程 / 项目管理 | 强调纪律化开发流程的技能包，让 coding agent 按“先规格、后计划、再实现与复核”的方式工作。 |
 | [`Owl-Listener/designer-skills`](./refs-details/Owl-Listener/designer-skills.md) | 前端 UI / 设计系统 | 面向设计工作的 Claude Code / Gemini CLI skill collection，提供 8 个设计插件、87 个 skills 和 27 个 commands。 |
 | [`pbakaus/impeccable`](./refs-details/pbakaus/impeccable.md) | 前端 UI / 设计系统 | 面向前端设计质量的跨平台技能/命令打包仓库，附带官网、下载 API 和构建系统。 |
+| [`rjs/shaping-skills`](./refs-details/rjs/shaping-skills.md) | 研发流程 / 产品塑形（Shape Up） | Ryan Singer 把 Shape Up 的 shaping 全链路（framing→shaping/fit-check→breadboarding→slicing→kickoff）编码成 agent skills，核心设计是表格为唯一事实源、文档分层一致性靠 hook 强制，让 LLM 写码前先把为什么做/做什么/怎么连显式化为可验证产物。 |
 | [`shanraisshan/claude-code-best-practice`](./refs-details/shanraisshan/claude-code-best-practice.md) | 最佳实践 / 知识库 | Claude Code 生态知识库，系统整理 commands、skills、subagents、memory、hooks 与工作流最佳实践，并给出对应实现入口。 |
 | [`Shubhamsaboo/awesome-llm-apps`](./refs-details/Shubhamsaboo/awesome-llm-apps.md) | LLM 应用模板 / Agent 示例库 | 可运行的 LLM 应用 cookbook，收录 Agent、RAG、MCP、语音、多智能体、技能与微调示例模板。 |
 | [`tanweai/pua`](./refs-details/tanweai/pua.md) | 行为协议 / 提示工程 | 面向多种 AI 编码代理的“高压/高主动性”技能包，核心是 PUA/PIP 风格提示、命令、hooks 和多平台分发素材。 |
