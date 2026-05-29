@@ -103,5 +103,15 @@ lr2.py develop  --workspace <ws>                             # (可选)标记进
 ## 状态(state.json)
 `scaffold → develop → (每 phase) → 问用户 → {下一 phase | 收尾 | blocked}`。用户在对话里答,不是敲命令。
 
+## 验收 / 停止 / 风险(quality gate)
+- **验收(acceptance)**:跑通一个真实多 phase 任务、coder 真 commit 到分支(`git log`)、reviewer 真出 `phases/<id>/review.md`、用户能 phase 间介入。**光单测过不算完成**——要端到端可观察证据。
+- **停止条件**:每 phase 进 wait_confirm 停等用户;`lr2.py await` 返回 `BLOCKED/DEAD/TIMEOUT` 立即停并报告给用户,不空转;连续卡住别硬冲,escalate。
+- **风险 / gotchas**:
+  - v0:完整 develop 循环还没在真实任务跑完过,首次实战盯紧。
+  - worker 完成**只认 status 文件**(`lr2.py await`),**禁止 grep prose / 抓屏**(曾因此假死)。
+  - claude reviewer pane 收多行 prompt 会折叠成 `[Pasted +N]`,原文看 `review.md` 不看 pane。
+  - 每 phase **关旧 coder 开新 fresh**(不长驻),续接靠 `HANDOFF.md`。
+  - 不在 `main` 上开发/commit;不自动 push/deploy。
+
 ## 回退
 出问题时 `/dev-long-loop` 始终可用;删 worktree + 删分支 + 删 `skills/dev-long-run-v2/` 与 `.long-loop/<ws>` 即完全回退,main 无残留。

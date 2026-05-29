@@ -413,10 +413,10 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
 def default_config_yaml(slug: str) -> str:
     return f"""version: 2
 
-# dev-long-run-v2 角色配置。思考等级**由 model 显式承载,没有单独的 variant 字段**(避免标签与实际不符):
-#   - kilo worker: effort = 模型默认(gpt-5.5-xhigh→xhigh / gpt-5.5→medium / gpt-5.5-fast→low);kilo TUI 无 --variant flag。
-#   - claude_cli reviewer: cmd 不传 --model/--effort → 用 claude CLI 默认(当前 Opus 4.8 @ high,自动跟最新);下方 model 仅记录。
-#   - scaffold/loop orchestrator = 用户对话的 agent(无 pane),backend/model 字段不生效,仅占位。
+# dev-long-run-v2 角色配置。模型只有 gpt-5.5 + claude-opus-4-8 两个;思考档由模型默认承载:
+#   - kilo worker(planner/coder): cliproxy/gpt-5.5, 默认 effort=high(模型默认; kilo TUI 无 --variant flag, 非交互启动用默认)。
+#   - claude_cli reviewer: cmd 不传 --model/--effort → claude CLI 默认(Opus 4.8 @ high, 自动跟最新);下方 model 仅记录。
+#   - scaffold/loop orchestrator = 用户对话的 agent(无 pane),model 仅占位不生效。
 roles:
   scaffold_orchestrator:
     backend: kilo
@@ -429,15 +429,15 @@ roles:
     autonomy: off
   loop_orchestrator:
     backend: kilo
-    model: cliproxy/gpt-5.5-fast  # 不生效(orchestrator = 对话 agent)
+    model: cliproxy/gpt-5.5     # 不生效(orchestrator = 对话 agent)
     autonomy: medium
   phase_planner:
     backend: kilo
-    model: cliproxy/gpt-5.5-xhigh  # effort=xhigh(模型默认)
+    model: cliproxy/gpt-5.5     # effort=high(模型默认)
     autonomy: low
   phase_coder:
     backend: kilo
-    model: cliproxy/gpt-5.5-xhigh  # effort=xhigh(模型默认)
+    model: cliproxy/gpt-5.5     # effort=high(模型默认)
     autonomy: high
   phase_reviewer:
     backend: claude_cli

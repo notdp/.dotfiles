@@ -32,30 +32,19 @@ CODEX_HOOKS_END = "# dotfiles hooks: end"
 AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
 AIDER_HOOKS_END = "# dotfiles aider config: end"
 CLIPROXY_BASE_URL = "http://localhost:8317/v1"
-CLIPROXY_VARIANTS = {
-    "low": {"reasoningEffort": "low", "reasoning_effort": "low"},
-    "medium": {"reasoningEffort": "medium", "reasoning_effort": "medium"},
-    "high": {"reasoningEffort": "high", "reasoning_effort": "high"},
-    "xhigh": {"reasoningEffort": "xhigh", "reasoning_effort": "xhigh"},
-    "max": {"reasoningEffort": "xhigh", "reasoning_effort": "xhigh"},
-}
+# 只 2 个真模型, 每个带 5 个思考档(kilo/opencode 用 variants 选择器选一次; droid 无选择器 → 每档一条 customModel)。
+# efforts: 档位标签 → 实际 reasoningEffort(gpt 后端无 max, 返回 400, 故 gpt 的 max clamp 成 xhigh; opus 的 max 是真档)。
 CLIPROXY_MODELS = (
-    # (model, default_effort, id_override)
-    ("gpt-5.5-fast", "low", "gpt-5.5"),
-    ("gpt-5.5", "medium", None),
-    ("gpt-5.5-xhigh", "xhigh", "gpt-5.5"),  # 默认最高档别名(dev-long-run-v2 worker pane 用; TUI 无 --variant flag)
-    ("gpt-5.4", "medium", None),
-    ("gpt-5.4-mini", "low", None),
-    ("gpt-5.3-codex", "medium", None),
+    {
+        "id": "gpt-5.5", "family": "gpt-5", "default": "high",
+        "efforts": {"low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "max": "xhigh"},
+    },
+    {
+        "id": "claude-opus-4-8", "family": "claude", "default": "high",
+        "efforts": {"low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "max": "max"},
+    },
 )
-CLIPROXY_CLAUDE_MODELS = (
-    ("claude-opus-4-8", "Claude Opus 4.8"),
-    ("claude-opus-4-7", "Claude Opus 4.7"),
-    ("claude-opus-4-6", "Claude Opus 4.6"),
-    ("claude-sonnet-4-6", "Claude Sonnet 4.6"),
-    ("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
-    ("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
-)
+EFFORT_LABELS = ("low", "medium", "high", "xhigh", "max")
 LOCAL_MODEL_CONTEXT_LIMIT = 1_000_000
 LOCAL_MODEL_INPUT_LIMIT = 1_000_000
 LOCAL_MODEL_OUTPUT_LIMIT = 128_000
@@ -238,19 +227,12 @@ def desired_droid_settings(current: dict[str, Any]) -> dict[str, Any]:
 
 def desired_droid_model_settings(current: dict[str, Any]) -> dict[str, Any]:
     next_settings = dict(current)
+    # 接管 customModels: 用统一 spec 生成的 10 个(覆盖现有, "其它模型都不要")
+    next_settings["customModels"] = build_droid_custom_models()
     next_settings["compactionTokenLimit"] = DROID_COMPACTION_TOKEN_LIMIT
-    per_model = (
-        dict(next_settings.get("compactionTokenLimitPerModel"))
-        if isinstance(next_settings.get("compactionTokenLimitPerModel"), dict)
-        else {}
-    )
-    for model in next_settings.get("customModels", []):
-        if not isinstance(model, dict):
-            continue
-        model_id = model.get("id")
-        if isinstance(model_id, str) and model_id:
-            per_model[model_id] = DROID_COMPACTION_TOKEN_LIMIT
-    next_settings["compactionTokenLimitPerModel"] = per_model
+    next_settings["compactionTokenLimitPerModel"] = {
+        model["id"]: DROID_COMPACTION_TOKEN_LIMIT for model in next_settings["customModels"]
+    }
     return next_settings
 
 
@@ -455,8 +437,8 @@ def desired_codex_config(current: str, project_dir: Path) -> str:
 def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config = dict(current)
     next_config.setdefault("$schema", "https://opencode.ai/config.json")
-    next_config["model"] = "cliproxy/gpt-5.5-fast"
-    next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+    next_config["model"] = "cliproxy/gpt-5.5"
+    next_config["small_model"] = "cliproxy/gpt-5.5"
     next_config["compaction"] = {
         "auto": True,
         "threshold_percent": COMPACTION_THRESHOLD_PERCENT,
@@ -485,32 +467,26 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     return next_config
 
 
+def _effort_options(effort: str) -> dict[str, str]:
+    return {"reasoningEffort": effort, "reasoning_effort": effort}
+
+
 def build_cliproxy_provider() -> dict[str, Any]:
+    """kilo/opencode provider: 2 个模型, 每个带 variants 档位表(选择器选一次, 不在模型名里烤档)。"""
     models: dict[str, dict[str, Any]] = {}
-    for model, default_effort, id_override in CLIPROXY_MODELS:
-        model_config: dict[str, Any] = {
-            "name": model,
-            "family": "gpt-5",
+    for spec in CLIPROXY_MODELS:
+        out_limit = LOCAL_CLAUDE_OUTPUT_LIMIT if spec["family"] == "claude" else LOCAL_MODEL_OUTPUT_LIMIT
+        efforts = spec["efforts"]
+        models[spec["id"]] = {
+            "name": spec["id"],
+            "family": spec["family"],
             "attachment": True,
             "reasoning": True,
             "tool_call": True,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": local_model_limit(),
-            "options": dict(CLIPROXY_VARIANTS[default_effort]),
-            "variants": {k: dict(v) for k, v in CLIPROXY_VARIANTS.items()},
-        }
-        if id_override:
-            model_config["id"] = id_override
-        models[model] = model_config
-    for model, name in CLIPROXY_CLAUDE_MODELS:
-        models[model] = {
-            "name": name,
-            "family": "claude",
-            "attachment": True,
-            "reasoning": True,
-            "tool_call": True,
-            "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": local_model_limit(LOCAL_CLAUDE_OUTPUT_LIMIT),
+            "limit": local_model_limit(out_limit),
+            "options": _effort_options(efforts[spec["default"]]),
+            "variants": {label: _effort_options(efforts[label]) for label in EFFORT_LABELS},
         }
     return {
         "name": "CLIProxyAPI",
@@ -520,11 +496,35 @@ def build_cliproxy_provider() -> dict[str, Any]:
     }
 
 
+def build_droid_custom_models() -> list[dict[str, Any]]:
+    """droid customModels: droid 无"模型内档位选择器", 故每个(模型×思考档)一条。
+    默认档用裸名(gpt-5.5), 其余加后缀(gpt-5.5-xhigh)。"""
+    key = cliproxy_api_key()
+    out: list[dict[str, Any]] = []
+    index = 1
+    for spec in CLIPROXY_MODELS:
+        for label in EFFORT_LABELS:
+            display = spec["id"] if label == spec["default"] else f"{spec['id']}-{label}"
+            out.append({
+                "model": spec["id"],
+                "id": f"custom:{display}",
+                "index": index,
+                "baseUrl": CLIPROXY_BASE_URL,
+                "apiKey": key,
+                "displayName": display,
+                "reasoningEffort": spec["efforts"][label],
+                "noImageSupport": False,
+                "provider": "openai",
+            })
+            index += 1
+    return out
+
+
 def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config = dict(current)
     next_config.setdefault("$schema", "https://app.kilo.ai/config.json")
-    next_config["model"] = "cliproxy/gpt-5.5-fast"
-    next_config["small_model"] = "cliproxy/gpt-5.4-mini"
+    next_config["model"] = "cliproxy/gpt-5.5"
+    next_config["small_model"] = "cliproxy/gpt-5.5"
     next_config["compaction"] = {
         "auto": True,
         "threshold_percent": COMPACTION_THRESHOLD_PERCENT,
