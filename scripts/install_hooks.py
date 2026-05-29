@@ -526,26 +526,22 @@ def build_cliproxy_provider() -> dict[str, Any]:
 
 
 def build_droid_custom_models() -> list[dict[str, Any]]:
-    """droid customModels: droid 无"模型内档位选择器", 故每个(模型×思考档)一条。
-    默认档用裸名(gpt-5.5), 其余加后缀(gpt-5.5-xhigh)。"""
+    """droid customModels: 每个真模型一条(只 2 条), 默认 effort=high; 思考档由 droid 自己的
+    reasoningEffort 设置(sessionDefaultSettings / 运行时)调, 不靠 per-effort 条目堆列表。"""
     key = cliproxy_api_key()
     out: list[dict[str, Any]] = []
-    index = 1
-    for spec in CLIPROXY_MODELS:
-        for label in EFFORT_LABELS:
-            display = spec["id"] if label == spec["default"] else f"{spec['id']}-{label}"
-            out.append({
-                "model": spec["id"],
-                "id": f"custom:{display}",
-                "index": index,
-                "baseUrl": CLIPROXY_BASE_URL,
-                "apiKey": key,
-                "displayName": display,
-                "reasoningEffort": spec["efforts"][label],
-                "noImageSupport": False,
-                "provider": "openai",
-            })
-            index += 1
+    for index, spec in enumerate(CLIPROXY_MODELS, start=1):
+        out.append({
+            "model": spec["id"],
+            "id": f"custom:{spec['id']}",
+            "index": index,
+            "baseUrl": CLIPROXY_BASE_URL,
+            "apiKey": key,
+            "displayName": spec["id"],
+            "reasoningEffort": spec["efforts"][spec["default"]],
+            "noImageSupport": False,
+            "provider": "openai",
+        })
     return out
 
 

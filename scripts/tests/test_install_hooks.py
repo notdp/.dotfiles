@@ -308,20 +308,19 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["compactionTokenLimit"], 600000)
-        # customModels 被接管覆盖成统一 spec 的 10 个(旧的 custom:gpt/custom:claude 不再保留)
+        # customModels 被接管覆盖成 2 条(每模型一条, 默认 high; 思考档用 droid 自己的 reasoningEffort 设置调)
         cms = {m["id"]: m for m in payload["customModels"]}
-        self.assertEqual(len(cms), 10)
-        self.assertNotIn("custom:gpt", cms)
-        self.assertEqual(cms["custom:gpt-5.5-max"]["model"], "gpt-5.5")
-        self.assertEqual(cms["custom:gpt-5.5-max"]["reasoningEffort"], "xhigh")  # clamp
-        self.assertEqual(cms["custom:claude-opus-4-8-max"]["model"], "claude-opus-4-8")
-        self.assertEqual(cms["custom:claude-opus-4-8-max"]["reasoningEffort"], "max")  # 真档
-        self.assertEqual(cms["custom:gpt-5.5"]["reasoningEffort"], "high")  # 默认
-        self.assertEqual(cms["custom:gpt-5.5-max"]["baseUrl"], "http://localhost:8317/v1")
+        self.assertEqual(set(cms), {"custom:gpt-5.5", "custom:claude-opus-4-8"})
+        self.assertNotIn("custom:gpt", cms)  # 旧 id 不保留
+        self.assertEqual(cms["custom:gpt-5.5"]["model"], "gpt-5.5")
+        self.assertEqual(cms["custom:gpt-5.5"]["reasoningEffort"], "high")
+        self.assertEqual(cms["custom:claude-opus-4-8"]["model"], "claude-opus-4-8")
+        self.assertEqual(cms["custom:claude-opus-4-8"]["reasoningEffort"], "high")
+        self.assertEqual(cms["custom:gpt-5.5"]["baseUrl"], "http://localhost:8317/v1")
         # per-model compaction 按新 customModels 重建; 旧 "existing" 不再保留
         self.assertNotIn("existing", payload["compactionTokenLimitPerModel"])
         self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:gpt-5.5"], 600000)
-        self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:claude-opus-4-8-max"], 600000)
+        self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:claude-opus-4-8"], 600000)
         self.assertNotIn("contextWindow", json.dumps(payload))
 
     def test_droid_default_pointers_remapped_not_dangling(self) -> None:
