@@ -19,13 +19,13 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 
 | # | 决策 |
 |---|---|
-| L1 | 6 角色，2 个 orchestrator（scaffold + loop）不合并 |
+| L1 | 6 角色，2 个 orchestrator（scaffold + loop）不合并。**实现(2026-05-29 UX 决策):两个 orchestrator 角色由"用户正在对话的 coding agent"扮演,无独立 orchestrator pane;只有 planner/coder/reviewer 是 tmux pane。** |
 | L2 | 控制面构建：scaffold orch ↔ reviewer 两段；orch 自吃意见改 |
 | L3 | phase reviewer 单一 agent，一轮分级输出（blocker/should/nit + refactor 维度），写入 `phases/<id>/review.md` 单文件 |
 | L4 | review 循环：一轮 reviewer + 一轮 coder ack/修复 = 收口（不震荡） |
 | L5 | 仲裁：coder 自判同意/不同意 + 阐述理由，loop orch 采信，不强制覆盖 |
-| L6 | phase coder 跨 phase 持久化：tmux pane 长驻 + pane_id 写 `SESSIONS.md` |
-| L7 | phase 间承接：loop orch 进入交互等待状态，用户在 orch pane 输入 `confirm next` / `confirm done` / `block <reason>` |
+| L6 | ~~phase coder 跨 phase 持久化(长驻复用)~~ **反转(用户决策 2026-05-29):每 phase fresh coder** —— orchestrator 每 phase 开始先关掉上一个 coder pane(SESSIONS 标 closed),再开新的;续接靠新 coder 读 `HANDOFF.md`,不依赖跨 phase 长驻 context。**本条取代下文一切"coder pane 复用/不重开/跨所有 phase 长驻"的措辞。** 副作用:不再依赖"send-keys 长驻不死"这条最高风险假设,架构更稳(within-phase 仍需 send-keys 发 review,跨 phase 不需要)|
+| L7 | phase 间承接：loop orch(= 对话 agent)在**与用户的对话里**报告 phase 完成并询问;用户用自然语言答「继续 / 收尾 / 停」(不要求精确命令、不进 pane),agent 理解意图后行动 |
 | L8 | 配置文件格式：YAML |
 | L9 | 旧资产：复用 `long_loop.py` 的 `plan` / `launch-worker` / `observe`；新增 `kilo` agent backend 与 `--role` 参数；替换 loop 控制脑 |
 | L10 | claude reviewer 走独立 claude CLI（不经 kilo），YAML 里 `cmd` 字段接受任意 shell 命令字符串，由 tmux send-keys 注入到 pane（zsh 交互模式展开 alias / env export） |
@@ -34,10 +34,12 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 | L13 | cliproxy 模型：所有 cliproxy gpt 模型已统一支持 `--variant low/medium/high/xhigh/max`（见 prerequisites）。后端只接受 4 档 `low/medium/high/xhigh`，`max` 是 install_hooks 侧 clamp 到 `xhigh` 的别名（实测：字面 `max` 后端返回 400），无独立第 5 档 |
 | L14 | 每 phase ack 收口后、`wait_confirm` 前，phase coder 必须把该 phase 改动 commit 到 worktree 的专用分支（L16；git 仓库即 phase 边界 SSOT；未 commit 不算 phase 完成；不 push） |
 | L15 | 收尾（wrapup）阶段除产出 `CLEANUP_PROPOSAL.md` 外，loop orch 还要整体扫一遍 `BACKLOG.md`，标出"可快速收敛"项供用户决定是否顺手清掉（仍是建议，不自动做） |
-| L16 | 整个任务在独立 git worktree + 专用分支上开发，**绝不在 `main` 上开发或 commit**。`lr2.py scaffold` 创建 worktree（如 `../<repo>-lr2-<slug>`）+ 分支（如 `lr2/<slug>`）；phase coder 的 cwd = worktree；所有 L14 phase commit 落在该分支；合并/PR 由用户在 phase 间或收尾自行决定（不自动 push/merge） |
+| L16 | 默认在独立 git worktree + 专用分支上开发;**也支持 `--in-place`:在当前 worktree+当前分支接着做(延续已有工作时用,scaffold 前 agent 显示当前分支让用户选)**。两种模式都**绝不在 `main`/`master` 上开发或 commit**(in-place 在 main 上直接拒绝)。`lr2.py scaffold` 创建 worktree（如 `../<repo>-lr2-<slug>`）+ 分支（如 `lr2/<slug>`）；phase coder 的 cwd = worktree；所有 L14 phase commit 落在该分支；合并/PR 由用户在 phase 间或收尾自行决定（不自动 push/merge） |
 | L17 | （实测知识，2026-05-29）effort 档位事实：**claude `--effort`** 5 档 `low/medium/high/xhigh/max`（max 真档）；**cliproxy gpt** 仅 4 档，install_hooks 已把 `max` clamp 成 `xhigh`。注：被 L19 取代——TUI 不注入 variant，本条仅作背景知识保留，不再有 launcher 转换逻辑 |
 | L18 | 控制工作区放 main checkout 的 `.long-loop/<date>_<slug>/`，用 `.git/info/exclude` 本地忽略（不改 tracked `.gitignore`），与 worktree 生命周期解耦（详见 Workspace 目录结构） |
-| L19 | 思考等级：所有 TUI 长驻 pane（claude reviewer + kilo coder/orch/planner）**用各自 CLI/模型的默认 effort，不按 role 注入 variant**（用户决策 2026-05-29）。YAML 的 `variant` 字段降级为意图标注（仅做 enum 校验，不驱动 launch）；消解 TBD-5（kilo TUI 无 `--variant` flag 不再是问题）。默认值：claude Opus 默认 high；kilo 模型用 install_hooks 的 per-model 默认（gpt-5.5=medium / gpt-5.5-fast=low）|
+| L19 | 思考等级：所有 TUI 长驻 pane（claude reviewer + kilo coder/planner）**用各自 CLI/模型的默认 effort，不按 role 注入 variant**（用户决策 2026-05-29）。YAML 的 `variant` 字段降级为意图标注（仅做 enum 校验，不驱动 launch）；消解 TBD-5（kilo TUI 无 `--variant` flag 不再是问题）。默认值：claude Opus 默认 high；kilo 模型用 install_hooks 的 per-model 默认（gpt-5.5=medium / gpt-5.5-fast=low）|
+| L21 | worker 思考等级(2026-05-29,部分推翻 L19):kilo TUI 无 `--variant` flag、in-session 命令(`variant_list`/`ctrl+t`)无法 blind 自动落到指定档,故**用"默认即高档的模型别名"**实现——install_hooks 加 `cliproxy/gpt-5.5-xhigh`(id→gpt-5.5,options 默认 xhigh);config 模板 phase_coder/phase_planner 指向它,`kilo -m` 启动即 xhigh。variant 字段仍仅意图标注 |
+| L20 | UX 决策(2026-05-29)：**用户全程只跟一个 coding agent 自然语言对话**,该 agent 扮演两个 orchestrator 角色,用 `lr2.py` 做机械活(建 worktree/工作区、开 worker pane、send-keys、存活检查)。用户从不敲 `lr2.py`、不敲精确命令、不进 tmux pane。下方"场景化推演"里的 `scaffold orch pane` / `loop orch pane` / `在 orch pane 输入` 等措辞,按 L1/L20 重新理解为**对话 agent 自身的行为**(那些 pane 不存在);场景正文未逐行重写,以本条为准 |
 
 ## 待决策
 
@@ -111,7 +113,7 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 | | (2) 用户跑 `/dev-long-run-v2 scaffold --requirement ~/scratch/REQUIREMENT.md` |
 | | (3) `lr2.py scaffold` 建 worktree `../<repo>-lr2-compliance` + 分支 `lr2/20260529-compliance`（L16）→ mv `REQUIREMENT.md` 进 `.long-loop/20260529-compliance/` → state.json 记 worktree_path + branch |
 | | (4) scaffold orch (kilo + cliproxy/gpt-5.5 + xhigh) 启动 → 调 `/think-map /think-research` → 产 `SPEC_OVERVIEW.md` `fix_plan.md` `phases/*/spec.md` |
-| | (5) scaffold orch 调 launcher 开 reviewer pane (claude cli + opus 4.7 + max) → reviewer 写 `SCAFFOLD_REVIEW.md` → reviewer pane 关闭 |
+| | (5) scaffold orch 调 launcher 开 reviewer pane (claude cli + opus 4.8 + max) → reviewer 写 `SCAFFOLD_REVIEW.md` → reviewer pane 关闭 |
 | | (6) scaffold orch 读 review 自改工作区 → 关 scaffold orch pane |
 | | (7) 用户跑 `/dev-long-run-v2 develop` → loop orch (kilo + cliproxy/gpt-5.5-fast + low) 启动 |
 | | (8) loop orch 读 fix_plan，选 phase 01 → 开 planner pane (kilo + cliproxy/gpt-5.5 + xhigh) → planner 增强 `phases/01/{research,plan,qa}.md` → 关 planner |
@@ -120,7 +122,7 @@ Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain 
 | | (11) loop orch send-keys review 内容到 coder pane → coder 写 `phases/01/ack.md` 逐项 ack → 修复同意项 → 更新 HANDOFF → **commit phase 01 改动（L14）** |
 | | (12) loop orch 在自己 pane 内 prompt 用户：`Phase 01 complete. confirm next / confirm done / block <reason>?` |
 | | (13) 用户跑测试、合 PR、上线、回 orch pane 敲 `confirm next` |
-| | (14) phase 02 重复步骤 8-13，phase coder pane 复用（不重开） |
+| | (14) phase 02 重复步骤 8-13；**每 phase 开始关掉上一个 coder pane,开 fresh coder 读 HANDOFF 续(L6 改)** |
 | | (15) `confirm done` 后 loop orch 跑端到端验收 → 整体扫 `BACKLOG.md` 标"可快速收敛"项（L15）→ 写 `CLEANUP_PROPOSAL.md` → 关闭所有 pane |
 | Touchpoints | tmux server / 文件系统 workspace / git worktree + 分支 / kilo CLI / claude CLI |
 | Failure paths | coder pane 死掉、reviewer blocker 全 reject、用户长时间不 confirm、context 爆 |
@@ -192,7 +194,7 @@ roles:
     backend: claude_cli
     cmd: 'export CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN && claude --dangerously-skip-permissions'
     # 也可以写 alias 名: cmd: claude-max
-    model: claude-opus-4-7       # 由 cmd 决定怎么传(--model);不传则用 CLI 默认(实测 Opus 4.8)
+    model: claude-opus-4-8       # 仅标注;cmd 不传 --model → 用 claude CLI 默认(当前 Opus 4.8,自动跟最新)
     variant: max                 # L19: 仅意图标注, 不注入; reviewer 用 claude 默认 effort(Opus 默认 high)
     autonomy: off                # 只读
 
@@ -217,7 +219,7 @@ roles:
   phase_reviewer:
     backend: claude_cli
     cmd: 'export CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN && claude --dangerously-skip-permissions'
-    model: claude-opus-4-7
+    model: claude-opus-4-8
     variant: max                 # L19: 仅意图标注, 不注入, 用默认 effort
     autonomy: off
 
@@ -297,7 +299,7 @@ stateDiagram-v2
 | scaffold reviewer | scaffold orch 调用 | review.md 写完 | 不跨 |
 | loop orch | develop 阶段开始 | 收尾结束 | 跨整个 develop |
 | phase planner | 每 phase 开始 | plan.md 增强完 | 不跨 phase |
-| **phase coder** | phase 01 开始 | develop 结束 / 显式 compact | **跨所有 phase** |
+| **phase coder** | 每 phase 开始(开 fresh) | 该 phase 收口 / 下一 phase 开始前被关 | **不跨 phase(L6 改)** |
 | phase reviewer | coder HANDOFF 完成后 | review.md 写完 | 不跨 phase |
 
 **Resume 协议**：
@@ -351,7 +353,7 @@ stateDiagram-v2
 ### Acceptance verifier（用户目标）
 - **跑通一个真实 3-phase 任务**（场景 1），全程产物可审阅
 - review.md 的 blocker 项被 coder 至少考虑过（ack.md 有逐项响应）
-- phase coder pane 在 phase 1 → phase 2 之间没被重开（除非显式 compact）
+- phase coder 每 phase fresh:phase 2 开始前 phase 1 的 coder pane 被关闭,SESSIONS 标 closed,新 coder 读 HANDOFF 续(L6 改)
 - 每个完成的 phase 在进入 wait_confirm 前都有对应 commit（`git log` 可见，L14）
 - 用户能在 phase 间中断 / 合 PR / 再 `confirm next` 续上
 - 全流程产物可被另一个人接手（不依赖 agent 内存）

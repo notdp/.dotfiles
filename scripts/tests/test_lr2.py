@@ -97,6 +97,25 @@ class NamingTests(unittest.TestCase):
         wt = lr2.worktree_path(Path("/home/u/myrepo"), "compliance")
         self.assertEqual(wt, Path("/home/u/myrepo-lr2-compliance"))
 
+    def test_plan_worktree_new_creates_sibling_branch(self) -> None:
+        plan = lr2.plan_worktree(Path("/home/u/repo"), "auth", in_place=False, current_branch="main")
+        self.assertEqual(plan["branch"], "lr2/auth")
+        self.assertEqual(plan["worktree_path"], "/home/u/repo-lr2-auth")
+        self.assertTrue(plan["create"])
+
+    def test_plan_worktree_in_place_uses_current_branch(self) -> None:
+        # 接着做: 在当前 feature 分支 + 当前目录, 不新建
+        plan = lr2.plan_worktree(Path("/home/u/repo"), "auth", in_place=True, current_branch="feature/x")
+        self.assertEqual(plan["branch"], "feature/x")
+        self.assertEqual(plan["worktree_path"], "/home/u/repo")
+        self.assertFalse(plan["create"])
+
+    def test_plan_worktree_in_place_refuses_main(self) -> None:
+        # L16: 不在 main/master 上开发
+        for b in ("main", "master", ""):
+            with self.assertRaises(ValueError):
+                lr2.plan_worktree(Path("/home/u/repo"), "auth", in_place=True, current_branch=b)
+
 
 class ConfirmCommandTests(unittest.TestCase):
     def test_confirm_next_goes_to_develop(self) -> None:
@@ -192,27 +211,47 @@ class YamlLoaderTests(unittest.TestCase):
 
 
 class TmuxArgTests(unittest.TestCase):
-    def test_split_window_captures_pane_id(self) -> None:
-        args = lr2.split_window_args("lr2-x", "/wt", "split-down", "kilo -m m")
-        self.assertEqual(args[:2], ["split-window", "-t"])
+    def test_split_window_targets_current_pane(self) -> None:
+        # 在当前 window split 当前 pane(target=当前 TMUX_PANE), 不进别的 session/tab
+        args = lr2.split_window_args("/wt", "split-down", "kilo -m m", target="%3")
+        self.assertEqual(args[args.index("-t") + 1], "%3")
         self.assertIn("-v", args)
         self.assertIn("#{pane_id}", args)
         self.assertEqual(args[-1], "kilo -m m")
 
+    def test_split_window_no_target_splits_current(self) -> None:
+        args = lr2.split_window_args("/wt", "split-right", None)
+        self.assertNotIn("-t", args)  # 无 target → tmux 默认 split 当前 pane
+        self.assertIn("-h", args)
+
     def test_split_window_bad_mode_raises(self) -> None:
         with self.assertRaises(ValueError):
-            lr2.split_window_args("lr2-x", "/wt", "split-sideways", None)
+            lr2.split_window_args("/wt", "split-sideways", None)
 
-    def test_send_keys_uses_literal_then_enter(self) -> None:
-        # 防注入: 文本走 -l literal, Enter 单独发(spec S4)
-        lists = lr2.send_keys_arglists("%5", "echo $(whoami)")
-        self.assertEqual(lists[0], ["send-keys", "-t", "%5", "-l", "echo $(whoami)"])
-        self.assertEqual(lists[1], ["send-keys", "-t", "%5", "Enter"])
+    def test_paste_buffer_uses_bracketed_paste(self) -> None:
+        # 多行 prompt 走 bracketed paste(-p), 不提前提交; Enter 由 send_to_pane 单独发
+        self.assertEqual(lr2.paste_buffer_args("%5", "lr2dispatch"),
+                         ["paste-buffer", "-p", "-b", "lr2dispatch", "-t", "%5"])
 
     def test_pane_is_alive(self) -> None:
         out = "%1\n%42\n%7\n"
         self.assertTrue(lr2.pane_is_alive(out, "%42"))
         self.assertFalse(lr2.pane_is_alive(out, "%99"))
+
+    def test_find_live_role_pane_returns_running_alive(self) -> None:
+        # L6(改): 找某 role 仍存活的 running pane(每 phase 开始时用来关掉上一个 coder)
+        rows = [
+            {"role": "phase_coder", "phase": "01", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            {"role": "phase_reviewer", "phase": "01", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "closed"},
+        ]
+        self.assertEqual(lr2.find_live_role_pane(rows, "phase_coder", "%42\n%7\n"), "%42")
+
+    def test_find_live_role_pane_none_when_dead(self) -> None:
+        rows = [{"role": "phase_coder", "phase": "01", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"}]
+        self.assertIsNone(lr2.find_live_role_pane(rows, "phase_coder", "%7\n%8\n"))  # %42 不在活 pane 里
+
+    def test_find_live_role_pane_none_when_absent(self) -> None:
+        self.assertIsNone(lr2.find_live_role_pane([], "phase_coder", "%42\n"))
 
 
 class LaunchCommandTests(unittest.TestCase):

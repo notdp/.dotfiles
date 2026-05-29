@@ -89,6 +89,19 @@ def worktree_path(repo_root: Path, slug: str) -> Path:
     return repo_root.parent / f"{repo_root.name}-lr2-{slug}"
 
 
+def plan_worktree(repo_root: Path, slug: str, in_place: bool, current_branch: str) -> dict:
+    """决定用新 worktree+分支(隔离)还是当前 worktree+分支(接着做)。
+    in_place 时 L16 守卫: 拒绝在 main/master/detached 上开发。"""
+    if in_place:
+        if current_branch in ("main", "master", ""):
+            raise ValueError(
+                f"--in-place 拒绝在 {current_branch or 'detached HEAD'!r} 上开发(L16)；"
+                f"先切到 feature 分支，或去掉 --in-place 新建 worktree"
+            )
+        return {"worktree_path": str(Path(repo_root)), "branch": current_branch, "create": False}
+    return {"worktree_path": str(worktree_path(repo_root, slug)), "branch": branch_name(slug), "create": True}
+
+
 # variant 词表(L13)。决策(2026-05-29): TUI 长驻 pane 用默认思考等级, 不按 role 注入 variant;
 # 本表仅用于 config 的 variant 字段 enum 校验(意图标注 + typo 卫生), 不再驱动 launch effort。
 VARIANTS = ("low", "medium", "high", "xhigh", "max")
@@ -189,26 +202,38 @@ def load_yaml(text: str) -> dict:
 SPLIT_FLAG = {"split-right": "-h", "split-down": "-v"}
 
 
-def split_window_args(target: str, cwd: str, mode: str, command: str | None) -> list[str]:
-    """构造 tmux split-window, 捕获新 pane_id。command=None → 默认交互 shell(claude 路径用)。"""
+def split_window_args(cwd: str, mode: str, command: str | None, target: str | None = None) -> list[str]:
+    """构造 tmux split-window(在当前 window split 当前 pane), 捕获新 pane_id。
+    target=当前 $TMUX_PANE → 确保 pane 出现在用户当前 tab,不进别的 session/tab。
+    command=None → 默认交互 shell(claude 路径用)。"""
     if mode not in SPLIT_FLAG:
         raise ValueError(f"bad split mode {mode!r}; valid: {', '.join(SPLIT_FLAG)}")
-    args = ["split-window", "-t", target, SPLIT_FLAG[mode], "-P", "-F", "#{pane_id}", "-c", cwd]
+    args = ["split-window"]
+    if target:
+        args += ["-t", target]
+    args += [SPLIT_FLAG[mode], "-P", "-F", "#{pane_id}", "-c", cwd]
     if command:
         args.append(command)
     return args
 
 
-def send_keys_arglists(pane: str, text: str) -> list[list[str]]:
-    """L4/send-keys: 先用 -l literal 发文本(防止 $()/反引号被 shell 解释), 再单独发 Enter。
-
-    残余风险见 spec S4(已否决): literal 仍是降暴露而非根除。"""
-    return [["send-keys", "-t", pane, "-l", text], ["send-keys", "-t", pane, "Enter"]]
+def paste_buffer_args(pane: str, buf: str) -> list[str]:
+    """构造 tmux bracketed paste(`-p`)命令: 把 buffer 多行内容贴进 pane 输入框且不提前提交。
+    实测(spike): kilo/claude TUI 收多行不 submit, 之后单次 Enter 提交为一条消息。"""
+    return ["paste-buffer", "-p", "-b", buf, "-t", pane]
 
 
 def pane_is_alive(list_panes_output: str, pane_id: str) -> bool:
     """从 `tmux list-panes -aF '#{pane_id}'` 输出判断某 pane 是否还在。"""
     return pane_id in list_panes_output.split()
+
+
+def find_live_role_pane(rows: list[dict[str, str]], role: str, list_panes_output: str) -> str | None:
+    """找某 role 仍存活的 running pane(L6 改:每 phase 开始时据此关掉上一个 coder)。"""
+    for row in rows:
+        if row["role"] == role and row["status"] == "running" and pane_is_alive(list_panes_output, row["pane_id"]):
+            return row["pane_id"]
+    return None
 
 
 def launch_command(role_cfg: dict) -> str | None:
@@ -263,10 +288,6 @@ def _git(repo_root: Path, args: list[str]) -> str:
     return result.stdout.strip()
 
 
-def tmux_session(slug: str) -> str:
-    return f"lr2-{slug}"
-
-
 def pane_title(slug: str, role: str, phase: str) -> str:
     return f"lr2:{slug}:{role}:{phase}"
 
@@ -275,22 +296,17 @@ def capture_pane(pane: str) -> str:
     return _tmux(["capture-pane", "-t", pane, "-p"], capture=True)
 
 
-def send_to_pane(pane: str, text: str) -> None:
-    for arglist in send_keys_arglists(pane, text):
-        _tmux(arglist)
+def send_to_pane(pane: str, text: str, enter: bool = True) -> None:
+    """把(可多行)文本 bracketed-paste 进 pane 输入框, 再单次 Enter 提交为一条消息。
+    多行 prompt 在窗口里按原排版可读(不再是 send-keys 单行一坨)。"""
+    buf = "lr2dispatch"
+    subprocess.run(["tmux", "load-buffer", "-b", buf, "-"], input=text, text=True, capture_output=True)
+    _tmux(paste_buffer_args(pane, buf))
+    time.sleep(0.5)
+    if enter:
+        _tmux(["send-keys", "-t", pane, "Enter"])
         time.sleep(0.4)
-
-
-def ensure_session(slug: str, cwd: Path, command: str | None) -> str:
-    """没有 session 则 new-session(第一个 pane), 返回 pane_id。"""
-    sess = tmux_session(slug)
-    exists = subprocess.run(["tmux", "has-session", "-t", sess], capture_output=True).returncode == 0
-    if exists:
-        return ""  # 已存在, 调用方改用 split
-    args = ["new-session", "-d", "-P", "-F", "#{pane_id}", "-s", sess, "-x", "220", "-y", "50", "-c", str(cwd)]
-    if command:
-        args.append(command)
-    return _tmux(args, capture=True)
+    subprocess.run(["tmux", "delete-buffer", "-b", buf], capture_output=True)
 
 
 def consume_claude_trust(pane: str, timeout_s: int = 20) -> bool:
@@ -307,16 +323,56 @@ def consume_claude_trust(pane: str, timeout_s: int = 20) -> bool:
     return False
 
 
-def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: str, mode: str) -> str:
-    """起一个 role pane, 注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。"""
+FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
+
+
+def _close_role_pane(workspace: Path, role: str) -> str | None:
+    """关掉某 role 上一个仍存活的 pane 并在 SESSIONS.md 标 closed。返回被关的 pane_id。"""
+    sessions_path = workspace / "SESSIONS.md"
+    if not sessions_path.exists():
+        return None
+    rows = parse_sessions(sessions_path.read_text(encoding="utf-8"))
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    pid = find_live_role_pane(rows, role, live)
+    if not pid:
+        return None
+    _tmux(["kill-pane", "-t", pid], capture=True)
+    rows = [dict(r, status="closed", last_seen=_now()) if r["pane_id"] == pid else r for r in rows]
+    sessions_path.write_text(render_sessions(rows), encoding="utf-8")
+    return pid
+
+
+def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> str:
+    """worker pane 的初始 prompt(多行结构化, 经 bracketed paste 注入, 窗口可读)。"""
+    prompt_file = PROMPTS_DIR / f"{role}.md"
+    parts = [
+        f"You are the {role} for phase {phase}. Do your role's job, then STOP when your output files are written.",
+        f"[ROLE CONTRACT] {prompt_file}",
+        f"[TASK BRIEF] {brief}" if brief else "",
+        f"[MUST READ — workspace SSOT] {workspace}/REQUIREMENT.md ; {workspace}/SPEC_OVERVIEW.md ; {workspace}/fix_plan.md ; your phase spec under {workspace}/phases/",
+        "[EVALUATE] whether /think-map or /think-research helps (per your role contract; evaluate, not forced).",
+        "[RULES] Workspace files are the SSOT, your memory is not. Stay within your role's allowed outputs; do not touch files outside them.",
+    ]
+    return "\n".join(p for p in parts if p)
+
+
+def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> str:
+    """在用户当前 tmux window split 出一个 role pane(就在当前 tab,不新建 session/tab),
+    注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。phase_coder 已存活则复用(L6)。"""
+    if not os.environ.get("TMUX"):
+        raise RuntimeError("不在 tmux 里 — worker pane 必须在用户当前 tmux window 内 split;请先在 tmux 中运行")
     worktree = Path(load_state(workspace / "state.json").get("worktree_path", workspace))
+    intro = _role_intro(role, phase, workspace, brief)
+
+    # L6(改, 用户决策 2026-05-29): 每 phase 开始先关掉上一个 coder, 再开 fresh(不复用),
+    # 续接靠 coder 读 HANDOFF.md, 不靠长驻 context。
+    if role in FRESH_PER_PHASE_ROLES:
+        _close_role_pane(workspace, role)
+
     command = launch_command(role_cfg)
-    sess = tmux_session(slug)
-    exists = subprocess.run(["tmux", "has-session", "-t", sess], capture_output=True).returncode == 0
-    if not exists:
-        pane = ensure_session(slug, worktree, command)
-    else:
-        pane = _tmux(split_window_args(sess, str(worktree), mode, command), capture=True)
+    # 关键: target = 当前 $TMUX_PANE → split 用户正在的 pane, pane 出现在当前 tab(不进别的 session/tab)
+    current_pane = os.environ.get("TMUX_PANE")
+    pane = _tmux(split_window_args(str(worktree), mode, command, target=current_pane), capture=True)
     if not pane:
         raise RuntimeError(f"failed to obtain pane_id for role {role}")
     _tmux(["select-pane", "-t", pane, "-T", pane_title(slug, role, phase)])
@@ -324,13 +380,6 @@ def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: st
     if role_cfg["backend"] == "claude_cli":
         send_to_pane(pane, role_cfg["cmd"])
         consume_claude_trust(pane)
-    # 初始 prompt: 让 role 读自己的 prompt 文件 + workspace 上下文
-    prompt_file = PROMPTS_DIR / f"{role}.md"
-    intro = (
-        f"Read {prompt_file} and {workspace}/ORCHESTRATOR.md (if you are an orchestrator) "
-        f"or your role section, then act as the {role} for workspace {workspace}. "
-        f"Workspace files are the SSOT; your memory is not."
-    )
     time.sleep(1)
     send_to_pane(pane, intro)
     _register(workspace, role, phase, pane)
@@ -354,7 +403,9 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
 def default_config_yaml(slug: str) -> str:
     return f"""version: 2
 
-# dev-long-run-v2 角色配置。L19: TUI 用默认思考等级, variant 仅意图标注不注入。
+# dev-long-run-v2 角色配置。L19/L21: worker pane 的思考等级由"模型默认"决定(kilo TUI 无 --variant flag);
+# 想要高思考的 worker 用默认就是 xhigh 的模型别名 cliproxy/gpt-5.5-xhigh。variant 字段仅意图标注,不注入。
+# scaffold/loop orchestrator = 用户对话的 agent(无 pane),其 model 字段无效,留作记录。
 roles:
   scaffold_orchestrator:
     backend: kilo
@@ -364,7 +415,7 @@ roles:
   scaffold_reviewer:
     backend: claude_cli
     cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-7
+    model: claude-opus-4-8
     variant: max
     autonomy: off
   loop_orchestrator:
@@ -374,18 +425,18 @@ roles:
     autonomy: medium
   phase_planner:
     backend: kilo
-    model: cliproxy/gpt-5.5
+    model: cliproxy/gpt-5.5-xhigh
     variant: xhigh
     autonomy: low
   phase_coder:
     backend: kilo
-    model: cliproxy/gpt-5.5
+    model: cliproxy/gpt-5.5-xhigh
     variant: high
     autonomy: high
   phase_reviewer:
     backend: claude_cli
     cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-7
+    model: claude-opus-4-8
     variant: max
     autonomy: off
 
@@ -438,16 +489,34 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         return 1
     name = args.name or args.goal or requirement.stem
     slug = slugify(name)
+    current_branch = _git(repo_root, ["branch", "--show-current"])
+    # 强制显式选择 worktree 模式: 不默认, 逼 agent 先问用户(L16/L20)
+    if args.new == args.in_place:  # 都没给 或 同时给, 都拒绝
+        conflict = args.new and args.in_place
+        sys.stderr.write(
+            ("both --new and --in-place given; pick one\n" if conflict else
+             "worktree 模式未指定 — 请先把下面信息给用户、让用户选,再带 --new 或 --in-place 重跑:\n")
+            + f"  当前分支: {current_branch or 'detached HEAD'}\n"
+            f"  --new      : 新建隔离 worktree(../<repo>-lr2-{slug}) + 分支 lr2/{slug}\n"
+            f"  --in-place : 在当前分支 '{current_branch}' 接着做(main/master 会被拒)\n"
+        )
+        return 2
     date = datetime.now().strftime("%Y%m%d")
     workspace = repo_root / ".long-loop" / f"{date}_{slug}"
     if workspace.exists():
         sys.stderr.write(f"workspace exists: {workspace}\n")
         return 1
-    # L16: worktree + 分支; 拒绝在脏 main 上开
+    # L16: 新建 worktree+分支(隔离) 或 在当前 worktree+分支接着做(--in-place)
     dirty = _git(repo_root, ["status", "--porcelain"])
-    branch = branch_name(slug)
-    wt = worktree_path(repo_root, slug)
-    _git(repo_root, ["worktree", "add", "-b", branch, str(wt)])
+    try:
+        plan = plan_worktree(repo_root, slug, args.in_place, current_branch)
+    except ValueError as error:
+        sys.stderr.write(f"refusing: {error}\n")
+        return 1
+    wt = Path(plan["worktree_path"])
+    branch = plan["branch"]
+    if plan["create"]:
+        _git(repo_root, ["worktree", "add", "-b", branch, str(wt)])
     workspace.mkdir(parents=True)
     append_git_exclude(repo_root)
     (workspace / "config.yaml").write_text(default_config_yaml(slug), encoding="utf-8")
@@ -459,17 +528,24 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     (workspace / "ORCHESTRATOR.md").write_text((PROMPTS_DIR / "loop_orchestrator.md").read_text(encoding="utf-8"), encoding="utf-8")
     (workspace / "phases").mkdir()
     state = {
-        "state": "scaffold", "phase": 0, "role_in_flight": "scaffold_orchestrator",
+        "state": "scaffold", "phase": 0, "role_in_flight": "agent_orchestrator",
         "worktree_path": str(wt), "branch": branch, "goal": args.goal or name,
         "repo_root": str(repo_root), "slug": slug, "dirty_main_at_start": bool(dirty),
+        "in_place": bool(args.in_place),
     }
     save_state(workspace / "state.json", state)
-    config = load_yaml((workspace / "config.yaml").read_text(encoding="utf-8"))
-    pane = launch_role(workspace, slug, "scaffold_orchestrator", config["roles"]["scaffold_orchestrator"], "0", "split-right")
+    mode = "in-place(当前 worktree+分支,接着做)" if args.in_place else "new(新建隔离 worktree+分支)"
+    # 不 spawn orchestrator pane: 调用本命令的 agent 自己就是 orchestrator(SKILL 控制循环)。
     sys.stdout.write(
-        f"scaffold ready.\n  workspace: {workspace}\n  worktree : {wt}\n  branch   : {branch}\n"
-        f"  orch pane: {pane} (tmux attach -t {tmux_session(slug)})\n"
-        f"  resume   : lr2.py resume --workspace {workspace}\n"
+        f"scaffold ready (no orchestrator pane spawned — you the agent are the orchestrator).\n"
+        f"  mode     : {mode}\n"
+        f"  workspace: {workspace}\n  worktree : {wt}\n  branch   : {branch}\n\n"
+        f"Next (act as scaffold orchestrator yourself):\n"
+        f"  1. Read {workspace}/REQUIREMENT.md and the repo (cwd={wt}).\n"
+        f"  2. Write SPEC_OVERVIEW.md / fix_plan.md / phases/<NN>_<slug>/spec.md into {workspace}.\n"
+        f"  3. (optional) launch a reviewer pane: python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer\n"
+        f"  4. Tell the user the phase plan in chat; on approval, start the develop loop (see ORCHESTRATOR.md).\n"
+        f"  resume: python3 {Path(__file__).resolve()} resume --workspace {workspace}\n"
     )
     if dirty:
         sys.stdout.write("  WARN: main 有未提交改动(已记录), 本流程不会碰 main\n")
@@ -477,14 +553,18 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
 
 
 def cmd_develop(args: argparse.Namespace) -> int:
+    """标记进入 develop。不 spawn pane: 调用方 agent 自己跑 develop 循环(见 ORCHESTRATOR.md)。"""
     workspace = Path(args.workspace).resolve()
     state = load_state(workspace / "state.json")
-    config = load_yaml((workspace / "config.yaml").read_text(encoding="utf-8"))
-    pane = launch_role(workspace, state["slug"], "loop_orchestrator", config["roles"]["loop_orchestrator"], "0", "split-right")
     state["state"] = "develop"
-    state["role_in_flight"] = "loop_orchestrator"
+    state["role_in_flight"] = "agent_orchestrator"
     save_state(workspace / "state.json", state)
-    sys.stdout.write(f"develop started. loop orch pane: {pane}\n")
+    sys.stdout.write(
+        f"develop state set. You (agent) drive the loop: per phase →\n"
+        f"  launch planner/coder/reviewer panes via `lr2.py launch --role <r>`,\n"
+        f"  send review to coder via `lr2.py send`, commit per phase (L14),\n"
+        f"  then ask the user in chat: confirm next / done / block.  See {workspace}/ORCHESTRATOR.md\n"
+    )
     return 0
 
 
@@ -496,12 +576,21 @@ def cmd_launch(args: argparse.Namespace) -> int:
         sys.stderr.write(f"unknown role {args.role}\n")
         return 1
     mode = args.mode or ("split-down" if "reviewer" in args.role else "split-right")
-    pane = launch_role(workspace, state["slug"], args.role, config["roles"][args.role], args.phase, mode)
+    pane = launch_role(workspace, state["slug"], args.role, config["roles"][args.role], args.phase, mode, brief=args.brief)
     sys.stdout.write(pane + "\n")
     return 0
 
 
 def cmd_send(args: argparse.Namespace) -> int:
+    # 故障导向安全: 打到不存在的 pane 必须明确报错, 不静默打空
+    # (常见错误: 自己编 pane id, 或没先 launch。pane id 必须来自 launch 的输出。)
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    if not pane_is_alive(live, args.pane):
+        sys.stderr.write(
+            f"refusing: pane {args.pane} 不存在(别自己编 pane id;先 `launch --role <r>` 拿它打印的 id)。"
+            f"当前活着的 pane: {live.split() or '无'}\n"
+        )
+        return 1
     send_to_pane(args.pane, args.text)
     return 0
 
@@ -549,6 +638,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--goal")
     p.add_argument("--name")
     p.add_argument("--repo-root", default=".")
+    p.add_argument("--new", action="store_true", help="新建隔离 worktree + lr2/<slug> 分支")
+    p.add_argument("--in-place", action="store_true", help="在当前 worktree+分支接着做(L16:当前在 main/master 则拒绝)")
     p.set_defaults(func=cmd_scaffold)
 
     p = sub.add_parser("develop", help="启动 loop orchestrator 进入开发循环")
@@ -564,6 +655,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--role", required=True)
     p.add_argument("--phase", default="0")
     p.add_argument("--mode")
+    p.add_argument("--brief")
     p.set_defaults(func=cmd_launch)
 
     p = sub.add_parser("send", help="(orchestrator 调用) literal send-keys 到 pane")

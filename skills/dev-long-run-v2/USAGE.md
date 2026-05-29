@@ -1,116 +1,76 @@
 # dev-long-run-v2 上手操作手册(首次使用)
 
-> 状态:v0。整条管道实测跑通过,但完整多 phase 自动循环还没在真实任务上跑完过 —— 你这次是第一次实战,盯紧点。代码只落在独立 worktree + `lr2/<slug>` 分支,**main 永远不会被碰**,出事直接删 worktree + 删分支即可全退。
+> v0:底层管道已实测,完整多 phase 循环还没在真实任务跑完过——你这次是第一次实战,盯紧点。代码只落在独立 worktree + `lr2/<slug>` 分支(或你选的当前分支),**main 永不被碰**,出事删 worktree+分支即可全退。
 
-## 全景:它怎么跑
+## 一句话
 
-三个命令,对应三个阶段。中间你通过 attach 进 tmux 看 agent 干活、在 pane 里给指令。
-
-| 阶段 | 命令 | 谁在干活 | 你要做什么 |
-|---|---|---|---|
-| ① 搭骨架 | `scaffold` | scaffold orchestrator(kilo)+ reviewer(claude) | 看它拆的 phase 合不合理 |
-| ② 逐 phase 开发 | `develop` | loop orchestrator 调度 planner/coder/reviewer | 每个 phase 结束时打 `confirm next/done` |
-| ③ 崩溃恢复 | `resume` | — | 看 pane 死活,按提示恢复 |
-
-记住一个变量,后面都用它:
+你**只跟一个 coding agent 对话**,不敲命令、不写文件、不进 tmux。agent 当 orchestrator 替你干所有机械活,**每个 phase 做完都停下问你**,你说一句就推进。全程分 4 步,下面按步走。
 
 ```
-LR2=~/.dotfiles/skills/dev-long-run-v2/lr2.py
+⓪ 讨论需求  →  ① 搭骨架(选分支 + 评审)  →  ② 逐 phase 开发循环  →  ③ 收尾
+   你来回聊        看计划说"可以"            每段说"继续/停/改"        说"完成"
 ```
 
-## 前提(三个,缺一不可)
+---
 
-1. 在**目标项目的 git 仓库根目录**里(main 脏也行,流程不碰 main,只会警告)。
-2. **在 tmux 里**(orchestrator 和 coder 都是 tmux pane;不在 tmux 里 attach 不进去看)。
+## ⓪ 讨论需求
+
+跟 agent 说你想做什么,来回聊清:目标、验收标准、约束。
+> 例:"用 long-run 帮我重构鉴权模块,要平滑迁移,别动现有调用方。"
+
+agent 会问几个问题,然后**替你写好 `REQUIREMENT.md`** 给你过目。你不用自己写文件。
+
+## ① 搭骨架(选分支 + 评审)
+
+确认需求后,agent 先问你 **worktree 模式**(它会显示当前分支):
+- **新建**:新建隔离 worktree + `lr2/<slug>` 分支。
+- **接着做**:在当前分支接着干(延续已有工作时选)。
+
+选完它建工作区、拆出 phase 计划,**再开一个 reviewer pane 审一轮**(你当前 tab 里会看到这个 pane),审完自己改,然后把 phase 计划讲给你:
+> "拆成 3 个 phase:①…②…③…,phase 1 先开始?"
+
+你看计划合不合理,说"可以"或"②先别动数据库"之类。
+
+## ② 逐 phase 开发循环 ← 你主要在这控制
+
+跟 agent 说"开始" / "进入 Phase 01"。它每个 phase 自动跑:
+planner 充实计划 → coder 写代码 → reviewer 审 → coder 改 + **commit 到分支** → **停下来问你**。
+
+你当前 tab 里会看到 planner/coder/reviewer 的 pane split 出来(纯旁观,`Ctrl-b`+方向键切过去看)。
+
+**你的控制台就是这几句话(每个 phase 结束时说):**
+
+| 你想 | 说 |
+|---|---|
+| 做下一个 phase | **"继续" / "下一个"** |
+| 暂停,我先看看 | "先停" / "等一下" |
+| 这里要调整 | "把 X 改成 Y" |
+| 全做完了收尾 | "完成" / "收尾" |
+| coder 卡死了 | "重开 coder,读 HANDOFF 续" |
+
+**可以一直 "继续" 推到底**:它每个 phase 都停着等你,一次"继续"推进一个 phase,你始终捏着闸,不会自己冲完。中途想插手随时说话打断。
+
+## ③ 收尾
+
+最后一个 phase 后说"完成"。agent 跑端到端验收、扫出可顺手收敛的 backlog 项、写 `CLEANUP_PROPOSAL.md`(只建议不删),问你要不要做哪个。
+
+---
+
+## 前提(三个)
+1. 在**目标项目的 git 仓库根目录**里。
+2. **在 tmux 里**(worker pane 要 split 进你当前 window)。
 3. kilo / claude 命令能正常跑。
 
-## 步骤 ①:写需求 + scaffold
+## 出问题
+- **崩溃/重启**:跟 agent 说"恢复 long-run",它跑 `resume` 续上。
+- **想全删重来**:说"删掉这次 long-run",它关 worker pane + 删 worktree + 删分支,main 不受影响。
+- **agent 跑偏**:对话里直接纠正,或说"停"。
+- 卡住自己搞不定:把**报错原文 + 当时在做什么 + `state.json`** 发给我。
 
-先在任意位置手写 `REQUIREMENT.md`,白话写清:要做什么、目标、怎样算做完。写得越清,后面质量越好。
+## v0 要盯的点
+- agent 该**开独立 coder pane** 写代码,不是在对话里自己写。怀疑时说"给我看 `lr2.py sessions`":有 `phase_coder` pane=对;一个 pane 没有=纠正它去 launch。
+- 每个 phase 真停下问你了吗(没停就提醒它要 confirm)。
+- coder 真 commit 到 `lr2/` 或你的分支了吗(让它给你看 `git log`)。
+- reviewer 真写出 `phases/<id>/review.md` 了吗。
 
-然后在项目根目录跑:
-
-```
-python3 $LR2 scaffold --requirement ~/REQUIREMENT.md --goal "你的任务一句话" --repo-root .
-```
-
-它会打印 4 个路径。**把 workspace 路径记下来**,后面两步都要用:
-
-```
-scaffold ready.
-  workspace: <项目>/.long-loop/<日期>_<slug>     ← 记这个
-  worktree : ../<项目>-lr2-<slug>                ← 代码改在这里
-  branch   : lr2/<slug>
-  orch pane: %552 (tmux attach -t lr2-<slug>)
-```
-
-这时 scaffold orchestrator 已经在一个 kilo pane 里跑起来了。attach 进去看:
-
-```
-tmux attach -t lr2-<slug>
-```
-
-它会读你的需求,产出 `SPEC_OVERVIEW.md` / `fix_plan.md` / 各 phase 的 `spec.md`,再开一个 claude reviewer 审一轮、自己改。
-
-**你这一步要做的**:看它拆出来的 phase 合不合理。不对就直接在 pane 里跟它说。看完按 `Ctrl-b` 再按 `d` 退出来(pane 继续活着)。
-
-## 步骤 ②:develop 逐 phase 开发
-
-scaffold 满意后:
-
-```
-python3 $LR2 develop --workspace <步骤①记下的 workspace>
-```
-
-loop orchestrator 起来,开始循环:planner 增强 → coder 实现 → reviewer 审一轮 → coder 逐项回应 + 修 + **commit 到 `lr2/` 分支** → 然后**停下来等你**。
-
-attach 进 orchestrator pane,它会提示:
-
-```
-Phase 01 complete. confirm next / confirm done / block <reason>
-```
-
-你**就在它这个 pane 里**直接打字:
-
-1. `confirm next` — 做下一个 phase
-2. `confirm done` — 收尾(跑验收 + 出 `CLEANUP_PROPOSAL.md` + 扫 backlog)
-3. `block 原因` — 卡住,记录原因
-
-phase 之间你可以去 worktree(`../<项目>-lr2-<slug>`)自己跑测试、看 diff、合 PR,再回来 `confirm next`。
-
-## 步骤 ③:resume 恢复
-
-pane 被误关、电脑重启、或你想接着上次:
-
-```
-python3 $LR2 resume --workspace <workspace>
-```
-
-它告诉你 worktree 在不在、每个 pane 死活,并给恢复建议(比如 coder pane 死了:重开 fresh 读 `HANDOFF.md` 续,或标 failed)。
-
-## tmux 速查(不熟 tmux 看这个)
-
-| 你想做 | 按键 / 命令 |
-|---|---|
-| 进入会话看 agent | `tmux attach -t lr2-<slug>` |
-| 退出但不杀 agent | 先按 `Ctrl-b`,松开,再按 `d` |
-| 在多个 pane 间切换 | `Ctrl-b` 然后方向键 |
-| 看有哪些会话 | `tmux ls` |
-| 看每个 pane 死活 | `python3 $LR2 sessions --workspace <ws>` |
-
-## 出问题先自查这几样
-
-1. **看状态文件**:`<workspace>/state.json`(现在到哪一步)、`SESSIONS.md`(各 pane 注册表)、`logs.md`(流水)。
-2. **看 pane 死活**:`python3 $LR2 sessions --workspace <ws>`。
-3. **agent 跑偏了**:直接 attach 进它的 pane 纠正它,或在 orchestrator pane 打 `block 原因`。
-4. **完全乱了想重来**:`tmux kill-session -t lr2-<slug>`,删 worktree(`git worktree remove --force ../<项目>-lr2-<slug>`),删分支(`git branch -D lr2/<slug>`),删 `.long-loop/<workspace>`。main 不受影响。
-
-遇到上面解决不了的,把**报错原文 + 你跑的命令 + `state.json` 内容**发给我。
-
-## 这次实战要盯的点(v0)
-
-- coder 的代码是否真的 commit 到了 `lr2/` 分支(去 worktree `git log` 看)。
-- orchestrator 是否在每个 phase 结束正确停下等你 confirm(而不是自己往下冲)。
-- reviewer 的 `phases/<id>/review.md` 是否真写出来了。
-
-哪一条不对,就是个反馈点,发给我。
+哪条不对,就是反馈点,发我。
