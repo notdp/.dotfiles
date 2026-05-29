@@ -209,6 +209,20 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assert_denied(self.run_guard("aliyun ecs ReleaseInstance --InstanceId i-xxx"), "aliyun destructive")
         self.assert_denied(self.run_guard("aliyun rds DeleteDBInstance --DBInstanceId rm-xxx"), "aliyun destructive")
 
+    def test_denies_destructive_command_inside_command_substitution(self) -> None:
+        self.assert_denied(self.run_guard("echo $(git push origin main)"), "guard-gitops")
+        self.assert_denied(self.run_guard("RESULT=$(git push origin main)"), "guard-gitops")
+
+    def test_denies_destructive_command_inside_backtick_substitution(self) -> None:
+        self.assert_denied(self.run_guard("echo `git push origin main`"), "guard-gitops")
+
+    def test_denies_wide_cleanup_inside_nested_command_substitution(self) -> None:
+        self.assert_denied(self.run_guard("echo $(printf %s $(rm -rf /))"), "destructive")
+
+    def test_allows_read_only_command_substitution(self) -> None:
+        self.assert_suppressed(self.run_guard("echo $(git status --short)"))
+        self.assert_suppressed(self.run_guard("DIR=$(pwd)"))
+
     def test_warns_for_remote_and_database_file_writes(self) -> None:
         self.assert_warned(self.run_guard("ssh host 'sed -i s/a/b/ /etc/app.conf'"), "remote")
         self.assert_warned(self.run_guard("ssh host 'echo foo > /etc/app.conf'"), "remote")

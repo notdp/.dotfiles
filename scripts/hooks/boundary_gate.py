@@ -13,10 +13,10 @@ RISK_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("schema-contract", re.compile(r"(schema|response_model|request|response|envelope)", re.I)),
     ("observability-routing", re.compile(r"(metric|metrics|埋点|指标)", re.I)),
     ("data-source", re.compile(r"(data source|数据源|canonical|snapshot)", re.I)),
-    ("shared-path", re.compile(r"(封装|wrap|wrapper|包装|包一层|接入|对接|集成|adapter|integration|service\s+wrap)", re.I)),
+    ("shared-path", re.compile(r"(封装|wrapper|包装|包一层|接入|对接|adapter|集成层|集成接口|集成方案|integration\s+(?:layer|point|module)|service\s+wrap)", re.I)),
     ("context-surface", re.compile(r"(context|hook|prompt|capsule|CLAUDE\.md|AGENTS\.md|PreToolUse|PostToolUse|UserPromptSubmit)", re.I)),
     ("limit-default-fallback", re.compile(r"(sampling|limit|fallback|default|默认值|上限|兜底)", re.I)),
-    ("operational-side-effect", re.compile(r"(prod|生产)", re.I)),
+    ("operational-side-effect", re.compile(r"(\bprod\b|production|线上|生产环境|生产数据|生产库|生产集群|生产系统|生产服务|生产配置|部署到生产|上生产)", re.I)),
 )
 CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
 CONTEXT_SURFACE_PATH_RE = re.compile(
@@ -32,6 +32,10 @@ USER_APPROVAL_RE = re.compile(r"(用户批准|user-approved|approved by user|批
 EMPTY_VALUE_RE = re.compile(r"^\s*(?:none|无|n/a|not applicable)\s*$", re.I)
 EDIT_TOOLS = {"ApplyPatch", "Create", "Edit", "Write", "MultiEdit"}
 MAX_TRANSCRIPT_CHARS = 80000
+AGENT_CONFIG_PATH_RE = re.compile(
+    r"(?:^|/)(\.config/(?:kilo|opencode)|\.claude|\.factory|\.codex|\.cursor|\.aider)(?:/|$)",
+    re.I,
+)
 
 
 def load_input() -> dict[str, Any]:
@@ -189,6 +193,34 @@ def should_gate(tool_name: str, transcript: str, target_path: str = "") -> tuple
     return bool(missing), missing
 
 
+def is_outside_repo_agent_config(target_path: str, repo_root: Path) -> bool:
+    """True when an edit targets an agent runtime config dir (kilo/opencode/claude/
+    factory/codex/cursor/aider) that lives outside the repo. Editing the repo's own
+    source is fine; writing the deployed config directly bypasses the git SSOT."""
+    if not target_path:
+        return False
+    path = Path(target_path).expanduser()
+    if not path.is_absolute():
+        path = repo_root / path
+    try:
+        resolved = path.resolve()
+        if resolved.is_relative_to(repo_root.resolve()):
+            return False
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return bool(AGENT_CONFIG_PATH_RE.search(str(resolved)))
+
+
+def gitops_advisory_payload() -> dict[str, Any]:
+    return {
+        "systemMessage": (
+            "Boundary gate advisory: this edit targets an agent runtime config outside the repo "
+            "(kilo/opencode/claude/factory/...). Writing deployed config directly bypasses the git "
+            "SSOT. Route through /guard-gitops and make the change in the repo source instead."
+        )
+    }
+
+
 def gate_payload(mode: str, missing: list[str]) -> dict[str, Any]:
     missing_text = ", ".join(missing) if missing else "Boundary facts"
     message = (
@@ -205,11 +237,16 @@ def main() -> int:
     tool_name = str(hook_input.get("tool_name") or hook_input.get("toolName") or "")
     transcript = transcript_text(hook_input.get("transcript_path"))
     mode = os.environ.get("BOUNDARY_GATE_MODE", "advisory").lower()
-    should_warn, missing = should_gate(tool_name, transcript, tool_target_path(hook_input))
+    target_path = tool_target_path(hook_input)
+    should_warn, missing = should_gate(tool_name, transcript, target_path)
+    repo_root = Path(os.environ.get("FACTORY_PROJECT_DIR") or os.getcwd())
     if should_warn:
-        sys.stdout.write(json.dumps(gate_payload(mode, missing), ensure_ascii=False) + "\n")
+        payload = gate_payload(mode, missing)
+    elif tool_name in EDIT_TOOLS and is_outside_repo_agent_config(target_path, repo_root):
+        payload = gitops_advisory_payload()
     else:
-        sys.stdout.write(json.dumps(suppress(), ensure_ascii=False) + "\n")
+        payload = suppress()
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
     return 0
 
 

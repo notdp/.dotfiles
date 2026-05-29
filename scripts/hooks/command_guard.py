@@ -538,11 +538,56 @@ class PathLikeCommand:
         return self.raw.rsplit("/", 1)[-1].lower()
 
 
+def extract_command_substitutions(command: str) -> list[str]:
+    """Return inner command strings from $(...) and backtick substitutions.
+
+    Without this the tokenizer treats `$(git push origin main)` as opaque
+    arguments, so a destructive command wrapped in a substitution would bypass
+    the guard. Arithmetic expansion $(( ... )) is skipped."""
+    results: list[str] = []
+    index = 0
+    length = len(command)
+    while index < length:
+        char = command[index]
+        if char == "$" and index + 1 < length and command[index + 1] == "(":
+            if index + 2 < length and command[index + 2] == "(":
+                index += 2  # arithmetic expansion $(( ... )), not a command
+                continue
+            depth = 0
+            cursor = index + 1
+            while cursor < length:
+                if command[cursor] == "(":
+                    depth += 1
+                elif command[cursor] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                cursor += 1
+            if depth == 0:
+                results.append(command[index + 2 : cursor])
+                index = cursor + 1
+                continue
+        if char == "`":
+            end = command.find("`", index + 1)
+            if end != -1:
+                results.append(command[index + 1 : end])
+                index = end + 1
+                continue
+        index += 1
+    return results
+
+
 def evaluate_command(command: str) -> Decision | None:
     raw_decision = raw_command_decision(command)
     if raw_decision:
         return raw_decision
     warning: Decision | None = None
+    for inner in extract_command_substitutions(command):
+        decision = evaluate_command(inner)
+        if decision:
+            if decision.kind == "deny":
+                return decision
+            warning = warning or decision
     for segment in command_segments(split_tokens(command)):
         decision = segment_decision(segment)
         if not decision:

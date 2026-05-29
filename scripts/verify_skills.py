@@ -561,6 +561,16 @@ def validate_routing_cases(context: ValidationContext, entries: list[SkillEntry]
             text = skill_text_by_name[skill]
             if not any(term in text for term in terms):
                 fail(f"ROUTING CASE UNCOVERED: {case_id} expected {skill} to mention one of match_terms")
+
+        expected_text = "\n".join(skill_text_by_name[skill] for skill in expected)
+        for rejected_skill in rejected:
+            if rejected_skill not in expected_text:
+                fail(
+                    f"ROUTING CASE MISSING REJECT BOUNDARY: {case_id} rejects {rejected_skill} "
+                    f"but no expected skill ({', '.join(expected)}) declares a boundary mentioning it. "
+                    "Add an explicit boundary note (e.g. 与 <reject> 区别 / 不要用 <reject>) so the agent "
+                    "knows why not to route there."
+                )
     return len(payload)
 
 

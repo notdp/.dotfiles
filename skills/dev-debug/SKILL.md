@@ -6,6 +6,8 @@ argument-hint: <bug 描述|错误信息|复现步骤>
 
 # Debug
 
+与 think-plan 区别：bug、错误、复现不稳定先进本 skill 定位根因，不要直接进 think-plan 做方案设计；根因清楚后若需大改再转 think-plan。
+
 ## 1. 收集信息
 
 如果 `$ARGUMENTS` 非空，将其作为 bug 描述的起点。否则交互式收集：

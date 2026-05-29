@@ -265,6 +265,70 @@ class HookBoundaryGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
+    def test_stays_quiet_for_prod_substring_false_positives(self) -> None:
+        for prompt in ("帮我 reproduce 这个登录 bug", "整理一下 product backlog 优先级", "提升团队生产效率"):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                transcript = repo / "session.jsonl"
+                self.write_transcript(transcript, {"type": "user", "message": {"content": prompt}})
+                result = self.run_gate(repo, transcript)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(json.loads(result.stdout)["suppressOutput"], f"unexpected gate for: {prompt}")
+
+    def test_still_gates_real_production_side_effect(self) -> None:
+        for prompt in ("改一下 prod 环境配置", "部署到生产环境前确认"):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                transcript = repo / "session.jsonl"
+                self.write_transcript(transcript, {"type": "user", "message": {"content": prompt}})
+                result = self.run_gate(repo, transcript)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("systemMessage", payload, f"expected gate for: {prompt}")
+            self.assertIn("User approval", payload["systemMessage"])
+
+    def test_stays_quiet_for_shared_path_word_false_positives(self) -> None:
+        for prompt in ("写个集成测试覆盖登录流程", "wrap up 当前工作做个收尾"):
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                transcript = repo / "session.jsonl"
+                self.write_transcript(transcript, {"type": "user", "message": {"content": prompt}})
+                result = self.run_gate(repo, transcript)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(json.loads(result.stdout)["suppressOutput"], f"unexpected gate for: {prompt}")
+
+    def test_recommends_gitops_for_outside_repo_agent_config_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(transcript, {"type": "user", "message": {"content": "顺手改一下 kilo 配置"}})
+
+            result = self.run_gate(
+                repo,
+                transcript,
+                tool_input={"file_path": "/home/user/.config/kilo/settings.json"},
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("systemMessage", payload)
+        self.assertIn("guard-gitops", payload["systemMessage"])
+
+    def test_no_gitops_advisory_for_in_repo_config_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            transcript = repo / "session.jsonl"
+            self.write_transcript(transcript, {"type": "user", "message": {"content": "改一下仓库里的配置模板"}})
+
+            result = self.run_gate(
+                repo,
+                transcript,
+                tool_input={"file_path": str(repo / ".claude" / "settings.json")},
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
     def test_legacy_wrapper_delegates_to_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

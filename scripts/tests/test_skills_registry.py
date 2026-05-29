@@ -296,6 +296,60 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("UNKNOWN ROUTING SKILL", result.stderr)
 
+    def test_verify_script_requires_reject_skill_boundary_declaration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            dev_dir = repo / "skills" / "dev-demo"
+            think_dir = repo / "skills" / "think-demo"
+            fixture_dir = repo / "scripts" / "fixtures"
+            dev_dir.mkdir(parents=True)
+            think_dir.mkdir(parents=True)
+            fixture_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"},
+                            {"name": "think-demo", "path": "skills/think-demo", "domain": "think", "role": "canonical"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            # dev-demo body never mentions the rejected sibling think-demo
+            (dev_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当修 bug 时使用；demo\n---\n# demo\n修 bug。\n",
+                encoding="utf-8",
+            )
+            (think_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当规划时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+            (fixture_dir / "skill_routing_cases.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "missing-boundary",
+                            "input": "修 bug",
+                            "expected_skills": ["dev-demo"],
+                            "reject_skills": ["think-demo"],
+                            "match_terms": ["bug"],
+                            "why": "demo",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("REJECT BOUNDARY", result.stderr)
+
     def test_verify_script_reports_agent_asset_missing_required_field(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
