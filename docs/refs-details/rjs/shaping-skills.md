@@ -54,6 +54,11 @@
 | C5 | `think-plan` / `guard-close` | flagged-unknown 三段论：决策矩阵里"知道 what 不知道 how"强制 ❌ + 挂 spike | L2 | 低-中（与 Truth Directive 同源） |
 | — | framing-doc / kickoff-doc 整体搬运 | 不建议（ground truth 取向不匹配） | — | — |
 
+## 吸收状态（2026-05-29，保守）
+
+- **已吸收 → `skill-authoring.md` §0**：C1 的"结构化产物以表/schema 为 SSOT、图为派生视图"原则；C5 的"二元判定 + 显式 unknown"原则。均为纯文档、不改 runtime。
+- **推迟（稳定优先）**：C2（think-plan 的 R/S 分离 + fit 矩阵，改输出格式）、C3（Naming Test 进 review，普适性待验证）、C4 类（ripple hook，新 hook 行为）。这些改 skill 运行时契约或新增 hook，按"稳定比破坏性提升更重要"暂不做，保留为 backlog。
+
 ## 关键文件
 
 - `README.md`

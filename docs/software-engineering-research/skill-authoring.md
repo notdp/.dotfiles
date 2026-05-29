@@ -38,6 +38,15 @@ Command 可以引用多个 skill；本仓库不采用“禁止跨插件引用”
 | 给出结构化输出，让 review 和验证可扫描 | 把长篇产品手册或工具文档复制进正文 |
 | 把可自动化部分下沉给脚本/CI | 依赖模型自觉执行可脚本化检查 |
 
+### 外部吸收的编写原则（shaping-skills / compound-engineering）
+
+参考：`docs/refs-details/rjs/shaping-skills.md`、`docs/refs-details/EveryInc/compound-engineering-plugin.md`。以下是从两个 ref 提炼、广泛适用且不改 runtime 的编写原则（保守吸收，L2）：
+
+- **按失败模式校准约束强度**（compound）：deterministic safety（数据、远程、不可逆）写 hard rule；judgment call 写 strong guidance + 一对 good/bad 例子；其余给 trust，不要过度规定。判据：能否说出这条规则防止的具体坏结果；说不出就别写成硬规则。
+- **区分 runtime 与 authoring context**（compound）：治理 skill **运行时行为**的规则必须写进 `SKILL.md`（每次触发都加载），不能只写在编写期才读的文档里；rationale 只在"会改变运行时行为"时才进 SKILL.md，否则进 commit message / docs，避免每次加载的正文膨胀。
+- **结构化产物以表/schema 为唯一事实源**（shaping）：复杂产物（依赖表、状态机、规则表、流程草图）让表/schema 当 SSOT，图和散文是派生视图；改动先改 SSOT 再改派生，禁止只在派生视图里加未登记内容。
+- **二元判定 + 显式 unknown**（shaping）：高风险判定用二元（满足/不满足），把"知道 what 不知道 how"显式标为未完成而非乐观标过，与 Truth Directive 的 `[推断]/[未验证]` 同源；不确定项必须挂后续动作（spike / 验证）。
+
 工作流型 skill 新增或大改时，正文必须至少包含以下一类质量门：
 
 - Evidence / 验证 / 验收：什么证据能支持结论或交付

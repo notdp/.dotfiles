@@ -67,6 +67,12 @@
 
 **最高价值单点**：C2（read-side 默认接入）。compound 的复利来自"写的东西被 plan/review 自动消费"；本仓库有 `assist-learn` 写入端，[推断] 缺"工作前自动查历史经验"的读取端，正是复利不闭合的断点。
 
+## 吸收状态（2026-05-29，保守）
+
+- **已吸收 → `skill-authoring.md` §0**：C6 的"按失败模式校准约束强度（hard rule / guidance / trust）"和"区分 runtime 与 authoring context"两条编写原则。纯文档、不改 runtime。
+- **推迟（稳定优先）**：C1（assist-learn 结构化 frontmatter schema）、C2（grep-first learnings-researcher read-side 自动接入）、C3（Discoverability 自检）、C4（五态维护）、C5（guard-review 置信度锚点 + cross-reviewer + autofix 路由）。这些新增能力或改 review 契约，影响面大，按"稳定优先"暂不做。
+- **最高价值 backlog**：C2 read-side 自动接入是 compound 复利闭环的关键，也是本仓库 `assist-learn` [推断] 的最大缺口；建议未来单独走 `/think-plan` 评估（需先定 C1 的统一 learning 落点与 schema），不在本轮保守改进内。
+
 ## 关键文件
 
 - `README.md`、`AGENTS.md`、`CLAUDE.md`、`package.json`
