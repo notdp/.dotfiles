@@ -138,18 +138,18 @@ class ConfirmCommandTests(unittest.TestCase):
 
 
 def valid_config() -> dict:
-    def role(backend, variant, autonomy, **extra):
-        return {"backend": backend, "model": "m", "variant": variant, "autonomy": autonomy, **extra}
+    def role(backend, autonomy, **extra):
+        return {"backend": backend, "model": "m", "autonomy": autonomy, **extra}
     cmd = "claude --dangerously-skip-permissions"
     return {
         "version": 2,
         "roles": {
-            "scaffold_orchestrator": role("kilo", "xhigh", "medium"),
-            "scaffold_reviewer": role("claude_cli", "max", "off", cmd=cmd),
-            "loop_orchestrator": role("kilo", "low", "medium"),
-            "phase_planner": role("kilo", "xhigh", "low"),
-            "phase_coder": role("kilo", "high", "high"),
-            "phase_reviewer": role("claude_cli", "max", "off", cmd=cmd),
+            "scaffold_orchestrator": role("kilo", "medium"),
+            "scaffold_reviewer": role("claude_cli", "off", cmd=cmd),
+            "loop_orchestrator": role("kilo", "medium"),
+            "phase_planner": role("kilo", "low"),
+            "phase_coder": role("kilo", "high"),
+            "phase_reviewer": role("claude_cli", "off", cmd=cmd),
         },
     }
 
@@ -167,12 +167,6 @@ class ConfigValidationTests(unittest.TestCase):
     def test_unknown_backend_rejected(self) -> None:
         cfg = valid_config()
         cfg["roles"]["phase_coder"]["backend"] = "gemini"
-        with self.assertRaises(ValueError):
-            lr2.validate_config(cfg)
-
-    def test_bad_variant_rejected(self) -> None:
-        cfg = valid_config()
-        cfg["roles"]["phase_coder"]["variant"] = "turbo"
         with self.assertRaises(ValueError):
             lr2.validate_config(cfg)
 

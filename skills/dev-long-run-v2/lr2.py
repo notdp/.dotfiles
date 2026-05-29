@@ -52,8 +52,6 @@ def validate_config(config: dict) -> dict:
     for name, role in roles.items():
         if role.get("backend") not in BACKENDS:
             raise ValueError(f"role {name}: unknown backend {role.get('backend')!r}")
-        if role.get("variant") not in VARIANTS:
-            raise ValueError(f"role {name}: bad variant {role.get('variant')!r}")
         if role.get("autonomy") not in AUTONOMY:
             raise ValueError(f"role {name}: bad autonomy {role.get('autonomy')!r}")
         if role["backend"] == "claude_cli" and not role.get("cmd"):
@@ -100,11 +98,6 @@ def plan_worktree(repo_root: Path, slug: str, in_place: bool, current_branch: st
             )
         return {"worktree_path": str(Path(repo_root)), "branch": current_branch, "create": False}
     return {"worktree_path": str(worktree_path(repo_root, slug)), "branch": branch_name(slug), "create": True}
-
-
-# variant 词表(L13)。决策(2026-05-29): TUI 长驻 pane 用默认思考等级, 不按 role 注入 variant;
-# 本表仅用于 config 的 variant 字段 enum 校验(意图标注 + typo 卫生), 不再驱动 launch effort。
-VARIANTS = ("low", "medium", "high", "xhigh", "max")
 
 
 SESSION_COLUMNS = ("role", "phase", "pane_id", "started_at", "last_seen", "status")
@@ -420,41 +413,36 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
 def default_config_yaml(slug: str) -> str:
     return f"""version: 2
 
-# dev-long-run-v2 角色配置。L19/L21: worker pane 的思考等级由"模型默认"决定(kilo TUI 无 --variant flag);
-# 想要高思考的 worker 用默认就是 xhigh 的模型别名 cliproxy/gpt-5.5-xhigh。variant 字段仅意图标注,不注入。
-# scaffold/loop orchestrator = 用户对话的 agent(无 pane),其 model 字段无效,留作记录。
+# dev-long-run-v2 角色配置。思考等级**由 model 显式承载,没有单独的 variant 字段**(避免标签与实际不符):
+#   - kilo worker: effort = 模型默认(gpt-5.5-xhigh→xhigh / gpt-5.5→medium / gpt-5.5-fast→low);kilo TUI 无 --variant flag。
+#   - claude_cli reviewer: cmd 不传 --model/--effort → 用 claude CLI 默认(当前 Opus 4.8 @ high,自动跟最新);下方 model 仅记录。
+#   - scaffold/loop orchestrator = 用户对话的 agent(无 pane),backend/model 字段不生效,仅占位。
 roles:
   scaffold_orchestrator:
     backend: kilo
-    model: cliproxy/gpt-5.5
-    variant: xhigh
+    model: cliproxy/gpt-5.5     # 不生效(orchestrator = 对话 agent)
     autonomy: medium
   scaffold_reviewer:
     backend: claude_cli
     cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-8
-    variant: max
+    model: claude-opus-4-8      # 仅记录;实际用 claude CLI 默认(Opus 4.8 @ high)
     autonomy: off
   loop_orchestrator:
     backend: kilo
-    model: cliproxy/gpt-5.5-fast
-    variant: low
+    model: cliproxy/gpt-5.5-fast  # 不生效(orchestrator = 对话 agent)
     autonomy: medium
   phase_planner:
     backend: kilo
-    model: cliproxy/gpt-5.5-xhigh
-    variant: xhigh
+    model: cliproxy/gpt-5.5-xhigh  # effort=xhigh(模型默认)
     autonomy: low
   phase_coder:
     backend: kilo
-    model: cliproxy/gpt-5.5-xhigh
-    variant: high
+    model: cliproxy/gpt-5.5-xhigh  # effort=xhigh(模型默认)
     autonomy: high
   phase_reviewer:
     backend: claude_cli
     cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-8
-    variant: max
+    model: claude-opus-4-8      # 仅记录;实际用 claude CLI 默认(Opus 4.8 @ high)
     autonomy: off
 
 policy:
