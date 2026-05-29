@@ -20,12 +20,24 @@ argument-hint: <主题|变更|经验点>
 2. 提炼“这次真正学到的模式”，不是流水账
 3. 记录证据、边界和下次可复用的动作
 4. 需要骨架时先解析本 skill 的安装目录，运行 `<skill_dir>/scripts/scaffold_note.py`
+5. 落点：写入当前项目的 `docs/learnings/<category>/<slug>.md`（canonical store），顶部 frontmatter（`title`/`date`/`problem_type`/`module`/`component`/`tags`）便于检索
+
+## Read-side 回查（opt-in，开工前可选）
+
+吸收自 compound-engineering 的复利闭环（`docs/refs-details/EveryInc/compound-engineering-plugin.md`）：写入的经验只有被回查才产生复利。开工前可主动搜历史经验，**这是 opt-in 工具，不自动注入每个流程**：
+
+```bash
+python3 <skill_dir>/scripts/learnings_search.py <关键词...>   # 默认搜 ./docs/learnings
+```
+
+返回 top 命中的路径 + frontmatter 摘要（不展开全文）；命中后再打开对应 note 读 Reusable Pattern。debug / plan / research 前判断"是否踩过同类问题"时尤其值得先跑一次。
 
 ## 资产
 
 - `references/learning-loop.md`
-- `templates/learning-note.md`
+- `templates/learning-note.md`（含检索用 frontmatter）
 - `scripts/scaffold_note.py`
+- `scripts/learnings_search.py`（opt-in 历史经验检索）
 
 ## 边界
 
