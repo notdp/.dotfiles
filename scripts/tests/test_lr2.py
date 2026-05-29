@@ -190,6 +190,24 @@ class ConfigValidationTests(unittest.TestCase):
             lr2.validate_config(cfg)
 
 
+class WorkerStatusTests(unittest.TestCase):
+    def test_done_with_detail(self) -> None:
+        self.assertEqual(lr2.parse_worker_status("done commit=2e49a706\n"), ("done", "commit=2e49a706"))
+
+    def test_blocked(self) -> None:
+        self.assertEqual(lr2.parse_worker_status("blocked reviewer rejected all"), ("blocked", "reviewer rejected all"))
+
+    def test_bare_state(self) -> None:
+        self.assertEqual(lr2.parse_worker_status("coding"), ("coding", ""))
+
+    def test_empty_is_unknown(self) -> None:
+        self.assertEqual(lr2.parse_worker_status(""), ("unknown", ""))
+
+    def test_garbage_is_unknown(self) -> None:
+        # 不在已知 state 词表 → unknown(避免把 prose 误判成完成)
+        self.assertEqual(lr2.parse_worker_status("almost done maybe")[0], "unknown")
+
+
 class YamlLoaderTests(unittest.TestCase):
     def test_loads_generated_config_and_passes_validate(self) -> None:
         cfg = lr2.load_yaml(lr2.default_config_yaml("demo"))

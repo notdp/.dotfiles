@@ -58,7 +58,7 @@ python3 ~/.dotfiles/skills/dev-long-run-v2/lr2.py launch --workspace <ws> --role
 3. `lr2.py launch --role phase_reviewer --mode split-down` → 轮询 `phases/<id>/review.md` 写好 → 关。
 4. `lr2.py send --pane <coder> --text "<review>"` → coder 写 `ack.md` 逐项 ack + 修 → **commit 本 phase 到分支(L14)**。
 5. 在对话里告诉用户「Phase N 完成,要点…,继续/收尾/停?」,等用户自然语言回。
-- **检测 worker 完成:轮询它该写的文件 mtime,绝不抓屏**(spike 证明抓屏不可靠)。
+- **检测 worker 完成:用 `lr2.py await --status phases/<id>/<role>.status --pane <pane>`**(查机器可读 status token + 每轮查 pane 死活 + 有界超时;退出码 DONE/BLOCKED/DEAD/TIMEOUT/COMPACT)。worker 完成时写自己的 `.status` 文件。**绝不手写 `sleep(60)` 去 grep prose**(coder 早完成也等不到、还查不出 pane 死活——这正是卡死过的坑),也绝不抓屏。
 
 **派发 prompt 写法(可观测性)**:`lr2.py launch` 自动注入的初始 prompt 已是多行结构化(经 bracketed paste 进 pane,窗口里按原排版可读)。你额外 `lr2.py send --text` 补派发任务时,**也写成多行结构化**(`--text` 里直接放换行),固定这几段,方便用户从窗口直接看清:
   ```

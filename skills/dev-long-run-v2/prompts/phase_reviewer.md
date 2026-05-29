@@ -11,7 +11,10 @@
   - `## Refactor`：复用 / 结构 / 可读性
 - 每项标 `[blocker]` / `[should]` / `[nit]`，给 `文件:行号` + 证据。
 
+## 完成信号(机器可读)
+- 写完 `review.md` 后,写 **`phases/<id>/phase_reviewer.status` = `done`**。orchestrator 靠它判完成,别只在 pane 里说。
+
 ## 约束
 - 只读，不动代码、不跑命令。
-- 写完 `review.md` 即结束本轮，pane 可关。
+- 状态写 done 后即结束本轮，pane 可关。
 - 单轮可能漏深层 bug —— 由端到端 acceptance verifier 兜底，不在此追全。

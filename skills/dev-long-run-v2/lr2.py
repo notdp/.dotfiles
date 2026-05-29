@@ -228,6 +228,23 @@ def pane_is_alive(list_panes_output: str, pane_id: str) -> bool:
     return pane_id in list_panes_output.split()
 
 
+WORKER_STATES = ("coding", "done", "blocked", "compact")
+
+
+def parse_worker_status(text: str) -> tuple[str, str]:
+    """解析 worker 写的 status 文件首行 → (state, detail)。
+    机器可读的完成信号, 取代"grep prose 字符串"那种脆弱轮询。未知 state 一律 unknown。"""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return ("unknown", "")
+    parts = lines[0].split(None, 1)
+    state = parts[0].lower()
+    detail = parts[1].strip() if len(parts) > 1 else ""
+    if state not in WORKER_STATES:
+        return ("unknown", lines[0])
+    return (state, detail)
+
+
 def find_live_role_pane(rows: list[dict[str, str]], role: str, list_panes_output: str) -> str | None:
     """找某 role 仍存活的 running pane(L6 改:每 phase 开始时据此关掉上一个 coder)。"""
     for row in rows:
@@ -611,6 +628,33 @@ def cmd_pane_alive(args: argparse.Namespace) -> int:
     return 0 if pane_is_alive(live, args.pane) else 1
 
 
+def cmd_await(args: argparse.Namespace) -> int:
+    """健壮地等 worker 完成: 轮询 status 文件 token + 查 pane 死活 + 有界超时 + 短间隔。
+    退出码: 0 DONE / 2 BLOCKED / 3 DEAD(pane 没了) / 4 TIMEOUT / 5 COMPACT。不 grep prose。"""
+    status_path = Path(args.status)
+    deadline = time.monotonic() + args.timeout
+    while time.monotonic() < deadline:
+        if args.pane:
+            live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+            if not pane_is_alive(live, args.pane):
+                sys.stdout.write(f"DEAD {args.pane} (status 未达 done; pane 没了)\n")
+                return 3
+        text = status_path.read_text(encoding="utf-8") if status_path.exists() else ""
+        state, detail = parse_worker_status(text)
+        if state == "done":
+            sys.stdout.write(f"DONE {detail}\n")
+            return 0
+        if state == "blocked":
+            sys.stdout.write(f"BLOCKED {detail}\n")
+            return 2
+        if state == "compact":
+            sys.stdout.write(f"COMPACT {detail}\n")
+            return 5
+        time.sleep(args.interval)
+    sys.stdout.write(f"TIMEOUT after {args.timeout}s (status={status_path})\n")
+    return 4
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).resolve()
     state = load_state(workspace / "state.json")
@@ -662,6 +706,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pane", required=True)
     p.add_argument("--text", required=True)
     p.set_defaults(func=cmd_send)
+
+    p = sub.add_parser("await", help="(orchestrator 调用) 健壮等 worker 完成: 轮询 status 文件 + 查 pane 死活")
+    p.add_argument("--status", required=True, help="worker 写的 status 文件路径(phases/<id>/<role>.status)")
+    p.add_argument("--pane", help="worker pane id; 给了就每轮查死活, 死了立即 DEAD 退出")
+    p.add_argument("--timeout", type=int, default=1800, help="有界超时秒数(默认 1800)")
+    p.add_argument("--interval", type=int, default=5, help="轮询间隔秒(默认 5)")
+    p.set_defaults(func=cmd_await)
 
     p = sub.add_parser("sessions", help="打印 SESSIONS.md + pane 存活")
     p.add_argument("--workspace", required=True)

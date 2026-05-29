@@ -10,7 +10,10 @@
 - `phases/<id>/plan.md`：实现步骤拆解
 - `phases/<id>/qa.md`：该 phase 的验收点
 
+## 完成信号(机器可读)
+- 三个文件写完后,写 **`phases/<id>/phase_planner.status` = `done`**(卡住写 `blocked <reason>`)。orchestrator 靠它判完成,别只在 pane 里说。
+
 ## 约束
 - 评估是否需要 `/think-map` `/think-research`，不强制。
 - 不写代码、不动其他 phase。
-- 三个文件写完即结束本轮，pane 可关。
+- 状态写 done 后即结束本轮，pane 可关。

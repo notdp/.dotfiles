@@ -10,14 +10,14 @@
 - 起 pane：`lr2.py launch --workspace <ws> --role <role> [--phase NN] [--mode split-right|split-down]`
 - 发指令：`lr2.py send --pane <pane_id> --text "<prompt>"`
 - 看存活：`lr2.py sessions --workspace <ws>`
-- **检测某角色完成：轮询它该写的文件 mtime（HANDOFF.md / review.md / ack.md），绝不靠抓屏判断**（spike 证明抓屏不可靠）
+- **检测 worker 完成:一律用 `lr2.py await --status phases/<id>/<role>.status --pane <pane> --timeout 1800 --interval 5`**。它查机器可读的 status token + **每轮查 pane 死活** + 有界超时,按退出码处理:`0 DONE` / `2 BLOCKED` / `3 DEAD(pane 没了→重开 fresh 读 HANDOFF 或标 failed)` / `4 TIMEOUT` / `5 COMPACT`。**绝不要手写 `sleep(60)` 去 grep prose 字符串**(那样 coder 早完成你也等不到, 还查不出 pane 死没死)。
 
 ## 每 phase 循环
 1. 读 `fix_plan.md` 选下一个未完成 phase。
-2. 开 planner pane → 让它增强 `phases/<id>/{research,plan,qa}.md` → 轮询文件写好 → 关 planner。
-3. 开/复用 phase coder pane（**跨 phase 复用，不重开**）→ 让它实现 → 轮询 `HANDOFF.md` 更新完成。
-4. 开 reviewer pane（split-down）→ 让它读 diff+spec 写 `phases/<id>/review.md` → 轮询写好 → 关 reviewer。
-5. `lr2.py send` 把 review 内容发给 coder pane → coder 写 `phases/<id>/ack.md` 逐项 ack,按优先级修(**blocker 必修;低成本非阻塞也修;高成本非阻塞入 `BACKLOG.md`**)→ **commit 本 phase 改动到分支（L14）**。
+2. 开 planner pane → 让它增强 `phases/<id>/{research,plan,qa}.md` → `lr2.py await --status phases/<id>/phase_planner.status --pane <planner>` → 关 planner。
+3. 关掉上一 phase 的 coder、开 fresh coder(L6,工具自动)→ 让它实现 → `lr2.py await --status phases/<id>/phase_coder.status --pane <coder>`。
+4. 开 reviewer pane（split-down）→ 让它写 `phases/<id>/review.md` → `lr2.py await --status phases/<id>/phase_reviewer.status --pane <reviewer>` → 关 reviewer。
+5. `lr2.py send` 把 review 内容发给 coder pane → coder 逐项 ack 按优先级修(**blocker 必修;低成本非阻塞也修;高成本非阻塞入 `BACKLOG.md`**)→ **commit + 写 `phase_coder.status = done commit=<hash>`(L14)** → 再 `await` coder。
 6. 全 blocker 被 coder reject → 写 `BACKLOG.md` 的 disputed 项，escalate 给用户，不仲裁（L5）。
 7. 进入 wait_confirm：**在对话里**告诉用户「Phase <id> 完成,要点是…,继续下一个 / 收尾 / 卡住?」,等用户用自然语言回。
 
