@@ -40,6 +40,27 @@ flowchart TD
 
 默认从 L0-L2 开始。L4 需要单独说明触发条件、边界和验证；L5 必须非常克制，只有长期、全局、不可下沉到脚本或 skill 的硬约束才允许进入。
 
+## Captured Reference Doc Structure
+
+短参考（micro-ref，非 `refs/` submodule，通常来自用户摘录或单篇文章）写入 `docs/software-engineering-research/` 时，按统一结构写，让它"出生即可提升"，而不是停在散文笔记。模板范例：`conditional-control-risk.md`、`prompt-pressure-risk.md`。
+
+固定章节：
+
+| 章节 | 内容 |
+|---|---|
+| 核心观点 | 1-3 句事实摘要；来源不可验证时标 `[未验证]` |
+| 可迁移模式 / 工程结论 | 把观点转成可操作的 pattern 或规则 |
+| 与现有资产映射 | 表格列 `Asset / Relevance / Suggested use`，指向具体 skill / command / hook / doc |
+| Adoption level | 当前 L0-L5 级别 + 下一级候选（哪个 asset、什么形式） |
+| Usage checklist | 可在相关工作前自检的轻量清单（可选） |
+| Premise collapse | 写明把结论过度外推会变成什么错误，划定更窄的正确边界 |
+
+提升与登记：
+
+- 每条 micro-ref 同时在 `docs/refs-micro-index.md` registry 登记，`status` 从 `observe` 起。
+- 当 doc 里的"下一级候选"被真正写进目标 asset 后，目标 asset 应**反向引用**该 ref doc，registry `status` 改 `absorbed`，并记证据落点。
+- 只登记、目标 asset 不反向引用的，视为 registry-only，仍是 `observe`，不算 `absorbed`。
+
 ## Decision Matrix
 
 | 维度 | 高分信号 | 低分信号 |

@@ -47,7 +47,8 @@ Template example, not part of the registry and not included in stale checks:
 
 | id | source | captured_at | owner | category | summary | key claim | evidence level | mapped assets | absorption level | status | last_checked |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `micro-none-2026-05-27` | `local maintenance review` | `2026-05-27` | `Kilo` | `workflow` | 当前没有已批准进入本 registry 的 active micro refs；本行用于区分“空表已复核”和“尚未启用”。 | 空 registry 必须显式记录状态，否则维护审查无法判断是否漏填。 | `practice` | `/skill-maintenance`, `docs/refs-micro-index.md` | `L1` | `observe` | `2026-05-27` |
+| `micro-2026-05-29-conditional-control-risk` | `user excerpt; original title and URL not provided` | `2026-05-29` | `Kilo` | `skill-authoring` | [未验证] 摘录把否定忽略、接种式提示和后门不鲁棒归纳为同一类条件边界学习风险：模型可能吸收被限定的行为，而没有稳定学会免责声明、触发词或否定条件。 | 高风险 prompt / skill 不能只靠免责声明式控制；应使用正反 contract cases、局部限定、替代动作和模型外验证。 | `anecdote` | `docs/software-engineering-research/conditional-control-risk.md`, `docs/software-engineering-research/skill-authoring.md`（已反向引用）, `skills/guard-verify/SKILL.md` | `L2` | `absorbed` | `2026-05-29` |
+| `micro-2026-05-29-correlated-decisions` | `user excerpt; original title and URL not provided` | `2026-05-29` | `Claude` | `workflow` | [未验证] 用相关决策视角解释坏习惯："就这一次"其实代表一整类未来选择，因为未来的你会复用同一套决策算法；定位为自我管理技巧而非严格决策理论。 | 把"破例一次"重述为"我正在决定这类场景的默认算法"；映射到 AI 编程纪律：跳过测试/让 AI 糊一下/不读 diff/开新坑都是在训练未来的坏默认。 | `anecdote` | `docs/software-engineering-research/correlated-decisions.md`, `skills/guard-close/SKILL.md`（observe 映射，未改 skill） | `L1` | `observe` | `2026-05-29` |
 
 ## Review Output
 
