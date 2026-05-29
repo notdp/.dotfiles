@@ -225,14 +225,43 @@ def desired_droid_settings(current: dict[str, Any]) -> dict[str, Any]:
     return next_settings
 
 
+def _droid_default_id(family_is_claude: bool) -> str:
+    """新 customModels 里某 family 的默认档(裸名)条目 id。"""
+    backend = "claude-opus-4-8" if family_is_claude else "gpt-5.5"
+    return f"custom:{backend}"
+
+
+def _remap_droid_pointer(pointer: Any, old_models_by_id: dict[str, dict[str, Any]]) -> Any:
+    """把指向 custom: 模型的默认指针重映射到新默认(按 family), 防止接管 customModels 后悬空。"""
+    if not isinstance(pointer, str) or not pointer.startswith("custom:"):
+        return pointer
+    old_backend = str(old_models_by_id.get(pointer, {}).get("model", ""))
+    is_claude = "claude" in old_backend or "opus" in old_backend or "opus" in pointer.lower() or "claude" in pointer.lower()
+    return _droid_default_id(is_claude)
+
+
 def desired_droid_model_settings(current: dict[str, Any]) -> dict[str, Any]:
     next_settings = dict(current)
-    # 接管 customModels: 用统一 spec 生成的 10 个(覆盖现有, "其它模型都不要")
+    old_by_id = {m["id"]: m for m in current.get("customModels", []) if isinstance(m, dict) and "id" in m}
+    # 接管 customModels: 用统一 spec 生成的(覆盖现有, "其它模型都不要")
     next_settings["customModels"] = build_droid_custom_models()
     next_settings["compactionTokenLimit"] = DROID_COMPACTION_TOKEN_LIMIT
     next_settings["compactionTokenLimitPerModel"] = {
         model["id"]: DROID_COMPACTION_TOKEN_LIMIT for model in next_settings["customModels"]
     }
+    # 同步默认指针: 否则它们指向被删的旧 custom id(悬空)
+    sds = next_settings.get("sessionDefaultSettings")
+    if isinstance(sds, dict) and "model" in sds:
+        sds = dict(sds)
+        sds["model"] = _remap_droid_pointer(sds["model"], old_by_id)
+        next_settings["sessionDefaultSettings"] = sds
+    mms = next_settings.get("missionModelSettings")
+    if isinstance(mms, dict):
+        mms = dict(mms)
+        for key in ("workerModel", "validationWorkerModel"):
+            if key in mms:
+                mms[key] = _remap_droid_pointer(mms[key], old_by_id)
+        next_settings["missionModelSettings"] = mms
     return next_settings
 
 

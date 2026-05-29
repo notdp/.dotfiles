@@ -324,6 +324,33 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["compactionTokenLimitPerModel"]["custom:claude-opus-4-8-max"], 600000)
         self.assertNotIn("contextWindow", json.dumps(payload))
 
+    def test_droid_default_pointers_remapped_not_dangling(self) -> None:
+        # 接管 customModels 后, 默认指针必须重映射到存在的新 id(不能指向被删的旧 custom id)
+        import sys as _sys
+        _sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        import install_hooks as ih
+        current = {
+            "customModels": [
+                {"id": "custom:GPT-5.5-Fast-1", "model": "gpt-5.5"},
+                {"id": "custom:Claude-Opus-4.7-0", "model": "claude-opus-4-7"},
+                {"id": "custom:GPT-5.5-1", "model": "gpt-5.5"},
+            ],
+            "sessionDefaultSettings": {"model": "custom:GPT-5.5-Fast-1", "reasoningEffort": "high"},
+            "missionModelSettings": {
+                "workerModel": "custom:Claude-Opus-4.7-0",
+                "validationWorkerModel": "custom:GPT-5.5-1",
+            },
+        }
+        out = ih.desired_droid_model_settings(current)
+        ids = {m["id"] for m in out["customModels"]}
+        self.assertEqual(out["sessionDefaultSettings"]["model"], "custom:gpt-5.5")
+        self.assertEqual(out["missionModelSettings"]["workerModel"], "custom:claude-opus-4-8")
+        self.assertEqual(out["missionModelSettings"]["validationWorkerModel"], "custom:gpt-5.5")
+        for pid in (out["sessionDefaultSettings"]["model"],
+                    out["missionModelSettings"]["workerModel"],
+                    out["missionModelSettings"]["validationWorkerModel"]):
+            self.assertIn(pid, ids, f"{pid} 悬空")
+
     def test_kilo_print_preserves_config_and_adds_dotfiles_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
