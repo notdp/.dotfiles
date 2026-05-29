@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>long-run-v2 上手操作手册(首次使用)</title>
+<style>
+:root { color-scheme: light; --bg: #f8fafc; --panel: #ffffff; --text: #111827; --muted: #64748b; --border: #dbe3ef; --accent: #1f4b99; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 20px 48px; }
+header { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+section { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.2; margin: 1.4em 0 0.5em; }
+header h1 { margin-top: 0; }
+p { margin: 0.75em 0; }
+ul { padding-left: 1.4rem; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 14px; border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef4ff; }
+.meta { color: var(--muted); font-size: 0.92rem; }
+.badge { display: inline-block; background: #e0ecff; color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 0.82rem; margin-right: 8px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+<span class="badge">generic</span>
+<h1>long-run-v2 上手操作手册(首次使用)</h1>
+<div class="meta">Source: skills/long-run-v2/USAGE.md</div>
+<div class="meta">Generated: 2026-05-29T04:11:23+00:00</div>
+</header>
+<section>
+<h1>long-run-v2 上手操作手册(首次使用)</h1>
+<p>&gt; 状态:v0。整条管道实测跑通过,但完整多 phase 自动循环还没在真实任务上跑完过 —— 你这次是第一次实战,盯紧点。代码只落在独立 worktree + `lr2/&lt;slug&gt;` 分支,**main 永远不会被碰**,出事直接删 worktree + 删分支即可全退。</p>
+<h2>全景:它怎么跑</h2>
+<p>三个命令,对应三个阶段。中间你通过 attach 进 tmux 看 agent 干活、在 pane 里给指令。</p>
+<table><thead><tr><th>阶段</th><th>命令</th><th>谁在干活</th><th>你要做什么</th></tr></thead><tbody><tr><td>① 搭骨架</td><td>`scaffold`</td><td>scaffold orchestrator(kilo)+ reviewer(claude)</td><td>看它拆的 phase 合不合理</td></tr><tr><td>② 逐 phase 开发</td><td>`develop`</td><td>loop orchestrator 调度 planner/coder/reviewer</td><td>每个 phase 结束时打 `confirm next/done`</td></tr><tr><td>③ 崩溃恢复</td><td>`resume`</td><td>—</td><td>看 pane 死活,按提示恢复</td></tr></tbody></table>
+<p>记住一个变量,后面都用它:</p>
+<pre><code>LR2=~/.dotfiles/skills/long-run-v2/lr2.py</code></pre>
+<h2>前提(三个,缺一不可)</h2>
+<p>1. 在**目标项目的 git 仓库根目录**里(main 脏也行,流程不碰 main,只会警告)。 2. **在 tmux 里**(orchestrator 和 coder 都是 tmux pane;不在 tmux 里 attach 不进去看)。 3. kilo / claude 命令能正常跑。</p>
+<h2>步骤 ①:写需求 + scaffold</h2>
+<p>先在任意位置手写 `REQUIREMENT.md`,白话写清:要做什么、目标、怎样算做完。写得越清,后面质量越好。</p>
+<p>然后在项目根目录跑:</p>
+<pre><code>python3 $LR2 scaffold --requirement ~/REQUIREMENT.md --goal &quot;你的任务一句话&quot; --repo-root .</code></pre>
+<p>它会打印 4 个路径。**把 workspace 路径记下来**,后面两步都要用:</p>
+<pre><code>scaffold ready.
+  workspace: &lt;项目&gt;/.long-loop/&lt;日期&gt;_&lt;slug&gt;     ← 记这个
+  worktree : ../&lt;项目&gt;-lr2-&lt;slug&gt;                ← 代码改在这里
+  branch   : lr2/&lt;slug&gt;
+  orch pane: %552 (tmux attach -t lr2-&lt;slug&gt;)</code></pre>
+<p>这时 scaffold orchestrator 已经在一个 kilo pane 里跑起来了。attach 进去看:</p>
+<pre><code>tmux attach -t lr2-&lt;slug&gt;</code></pre>
+<p>它会读你的需求,产出 `SPEC_OVERVIEW.md` / `fix_plan.md` / 各 phase 的 `spec.md`,再开一个 claude reviewer 审一轮、自己改。</p>
+<p>**你这一步要做的**:看它拆出来的 phase 合不合理。不对就直接在 pane 里跟它说。看完按 `Ctrl-b` 再按 `d` 退出来(pane 继续活着)。</p>
+<h2>步骤 ②:develop 逐 phase 开发</h2>
+<p>scaffold 满意后:</p>
+<pre><code>python3 $LR2 develop --workspace &lt;步骤①记下的 workspace&gt;</code></pre>
+<p>loop orchestrator 起来,开始循环:planner 增强 → coder 实现 → reviewer 审一轮 → coder 逐项回应 + 修 + **commit 到 `lr2/` 分支** → 然后**停下来等你**。</p>
+<p>attach 进 orchestrator pane,它会提示:</p>
+<pre><code>Phase 01 complete. confirm next / confirm done / block &lt;reason&gt;</code></pre>
+<p>你**就在它这个 pane 里**直接打字:</p>
+<p>1. `confirm next` — 做下一个 phase 2. `confirm done` — 收尾(跑验收 + 出 `CLEANUP_PROPOSAL.md` + 扫 backlog) 3. `block 原因` — 卡住,记录原因</p>
+<p>phase 之间你可以去 worktree(`../&lt;项目&gt;-lr2-&lt;slug&gt;`)自己跑测试、看 diff、合 PR,再回来 `confirm next`。</p>
+<h2>步骤 ③:resume 恢复</h2>
+<p>pane 被误关、电脑重启、或你想接着上次:</p>
+<pre><code>python3 $LR2 resume --workspace &lt;workspace&gt;</code></pre>
+<p>它告诉你 worktree 在不在、每个 pane 死活,并给恢复建议(比如 coder pane 死了:重开 fresh 读 `HANDOFF.md` 续,或标 failed)。</p>
+<h2>tmux 速查(不熟 tmux 看这个)</h2>
+<table><thead><tr><th>你想做</th><th>按键 / 命令</th></tr></thead><tbody><tr><td>进入会话看 agent</td><td>`tmux attach -t lr2-&lt;slug&gt;`</td></tr><tr><td>退出但不杀 agent</td><td>先按 `Ctrl-b`,松开,再按 `d`</td></tr><tr><td>在多个 pane 间切换</td><td>`Ctrl-b` 然后方向键</td></tr><tr><td>看有哪些会话</td><td>`tmux ls`</td></tr><tr><td>看每个 pane 死活</td><td>`python3 $LR2 sessions --workspace &lt;ws&gt;`</td></tr></tbody></table>
+<h2>出问题先自查这几样</h2>
+<p>1. **看状态文件**:`&lt;workspace&gt;/state.json`(现在到哪一步)、`SESSIONS.md`(各 pane 注册表)、`logs.md`(流水)。 2. **看 pane 死活**:`python3 $LR2 sessions --workspace &lt;ws&gt;`。 3. **agent 跑偏了**:直接 attach 进它的 pane 纠正它,或在 orchestrator pane 打 `block 原因`。 4. **完全乱了想重来**:`tmux kill-session -t lr2-&lt;slug&gt;`,删 worktree(`git worktree remove --force ../&lt;项目&gt;-lr2-&lt;slug&gt;`),删分支(`git branch -D lr2/&lt;slug&gt;`),删 `.long-loop/&lt;workspace&gt;`。main 不受影响。</p>
+<p>遇到上面解决不了的,把**报错原文 + 你跑的命令 + `state.json` 内容**发给我。</p>
+<h2>这次实战要盯的点(v0)</h2>
+<ul><li>coder 的代码是否真的 commit 到了 `lr2/` 分支(去 worktree `git log` 看)。</li><li>orchestrator 是否在每个 phase 结束正确停下等你 confirm(而不是自己往下冲)。</li><li>reviewer 的 `phases/&lt;id&gt;/review.md` 是否真写出来了。</li></ul>
+<p>哪一条不对,就是个反馈点,发给我。</p>
+</section>
+</main>
+</body>
+</html>
