@@ -238,6 +238,92 @@ def parse_worker_status(text: str) -> tuple[str, str]:
     return (state, detail)
 
 
+# ---------------------------------------------------------------------------
+# 完成闸门(gate): 把"phase 完成 / run completed"从 prose 声明变成机器可检查的状态转换。
+# 背景: 首次实战(00167-00173)中 phase 标 [x] 完成时验证从没真跑、reviewer blocker 被
+# 静默放行、acceptance verifier 仅写在文档里没执行 → 半成品被当成完成品交付。
+# ---------------------------------------------------------------------------
+def verify_summary(exit_code: int, output: str) -> dict:
+    """把一次 verify.sh / acceptance.sh 执行归一成机器可读结果。
+    ok 完全由 exit code 决定(故障导向: 非 0 即未过), output_tail 留作证据(截尾防爆)。"""
+    tail = "\n".join(output.splitlines()[-100:])
+    return {"ok": exit_code == 0, "exit": exit_code, "output_tail": tail}
+
+
+def parse_review_blockers(review_text: str) -> list[str]:
+    """抽出 review.md 里标 `[blocker]` 的条目描述(标题行 `### [blocker] ...` 或行内皆可)。
+    `[should]`/`[nit]` 不算 blocker, 不阻塞 phase 完成(它们走 fix-now-or-backlog)。"""
+    out: list[str] = []
+    for raw in review_text.splitlines():
+        line = raw.strip()
+        low = line.lower()
+        if "[blocker]" in low:
+            desc = line.lstrip("#").strip()
+            idx = desc.lower().find("[blocker]")
+            desc = desc[idx + len("[blocker]"):].strip()
+            out.append(desc)
+    return out
+
+
+def parse_ack_resolutions(ack_text: str) -> dict:
+    """统计 ack.md 里 `## Blocker Resolutions` 段内的 `[fixed]` / `[deferred]` 数量。
+    只认这一段, 防止 Findings 段里的 `[agree] [blocker]` 叙述被误计。"""
+    counts = {"fixed": 0, "deferred": 0}
+    in_section = False
+    for raw in ack_text.splitlines():
+        line = raw.strip()
+        if line.startswith("## "):
+            in_section = "blocker resolutions" in line.lower()
+            continue
+        if not in_section:
+            continue
+        low = line.lower()
+        if "[fixed]" in low:
+            counts["fixed"] += 1
+        elif "[deferred]" in low:
+            counts["deferred"] += 1
+    return counts
+
+
+def phase_gate(verify: dict | None, review_text: str, ack_text: str) -> dict:
+    """phase 完成的硬门(纯谓词)。两条:
+    (a) verify 必须真跑且过(verify 为 None/未 ok → 阻塞) —— 杜绝"测试只写没跑"。
+    (b) review 的每个 [blocker] 必须在 ack 标 [fixed](fixed<blocker数 或 有 deferred → 阻塞)
+        —— 杜绝 reviewer 开了 blocker 却被静默放行。
+    全过才 ok。reasons 给人看, 调用方据 ok 决定是否拒绝完成。"""
+    reasons: list[str] = []
+    if not verify or not verify.get("ok"):
+        reasons.append("验证未跑或失败：先 `lr2.py verify --phase <id>`，verify.json.ok 必须为真")
+    blockers = parse_review_blockers(review_text)
+    res = parse_ack_resolutions(ack_text)
+    if blockers and (res["fixed"] < len(blockers) or res["deferred"] > 0):
+        reasons.append(
+            f"blocker 未解决：review 有 {len(blockers)} 个 [blocker]，"
+            f"ack 仅 fixed={res['fixed']} deferred={res['deferred']}（blocker 不允许 deferred）"
+        )
+    return {"ok": not reasons, "reasons": reasons}
+
+
+def mark_phase_done(fix_plan_text: str, phase_id: str) -> str:
+    """把 fix_plan.md 里 `- [ ] <phase_id> ...` 行翻成 `- [x] ...`,其它行原样。
+    phase_id 必须是 checkbox 后第一个 token(`01` 不误匹配 `012`)。找不到则原样返回
+    (调用方负责报"未知 phase"错误)。仅此一处可改完成态, 不许 orchestrator 手翻。"""
+    pat = re.compile(r"^(\s*-\s*\[) \](\s+" + re.escape(phase_id) + r"\b)")
+    out = [pat.sub(r"\1x]\2", line) for line in fix_plan_text.splitlines(keepends=True)]
+    return "".join(out)
+
+
+def acceptance_gate(acceptance: dict | None) -> dict:
+    """run 收尾(state=completed)的硬门:必须真跑过 acceptance.sh 且过。
+    acceptance 为 None(没跑)/未 ok → 阻塞。杜绝"acceptance verifier 只写在文档没执行"。"""
+    if not acceptance or not acceptance.get("ok"):
+        return {"ok": False, "reasons": [
+            "acceptance 未跑或失败：完成前必须 `lr2.py verify --acceptance` 跑通端到端验收，"
+            "acceptance.json.ok 必须为真"
+        ]}
+    return {"ok": True, "reasons": []}
+
+
 def find_live_role_pane(rows: list[dict[str, str]], role: str, list_panes_output: str) -> str | None:
     """找某 role 仍存活的 running pane(L6 改:每 phase 开始时据此关掉上一个 coder)。"""
     for row in rows:
@@ -661,6 +747,92 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def _append_log(workspace: Path, msg: str) -> None:
+    p = workspace / "logs.md"
+    prev = p.read_text(encoding="utf-8") if p.exists() else "# Logs\n"
+    p.write_text(prev + f"- {_now()}: {msg}\n", encoding="utf-8")
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """在 worktree 里真跑验证脚本, 把执行证据(exit code + 输出)落成 verify.json/acceptance.json。
+    这是"测试只写没跑"的解药: 完成门禁只认这个文件, 不认 coder 自己在 qa.md 的口头声明。"""
+    workspace = Path(args.workspace).resolve()
+    state = load_state(workspace / "state.json")
+    cwd = Path(state.get("worktree_path") or workspace)
+    if args.acceptance:
+        script, out_path, label = workspace / "acceptance.sh", workspace / "acceptance.json", "acceptance"
+    else:
+        pdir = workspace / "phases" / args.phase
+        script, out_path, label = pdir / "verify.sh", pdir / "verify.json", f"phase {args.phase}"
+    if not script.exists():
+        sys.stderr.write(f"refusing: {script} 不存在 —— 先写 {label} 的可执行验证脚本(真跑测试/端到端验收)\n")
+        return 2
+    result = subprocess.run(["bash", str(script)], cwd=str(cwd), text=True, capture_output=True)
+    summary = verify_summary(result.returncode, (result.stdout or "") + (result.stderr or ""))
+    out_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    sys.stdout.write(f"{'OK' if summary['ok'] else 'FAIL'} {label} exit={summary['exit']} → {out_path.name}\n")
+    return 0 if summary["ok"] else 2
+
+
+def _phase_gate_for(workspace: Path, phase: str) -> dict:
+    pdir = workspace / "phases" / phase
+    vj = pdir / "verify.json"
+    verify = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else None
+    review = (pdir / "review.md").read_text(encoding="utf-8") if (pdir / "review.md").exists() else ""
+    ack = (pdir / "ack.md").read_text(encoding="utf-8") if (pdir / "ack.md").exists() else ""
+    return phase_gate(verify, review, ack)
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    """只读检查某 phase 是否过完成门禁(verify 过 + 每个 blocker 都 [fixed])。不改文件。"""
+    g = _phase_gate_for(Path(args.workspace).resolve(), args.phase)
+    for r in g["reasons"]:
+        sys.stdout.write(f"BLOCK: {r}\n")
+    if g["ok"]:
+        sys.stdout.write(f"GATE OK: phase {args.phase} 可标完成\n")
+    return 0 if g["ok"] else 2
+
+
+def cmd_complete_phase(args: argparse.Namespace) -> int:
+    """过门禁才翻 fix_plan [x] + 记 log。不过 → exit 2 拒绝, 不动 fix_plan。
+    唯一允许把 phase 标完成的入口; orchestrator 不许手改 fix_plan(否则又回到静默放行)。"""
+    workspace = Path(args.workspace).resolve()
+    g = _phase_gate_for(workspace, args.phase)
+    if not g["ok"]:
+        for r in g["reasons"]:
+            sys.stderr.write(f"BLOCK: {r}\n")
+        sys.stderr.write(f"refusing: phase {args.phase} 未过门禁, 不标完成\n")
+        return 2
+    fp = workspace / "fix_plan.md"
+    text = fp.read_text(encoding="utf-8")
+    new = mark_phase_done(text, args.phase)
+    if new == text:
+        sys.stderr.write(f"refusing: fix_plan.md 找不到 phase {args.phase} 的 `- [ ]` 行\n")
+        return 1
+    fp.write_text(new, encoding="utf-8")
+    _append_log(workspace, f"phase {args.phase} gate passed → marked complete")
+    sys.stdout.write(f"phase {args.phase} 完成(门禁已过, fix_plan 已勾)\n")
+    return 0
+
+
+def cmd_complete_run(args: argparse.Namespace) -> int:
+    """过 acceptance 门禁(真跑过 acceptance.sh 且过)才置 state=completed。否则拒绝。"""
+    workspace = Path(args.workspace).resolve()
+    aj = workspace / "acceptance.json"
+    acceptance = json.loads(aj.read_text(encoding="utf-8")) if aj.exists() else None
+    g = acceptance_gate(acceptance)
+    if not g["ok"]:
+        for r in g["reasons"]:
+            sys.stderr.write(f"BLOCK: {r}\n")
+        return 2
+    state = load_state(workspace / "state.json")
+    state["state"] = "completed"
+    save_state(workspace / "state.json", state)
+    _append_log(workspace, "run completed: acceptance gate passed")
+    sys.stdout.write("run completed(acceptance 门禁已过)\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lr2", description="dev-long-run-v2 multi-pane orchestration harness")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -709,6 +881,26 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("pane-alive", help="exit 0 if pane alive else 1")
     p.add_argument("--pane", required=True)
     p.set_defaults(func=cmd_pane_alive)
+
+    p = sub.add_parser("verify", help="在 worktree 真跑 verify.sh/acceptance.sh, 记录执行证据 verify.json")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--phase", default="0")
+    p.add_argument("--acceptance", action="store_true", help="跑根 acceptance.sh(端到端验收)而非某 phase verify.sh")
+    p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("gate", help="只读检查某 phase 是否过完成门禁(verify 过 + blocker 全 fixed)")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--phase", required=True)
+    p.set_defaults(func=cmd_gate)
+
+    p = sub.add_parser("complete-phase", help="过门禁才翻 fix_plan [x](唯一标完成入口); 不过 exit 2 拒绝")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--phase", required=True)
+    p.set_defaults(func=cmd_complete_phase)
+
+    p = sub.add_parser("complete-run", help="过 acceptance 门禁才置 state=completed")
+    p.add_argument("--workspace", required=True)
+    p.set_defaults(func=cmd_complete_run)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -1,5 +1,9 @@
+import io
+import json
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -275,6 +279,244 @@ class LaunchCommandTests(unittest.TestCase):
     def test_claude_cli_returns_none_for_interactive_shell(self) -> None:
         cmd = lr2.launch_command({"backend": "claude_cli", "cmd": "claude --dangerously-skip-permissions"})
         self.assertIsNone(cmd)
+
+
+class VerifySummaryTests(unittest.TestCase):
+    def test_exit_zero_is_ok(self) -> None:
+        s = lr2.verify_summary(0, "ran 12 tests\nok\n")
+        self.assertTrue(s["ok"])
+        self.assertEqual(s["exit"], 0)
+
+    def test_nonzero_exit_not_ok(self) -> None:
+        s = lr2.verify_summary(1, "FAIL: TestThing\n")
+        self.assertFalse(s["ok"])
+        self.assertEqual(s["exit"], 1)
+
+    def test_keeps_output_tail_for_evidence(self) -> None:
+        s = lr2.verify_summary(0, "line\n" * 500)
+        self.assertIn("line", s["output_tail"])
+        self.assertLessEqual(len(s["output_tail"].splitlines()), 100)
+
+
+REVIEW_SAMPLE = """# Phase 02 Review
+
+## Debugger
+
+### [blocker] Backend drops bundled deliverable from Feishu writeback
+Evidence: ...
+
+### [should] Favorite auto-import path not given bundle treatment
+This is borderline.
+
+### [blocker] Second real blocker about dates
+more text
+
+### [nit] tiny style thing
+"""
+
+
+class ParseReviewBlockersTests(unittest.TestCase):
+    def test_extracts_only_blocker_headings(self) -> None:
+        blockers = lr2.parse_review_blockers(REVIEW_SAMPLE)
+        self.assertEqual(len(blockers), 2)
+        self.assertIn("Feishu writeback", blockers[0])
+
+    def test_ignores_should_and_nit(self) -> None:
+        joined = " ".join(lr2.parse_review_blockers(REVIEW_SAMPLE))
+        self.assertNotIn("Favorite", joined)
+        self.assertNotIn("style thing", joined)
+
+    def test_no_blockers_returns_empty(self) -> None:
+        self.assertEqual(lr2.parse_review_blockers("# clean\nlooks good, no blockers\n"), [])
+
+
+ACK_SAMPLE = """# Phase 02 Review Ack
+
+## Findings
+- [agree] [blocker] Backend drop ... narrative here
+
+## Blocker Resolutions
+- [fixed] Backend now keeps bundled deliverable in Feishu writeback (commit abc)
+- [deferred] Favorite import schema change too broad, moved to BACKLOG
+- [fixed] Date constraint added
+"""
+
+
+class ParseAckResolutionsTests(unittest.TestCase):
+    def test_counts_fixed_and_deferred_in_resolutions_section(self) -> None:
+        r = lr2.parse_ack_resolutions(ACK_SAMPLE)
+        self.assertEqual(r["fixed"], 2)
+        self.assertEqual(r["deferred"], 1)
+
+    def test_ignores_agree_lines_outside_resolutions_section(self) -> None:
+        # `[agree] [blocker]` 在 Findings 段, 不应被当成 resolution
+        r = lr2.parse_ack_resolutions(ACK_SAMPLE)
+        self.assertEqual(r["fixed"] + r["deferred"], 3)
+
+    def test_missing_section_is_zero(self) -> None:
+        r = lr2.parse_ack_resolutions("# ack\n- [agree] something\n")
+        self.assertEqual(r, {"fixed": 0, "deferred": 0})
+
+
+class PhaseGateTests(unittest.TestCase):
+    OK_VERIFY = {"ok": True, "exit": 0, "output_tail": "ok"}
+    ONE_BLOCKER = "### [blocker] backend drops field\n"
+    ACK_FIXED = "## Blocker Resolutions\n- [fixed] backend keeps field\n"
+    ACK_DEFERRED = "## Blocker Resolutions\n- [deferred] too broad\n"
+
+    def test_all_pass_when_verify_ok_and_blocker_fixed(self) -> None:
+        g = lr2.phase_gate(self.OK_VERIFY, self.ONE_BLOCKER, self.ACK_FIXED)
+        self.assertTrue(g["ok"])
+        self.assertEqual(g["reasons"], [])
+
+    def test_blocks_when_verify_missing(self) -> None:
+        g = lr2.phase_gate(None, "", "")
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("验证" in r for r in g["reasons"]))
+
+    def test_blocks_when_verify_failed(self) -> None:
+        g = lr2.phase_gate({"ok": False, "exit": 1, "output_tail": "FAIL"}, "", "")
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("验证" in r for r in g["reasons"]))
+
+    def test_blocks_when_blocker_unresolved(self) -> None:
+        g = lr2.phase_gate(self.OK_VERIFY, self.ONE_BLOCKER, "## Blocker Resolutions\n")
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("blocker" in r.lower() for r in g["reasons"]))
+
+    def test_blocks_when_blocker_deferred_not_fixed(self) -> None:
+        g = lr2.phase_gate(self.OK_VERIFY, self.ONE_BLOCKER, self.ACK_DEFERRED)
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("blocker" in r.lower() for r in g["reasons"]))
+
+    def test_passes_with_no_blockers(self) -> None:
+        g = lr2.phase_gate(self.OK_VERIFY, "looks good\n", "")
+        self.assertTrue(g["ok"])
+
+
+FIX_PLAN_SAMPLE = """# Fix Plan
+
+- [ ] 01 Contract redline
+- [ ] 02 Import quote parsing
+- [ ] 03 Field config
+"""
+
+
+class MarkPhaseDoneTests(unittest.TestCase):
+    def test_flips_matching_phase_checkbox(self) -> None:
+        out = lr2.mark_phase_done(FIX_PLAN_SAMPLE, "02")
+        self.assertIn("- [x] 02 Import quote parsing", out)
+
+    def test_leaves_other_phases_untouched(self) -> None:
+        out = lr2.mark_phase_done(FIX_PLAN_SAMPLE, "02")
+        self.assertIn("- [ ] 01 Contract redline", out)
+        self.assertIn("- [ ] 03 Field config", out)
+
+    def test_unknown_phase_returns_text_unchanged(self) -> None:
+        self.assertEqual(lr2.mark_phase_done(FIX_PLAN_SAMPLE, "09"), FIX_PLAN_SAMPLE)
+
+
+class AcceptanceGateTests(unittest.TestCase):
+    def test_passes_when_acceptance_ran_ok(self) -> None:
+        g = lr2.acceptance_gate({"ok": True, "exit": 0, "output_tail": "all green"})
+        self.assertTrue(g["ok"])
+        self.assertEqual(g["reasons"], [])
+
+    def test_blocks_when_acceptance_missing(self) -> None:
+        g = lr2.acceptance_gate(None)
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("acceptance" in r.lower() for r in g["reasons"]))
+
+    def test_blocks_when_acceptance_failed(self) -> None:
+        g = lr2.acceptance_gate({"ok": False, "exit": 2, "output_tail": "FAIL"})
+        self.assertFalse(g["ok"])
+
+
+class GateCommandIntegrationTests(unittest.TestCase):
+    """side-effecting 命令用临时 workspace 集成测(verify 真跑脚本、complete-phase 真翻 fix_plan)。"""
+
+    def _ws(self, tmp: Path) -> Path:
+        ws = tmp / "ws"
+        (ws / "phases" / "02").mkdir(parents=True)
+        # 同目录当 worktree(in-place 形态), verify.sh 在此 cwd 运行
+        (ws / "state.json").write_text(json.dumps({
+            "slug": "demo", "phase": 2, "state": "develop",
+            "worktree_path": str(ws), "branch": "fix/demo",
+        }), encoding="utf-8")
+        (ws / "fix_plan.md").write_text("# Fix Plan\n\n- [ ] 01 a\n- [ ] 02 b\n", encoding="utf-8")
+        (ws / "logs.md").write_text("# Logs\n", encoding="utf-8")
+        return ws
+
+    def _run(self, argv: list[str]) -> tuple[int, str]:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = lr2.main(argv)
+        return code, buf.getvalue()
+
+    def test_verify_records_passing_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.sh").write_text("echo ran tests\nexit 0\n", encoding="utf-8")
+            code, _ = self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            data = json.loads((ws / "phases" / "02" / "verify.json").read_text())
+            self.assertTrue(data["ok"])
+            self.assertEqual(code, 0)
+
+    def test_verify_records_failing_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.sh").write_text("echo boom\nexit 1\n", encoding="utf-8")
+            code, _ = self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            data = json.loads((ws / "phases" / "02" / "verify.json").read_text())
+            self.assertFalse(data["ok"])
+            self.assertEqual(code, 2)
+
+    def test_complete_phase_refuses_when_verify_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "review.md").write_text("looks good\n", encoding="utf-8")
+            code, out = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 2)
+            # 未通过门禁 → fix_plan 不许翻
+            self.assertIn("- [ ] 02 b", (ws / "fix_plan.md").read_text())
+
+    def test_complete_phase_refuses_on_unresolved_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "ok"}), encoding="utf-8")
+            (ws / "phases" / "02" / "review.md").write_text("### [blocker] x not fixed\n", encoding="utf-8")
+            (ws / "phases" / "02" / "ack.md").write_text("## Blocker Resolutions\n- [deferred] later\n", encoding="utf-8")
+            code, _ = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 2)
+            self.assertIn("- [ ] 02 b", (ws / "fix_plan.md").read_text())
+
+    def test_complete_phase_marks_done_when_gate_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "ok"}), encoding="utf-8")
+            (ws / "phases" / "02" / "review.md").write_text("### [blocker] x\n", encoding="utf-8")
+            (ws / "phases" / "02" / "ack.md").write_text("## Blocker Resolutions\n- [fixed] done\n", encoding="utf-8")
+            code, _ = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 0)
+            self.assertIn("- [x] 02 b", (ws / "fix_plan.md").read_text())
+
+    def test_complete_run_refuses_without_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            code, _ = self._run(["complete-run", "--workspace", str(ws)])
+            self.assertEqual(code, 2)
+            self.assertNotEqual(json.loads((ws / "state.json").read_text())["state"], "completed")
+
+    def test_complete_run_sets_completed_when_acceptance_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "acceptance.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "green"}), encoding="utf-8")
+            code, _ = self._run(["complete-run", "--workspace", str(ws)])
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads((ws / "state.json").read_text())["state"], "completed")
 
 
 if __name__ == "__main__":
