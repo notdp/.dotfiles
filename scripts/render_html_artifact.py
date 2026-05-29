@@ -4,15 +4,28 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import html
+import re
 import sys
 from pathlib import Path
 
 
 PROFILES = {"generic", "plan", "research"}
 
+INLINE_CODE = re.compile(r"`([^`]+)`")
+INLINE_BOLD = re.compile(r"\*\*([^*]+)\*\*")
+ORDERED_ITEM = re.compile(r"^\d+\.\s+(.*)$")
+
 
 def escape_text(value: str) -> str:
     return html.escape(value, quote=True)
+
+
+def render_inline(value: str) -> str:
+    """行内 markdown: 先 escape(防 XSS), 再在转义后文本上跑 `code` 和 **bold** 正则。"""
+    escaped = escape_text(value)
+    escaped = INLINE_CODE.sub(lambda m: f"<code>{m.group(1)}</code>", escaped)
+    escaped = INLINE_BOLD.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
+    return escaped
 
 
 def is_table_separator(line: str) -> bool:
@@ -37,11 +50,11 @@ def render_table(lines: list[str], start: int) -> tuple[str, int] | None:
         rows.append(split_table_row(lines[index]))
         index += 1
 
-    header_html = "".join(f"<th>{escape_text(cell)}</th>" for cell in headers)
+    header_html = "".join(f"<th>{render_inline(cell)}</th>" for cell in headers)
     row_html = []
     for row in rows:
         padded = row + [""] * max(0, len(headers) - len(row))
-        cells = "".join(f"<td>{escape_text(cell)}</td>" for cell in padded[: len(headers)])
+        cells = "".join(f"<td>{render_inline(cell)}</td>" for cell in padded[: len(headers)])
         row_html.append(f"<tr>{cells}</tr>")
 
     return f"<table><thead><tr>{header_html}</tr></thead><tbody>{''.join(row_html)}</tbody></table>", index
@@ -52,6 +65,8 @@ def render_markdown_body(markdown: str) -> tuple[str, int]:
     blocks: list[str] = []
     paragraph: list[str] = []
     list_items: list[str] = []
+    ordered_items: list[str] = []
+    quote_lines: list[str] = []
     in_code = False
     code_lang = ""
     code_lines: list[str] = []
@@ -61,14 +76,32 @@ def render_markdown_body(markdown: str) -> tuple[str, int]:
         if paragraph:
             text = " ".join(part.strip() for part in paragraph).strip()
             if text:
-                blocks.append(f"<p>{escape_text(text)}</p>")
+                blocks.append(f"<p>{render_inline(text)}</p>")
             paragraph.clear()
 
     def flush_list() -> None:
         if list_items:
-            items = "".join(f"<li>{escape_text(item)}</li>" for item in list_items)
+            items = "".join(f"<li>{render_inline(item)}</li>" for item in list_items)
             blocks.append(f"<ul>{items}</ul>")
             list_items.clear()
+
+    def flush_ordered() -> None:
+        if ordered_items:
+            items = "".join(f"<li>{render_inline(item)}</li>" for item in ordered_items)
+            blocks.append(f"<ol>{items}</ol>")
+            ordered_items.clear()
+
+    def flush_quote() -> None:
+        if quote_lines:
+            text = " ".join(quote_lines).strip()
+            blocks.append(f"<blockquote>{render_inline(text)}</blockquote>")
+            quote_lines.clear()
+
+    def flush_all() -> None:
+        flush_paragraph()
+        flush_list()
+        flush_ordered()
+        flush_quote()
 
     index = 0
     while index < len(lines):
@@ -88,8 +121,7 @@ def render_markdown_body(markdown: str) -> tuple[str, int]:
             continue
 
         if stripped.startswith("```"):
-            flush_paragraph()
-            flush_list()
+            flush_all()
             in_code = True
             code_lang = stripped[3:].strip()
             index += 1
@@ -97,46 +129,63 @@ def render_markdown_body(markdown: str) -> tuple[str, int]:
 
         table = render_table(lines, index)
         if table is not None:
-            flush_paragraph()
-            flush_list()
+            flush_all()
             table_html, next_index = table
             blocks.append(table_html)
             index = next_index
             continue
 
         if not stripped:
-            flush_paragraph()
-            flush_list()
+            flush_all()
             index += 1
             continue
 
         if stripped.startswith("#"):
             marker = stripped.split(" ", 1)[0]
             if marker and set(marker) == {"#"} and 1 <= len(marker) <= 6 and len(stripped) > len(marker):
-                flush_paragraph()
-                flush_list()
+                flush_all()
                 level = len(marker)
                 text = stripped[len(marker) :].strip()
-                blocks.append(f"<h{level}>{escape_text(text)}</h{level}>")
+                blocks.append(f"<h{level}>{render_inline(text)}</h{level}>")
                 headings += 1
                 index += 1
                 continue
 
+        if stripped.startswith(">"):
+            flush_paragraph()
+            flush_list()
+            flush_ordered()
+            quote_lines.append(stripped[1:].strip())
+            index += 1
+            continue
+
         if stripped.startswith(("- ", "* ")):
             flush_paragraph()
+            flush_ordered()
+            flush_quote()
             list_items.append(stripped[2:].strip())
             index += 1
             continue
 
+        ordered = ORDERED_ITEM.match(stripped)
+        if ordered:
+            flush_paragraph()
+            flush_list()
+            flush_quote()
+            ordered_items.append(ordered.group(1).strip())
+            index += 1
+            continue
+
         flush_list()
+        flush_ordered()
+        flush_quote()
         paragraph.append(line)
         index += 1
 
     if in_code:
         lang_attr = f' data-lang="{escape_text(code_lang)}"' if code_lang else ""
         blocks.append(f"<pre{lang_attr}><code>{escape_text(chr(10).join(code_lines))}</code></pre>")
-    flush_paragraph()
-    flush_list()
+    flush_all()
     return "\n".join(blocks), headings
 
 
