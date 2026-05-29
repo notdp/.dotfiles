@@ -43,11 +43,13 @@ CLIPROXY_MODELS = (
     # (model, default_effort, id_override)
     ("gpt-5.5-fast", "low", "gpt-5.5"),
     ("gpt-5.5", "medium", None),
+    ("gpt-5.5-xhigh", "xhigh", "gpt-5.5"),  # 默认最高档别名(dev-long-run-v2 worker pane 用; TUI 无 --variant flag)
     ("gpt-5.4", "medium", None),
     ("gpt-5.4-mini", "low", None),
     ("gpt-5.3-codex", "medium", None),
 )
 CLIPROXY_CLAUDE_MODELS = (
+    ("claude-opus-4-8", "Claude Opus 4.8"),
     ("claude-opus-4-7", "Claude Opus 4.7"),
     ("claude-opus-4-6", "Claude Opus 4.6"),
     ("claude-sonnet-4-6", "Claude Sonnet 4.6"),

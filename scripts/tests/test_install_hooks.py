@@ -46,6 +46,7 @@ class InstallHooksTests(unittest.TestCase):
         expected_defaults = {
             "gpt-5.5-fast": "low",
             "gpt-5.5": "medium",
+            "gpt-5.5-xhigh": "xhigh",
             "gpt-5.4": "medium",
             "gpt-5.4-mini": "low",
             "gpt-5.3-codex": "medium",
