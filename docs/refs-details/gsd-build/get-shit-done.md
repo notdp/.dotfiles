@@ -1,5 +1,12 @@
 # gsd-build/get-shit-done
 
+> ## ⚠ 供应链风险（待人工核实）
+>
+> - [未验证] 上游 `origin/main` 含 commit `126b6b9e84227c2548e9c4558ab611a3a3de71c7`，message 为 `WARNING: This repository appears compromised — use the fork at GSD-redux/get-shit-done-redux`（已用 `git log --all --grep compromised -i` 在本地核实 commit message 确实存在，作者 Tom Boucher，日期 2026-05-22）。
+> - [事实] 本仓库 submodule HEAD 仍指向 `8b679959`（detached），该 commit 是 `126b6b9e` 的祖先（`git merge-base --is-ancestor` 确认），即当前追踪点早于 compromised 警告；`HEAD..origin/main` 之间另有 311 个 commit，且 `origin/main` 顶端已改名为 `@opengsd/get-shit-done-redux`（`837114c1`）。
+> - [未验证] 警告中所述“仓库被入侵 / 应改用 fork `GSD-redux/get-shit-done-redux`”的真实性、fork 现状与可信度均未联网核实，仅来自本地 commit message。
+> - **行动项**：需人工联网核实 fork 现状与入侵说明后，再决定是否把 submodule 追踪目标从原仓库切换到 fork。在核实前不要据此自动切换或拉取新提交。
+
 - 上游仓库：`https://github.com/gsd-build/get-shit-done`
 - 本地路径：`/Users/zhenninglang/.dotfiles/refs/gsd-build/get-shit-done`
 - 主分类：**研发流程 / 项目管理**

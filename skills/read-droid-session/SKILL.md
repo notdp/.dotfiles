@@ -1,9 +1,11 @@
 ---
 name: read-droid-session
-description: 当需要在 OpenCode 或其他非 Droid agent 中通过短 session hash 查找、读取、恢复 Droid session 历史时使用；提供 `~/.factory/sessions` 的路径规则、搜索命令和交接输出边界。
+description: 当需要在 OpenCode 或其他非 Droid agent 中读取、查找、恢复 droid session 历史（如"读 droid session=<hash> 的历史"）时使用；提供 `~/.factory/sessions` 的路径规则、搜索命令和交接输出边界。
 ---
 
 # Read Droid Session
+
+> **Scope（legacy / droid-only）**：本 skill 是已知例外，刻意依赖 droid 专属路径 `~/.factory/sessions`，不适用 AGENTS.md "不依赖 ~/.factory" 的跨 agent 约定。仅在需要跨 agent 读取 droid session 历史时加载。
 
 Use this skill to find and read Droid session history from OpenCode or another agent that does not have Droid's builtin `session-navigation` skill loaded. The usual input is a short session hash like `264f0a81`.
 

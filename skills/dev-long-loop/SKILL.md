@@ -1,6 +1,6 @@
 ---
 name: dev-long-loop
-description: 当任务目标明确但需要跨多轮执行、上下文沉淀或阶段验收时使用；由当前 agent 作为 orchestrator 生成 workspace，并用 tmux worker 执行单轮交付。
+description: 当任务目标明确但需要跨多轮执行、上下文沉淀或阶段验收时使用；由当前 agent 作为 orchestrator 生成 workspace，并用 tmux worker 自动执行单轮交付（纯人工逐阶段推进改用 dev-long-task-scaffold，跨子系统/不可逆大改用 dev-large-delivery）。
 argument-hint: <任务目标或需求>
 ---
 

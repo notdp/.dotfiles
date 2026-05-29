@@ -67,3 +67,12 @@
 - 不建议照搬其中“自然语言询问澄清”的写法，应改为本仓库的 AskUser 纪律。
 - 不建议照搬“输出很大就保存 markdown”的默认行为；本仓库只在用户明确要求时写 docs/README。
 - 不建议保持“command 禁止跨插件引用”作为全局硬约束；本仓库已有跨 skill 工作流，应该按任务风险和复用性决定是否跨域编排。
+
+## 2026-05-29 本地 range 调研
+
+> 信号来源：本地 remote-tracking（未联网）。本轮 range `70cfd54dba3f..5446f2a8eb8f`，`git log` 核实 4 commits（`5446f2a` merge #18、`987777d` 更新 README/build/Gemini extension、`a81c9a1` merge #17、`3948e7e` 新增 plugin）。
+
+- [事实] 新增第 9 个 plugin **`visual-critique`**（commit `3948e7e` "Add visual-critique plugin with four critique skills and /critique-screen command"），含 4 个 critique skill：`critique-visual-hierarchy`、`critique-brand-consistency`、`critique-composition`、`critique-typography`，以及 `/critique-screen` 命令（`visual-critique/commands/critique-screen.md`），输出 P1/P2/P3 分级表。
+- [事实] commit `987777d` 同步更新 README、build 脚本和 `.gemini/extensions/visual-critique/` Gemini extension manifest，使新 plugin 在 Claude Code 与 Gemini CLI 两侧都可用。
+- [事实] README 计数随之从 8 plugin 更新到 **91 skills / 28 commands / 9 plugins**（`git show 5446f2a8eb8f:README.md` 核实）。本文件开头“8 个插件、87 个 skills、27 个 commands”的旧表述对应 range 起点 `70cfd54`，已被本轮 range 取代。
+- [推断] `visual-critique` 把“视觉评审”从 `design-ops` 的 critique workflow 中独立成名词型 skill 集合，与本仓库 `fe-ui-critique` / `fe-ui-lint-artifact` 同域，可作为分级输出（P1/P2/P3）格式的参考。
