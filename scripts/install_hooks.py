@@ -32,7 +32,21 @@ CODEX_HOOKS_END = "# dotfiles hooks: end"
 AIDER_HOOKS_BEGIN = "# dotfiles aider config: begin"
 AIDER_HOOKS_END = "# dotfiles aider config: end"
 CLIPROXY_BASE_URL = "http://localhost:8317/v1"
-CLIPROXY_MODELS = ("gpt-5.5-fast", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex")
+CLIPROXY_VARIANTS = {
+    "low": {"reasoningEffort": "low", "reasoning_effort": "low"},
+    "medium": {"reasoningEffort": "medium", "reasoning_effort": "medium"},
+    "high": {"reasoningEffort": "high", "reasoning_effort": "high"},
+    "xhigh": {"reasoningEffort": "xhigh", "reasoning_effort": "xhigh"},
+    "max": {"reasoningEffort": "xhigh", "reasoning_effort": "xhigh"},
+}
+CLIPROXY_MODELS = (
+    # (model, default_effort, id_override)
+    ("gpt-5.5-fast", "low", "gpt-5.5"),
+    ("gpt-5.5", "medium", None),
+    ("gpt-5.4", "medium", None),
+    ("gpt-5.4-mini", "low", None),
+    ("gpt-5.3-codex", "medium", None),
+)
 CLIPROXY_CLAUDE_MODELS = (
     ("claude-opus-4-7", "Claude Opus 4.7"),
     ("claude-opus-4-6", "Claude Opus 4.6"),
@@ -464,9 +478,15 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config["plugin"] = plugins
 
     provider = next_config.get("provider") if isinstance(next_config.get("provider"), dict) else {}
-    models = {}
-    for model in CLIPROXY_MODELS:
-        model_config = {
+    provider["cliproxy"] = build_cliproxy_provider()
+    next_config["provider"] = provider
+    return next_config
+
+
+def build_cliproxy_provider() -> dict[str, Any]:
+    models: dict[str, dict[str, Any]] = {}
+    for model, default_effort, id_override in CLIPROXY_MODELS:
+        model_config: dict[str, Any] = {
             "name": model,
             "family": "gpt-5",
             "attachment": True,
@@ -474,10 +494,11 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
             "tool_call": True,
             "modalities": {"input": ["text", "image"], "output": ["text"]},
             "limit": local_model_limit(),
+            "options": dict(CLIPROXY_VARIANTS[default_effort]),
+            "variants": {k: dict(v) for k, v in CLIPROXY_VARIANTS.items()},
         }
-        if model == "gpt-5.5-fast":
-            model_config["id"] = "gpt-5.5"
-            model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
+        if id_override:
+            model_config["id"] = id_override
         models[model] = model_config
     for model, name in CLIPROXY_CLAUDE_MODELS:
         models[model] = {
@@ -489,14 +510,12 @@ def desired_opencode_config(current: dict[str, Any]) -> dict[str, Any]:
             "modalities": {"input": ["text", "image"], "output": ["text"]},
             "limit": local_model_limit(LOCAL_CLAUDE_OUTPUT_LIMIT),
         }
-    provider["cliproxy"] = {
+    return {
         "name": "CLIProxyAPI",
         "npm": "@ai-sdk/openai-compatible",
         "options": {"baseURL": CLIPROXY_BASE_URL, "apiKey": cliproxy_api_key()},
         "models": models,
     }
-    next_config["provider"] = provider
-    return next_config
 
 
 def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
@@ -528,37 +547,7 @@ def desired_kilo_config(current: dict[str, Any]) -> dict[str, Any]:
     next_config["plugin"] = plugins
 
     provider = next_config.get("provider") if isinstance(next_config.get("provider"), dict) else {}
-    models = {}
-    for model in CLIPROXY_MODELS:
-        model_config = {
-            "name": model,
-            "family": "gpt-5",
-            "attachment": True,
-            "reasoning": True,
-            "tool_call": True,
-            "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": local_model_limit(),
-        }
-        if model == "gpt-5.5-fast":
-            model_config["id"] = "gpt-5.5"
-            model_config["options"] = {"reasoningEffort": "low", "reasoning_effort": "low"}
-        models[model] = model_config
-    for model, name in CLIPROXY_CLAUDE_MODELS:
-        models[model] = {
-            "name": name,
-            "family": "claude",
-            "attachment": True,
-            "reasoning": True,
-            "tool_call": True,
-            "modalities": {"input": ["text", "image"], "output": ["text"]},
-            "limit": local_model_limit(LOCAL_CLAUDE_OUTPUT_LIMIT),
-        }
-    provider["cliproxy"] = {
-        "name": "CLIProxyAPI",
-        "npm": "@ai-sdk/openai-compatible",
-        "options": {"baseURL": CLIPROXY_BASE_URL, "apiKey": cliproxy_api_key()},
-        "models": models,
-    }
+    provider["cliproxy"] = build_cliproxy_provider()
     next_config["provider"] = provider
 
     permission = next_config.get("permission") if isinstance(next_config.get("permission"), dict) else {}

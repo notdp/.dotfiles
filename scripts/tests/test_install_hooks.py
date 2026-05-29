@@ -41,6 +41,31 @@ class InstallHooksTests(unittest.TestCase):
             env={**os.environ, **(env or {})},
         )
 
+    def assert_cliproxy_gpt_variants(self, payload: dict) -> None:
+        models = payload["provider"]["cliproxy"]["models"]
+        expected_defaults = {
+            "gpt-5.5-fast": "low",
+            "gpt-5.5": "medium",
+            "gpt-5.4": "medium",
+            "gpt-5.4-mini": "low",
+            "gpt-5.3-codex": "medium",
+        }
+        for name, default_effort in expected_defaults.items():
+            self.assertIn(name, models, f"{name} missing")
+            self.assertIn("variants", models[name], f"{name} missing variants")
+            self.assertEqual(
+                set(models[name]["variants"]),
+                {"low", "medium", "high", "xhigh", "max"},
+                f"{name} variants incomplete",
+            )
+            self.assertEqual(
+                models[name]["options"]["reasoningEffort"],
+                default_effort,
+                f"{name} default effort mismatch",
+            )
+        self.assertEqual(models["gpt-5.5-fast"]["variants"]["max"]["reasoningEffort"], "xhigh")
+        self.assertEqual(models["gpt-5.5-fast"]["variants"]["high"]["reasoningEffort"], "high")
+
     def test_droid_check_accepts_current_project_settings(self) -> None:
         result = self.run_install("--target", "droid", "--check")
 
@@ -256,6 +281,7 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["input"], 1000000)
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-7"]["limit"]["context"], 1000000)
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-7"]["limit"]["input"], 1000000)
+        self.assert_cliproxy_gpt_variants(payload)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
         self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
         self.assertIn("scripts/opencode/dotfiles_hooks.mjs", rendered)
@@ -342,6 +368,7 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["gpt-5.5-fast"]["limit"]["input"], 1000000)
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-7"]["limit"]["context"], 1000000)
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-7"]["limit"]["input"], 1000000)
+        self.assert_cliproxy_gpt_variants(payload)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
         self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
         self.assertIn("scripts/kilo/dotfiles_hooks.mjs", rendered)
