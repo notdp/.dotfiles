@@ -6,6 +6,8 @@ argument-hint: <需求描述|范围|方案问题>
 
 # Plan
 
+与 think-scope 区别：think-scope 解决"agent 和用户是否对系统现状和改动意图达成一致"，think-plan 解决"方案怎么设计、怎么拆步骤"。需求模糊或涉及代码改动时，推荐先走 `/think-scope` 对齐 scope 再进 plan，避免在错误的理解上写 spec。
+
 ## 1. 理解需求
 
 如果 `$ARGUMENTS` 非空，将其作为需求描述的起点。否则一次一个问题逐个深入：
@@ -230,6 +232,33 @@ docs/specs/
 
 价值：能一眼扫出"哪条 R 没有任何 S 覆盖"（整行无 ✅）和"哪些 S 是多余的"（整列无 ✅）。简单任务不用此格式。
 
+### Spec Contract Block（推荐）
+
+当 spec 包含可检验的验收标准时，在 spec 末尾附加以下 YAML 块。此块的作用是让下游 skill（dev-tdd、guard-verify、guard-close）能机械引用验收标准，而不完全依赖自然语言上下文。
+
+```yaml
+# spec-contract
+checks:
+  - "验收标准 1：具体的可检验条件"
+  - "验收标准 2：具体的可检验条件"
+non_goals:
+  - "显式排除项 1"
+  - "显式排除项 2"
+validation_commands:
+  - "python3 -m pytest tests/"
+  - "python3 scripts/verify_skills.py"
+locked_decisions:
+  - "已锁定决策 1"
+```
+
+规则：
+- checks 必须是可检验的条件，不是模糊目标（"性能更好" → "响应时间 < 200ms"）
+- non_goals 与 spec 主体的排除项保持一致，不新增
+- validation_commands 只列已知可执行的命令；没有时留空列表
+- locked_decisions 从 spec 主体的"已锁定"区提取
+- 简单任务（单文件/单函数级）可以省略此块
+- 此块是 spec 的派生视图，spec 主体是 SSOT；两者冲突时以主体为准
+
 ## 5. 自审
 
 Spec 写完后执行检查清单：
@@ -251,6 +280,7 @@ Spec 写完后执行检查清单：
 - [ ] 没有把所有细节一次平铺到压垮读者
 - [ ] 术语、命名、接口名在全文保持一致
 - [ ] 存在明确验证护栏；必要时先进入 `/dev-tdd`
+- [ ] 复杂任务已附 spec-contract YAML 块（简单任务可省略）
 
 ## 6. 硬约束（与"行为不变""先搜后改"同级，不可绕过）
 
@@ -338,6 +368,7 @@ If <X> does not hold, <Y> happens.
 
 ## 关联技能
 
+- 需求模糊、涉及代码改动时 → 先走 `/think-scope` 对齐再进 plan
 - 技术不确定时 → 建议用户触发 `/think-research`
 - 需要专门思考和成文架构 → `/think-architecture`
 - 现有表述太密、太绕、太难读 → `/readable-final-answer`

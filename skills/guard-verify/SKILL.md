@@ -8,7 +8,18 @@ argument-hint: <交付物|验证范围>
 
 ## 触发时机
 
-适用于即将向用户报告“已完成”/“已修复”/“已实现”的场景。
+适用于即将向用户报告”已完成”/”已修复”/”已实现”的场景。
+
+## Spec Contract 消费
+
+如果上游 spec 中存在 `# spec-contract` YAML 块：
+
+1. 将 checks 列表作为 Deliverables 表的初始行（每条 check 对应一行）
+2. 将 non_goals 列表加入验证报告的”显式排除项”
+3. 运行 validation_commands 中的命令，结果纳入”自动验证”表
+4. 在验证证据分层中，标注 checks 覆盖了哪个层级（Inner-loop / Acceptance）
+
+如果没有 spec-contract 块，从对话上下文提取验收标准（现有行为不变）。
 
 ## 验证清单
 

@@ -58,6 +58,16 @@ RED→GREEN: test3→impl3
 - AGENTS.md 或项目配置中禁用了 TDD
 - 纯配置/文档/样式变更
 
+## Spec Contract 消费
+
+如果上游 spec 中存在 `# spec-contract` YAML 块（通常来自 /think-plan），在进入 RED→GREEN 循环前：
+
+1. 读取 checks 列表，每条 check 对应至少一个测试用例或显式 skip 理由
+2. 读取 non_goals 列表，确认不为排除项写测试
+3. 读取 validation_commands，在 GREEN 阶段末尾额外运行这些命令
+
+如果没有 spec-contract 块，按现有流程从对话上下文提取验收标准。
+
 ## 测试质量
 
 - 测试 public interface 的 observable behavior，不测实现细节
@@ -95,6 +105,21 @@ RED→GREEN: test3→impl3
 - 不允许用“新增单元测试通过”直接替代端到端、holdout/unseen 或人工可观察验收
 - UI 探索、样式调整、纯配置改动不要生搬硬套 TDD
 - GREEN 阶段只做让测试过的最小实现，不顺手优化、不顺手重构
+
+## 完成门禁
+
+所有 RED→GREEN→REFACTOR 循环完成、准备声称"TDD 完成"前，逐项确认：
+
+| # | 检查项 | 证据 | 为什么 |
+|---|--------|------|--------|
+| 1 | 所有测试通过 | test runner 输出（pass count + 0 failures） | 避免 GREEN 阶段遗漏未跑测试 |
+| 2 | 无新增 lint/typecheck 错误 | lint/typecheck 输出或"项目无 lint 配置" | 避免 RED→GREEN 只管测试、不管代码质量 |
+| 3 | 每条 spec-contract check 有对应测试或显式 skip 理由 | check-to-test 映射表（如有 spec-contract） | 避免测试只覆盖 agent 想到的场景，遗漏 spec 约定 |
+| 4 | 新增代码无 TODO/FIXME（或已关联 issue） | grep 结果 | 避免临时桩混入 main |
+
+任一项不满足 → 回到对应步骤修复，不声称完成。
+
+完成门禁不替代 `/guard-verify`；它只覆盖 dev-tdd 自身范围内的 inner-loop 证据。
 
 ## 扩展阅读
 

@@ -135,6 +135,17 @@ argument-hint: <留空=最近变更|文件/目录|--diff <range>>
 - 受影响测试: <pass/fail>
 ```
 
+### 完成确认
+
+输出 Simplify 报告前确认：
+
+1. Fixed 项的验证已通过（typecheck + lint + 受影响测试）
+2. 无行为变化混入 simplify diff（如有，已单独 flag 给用户）
+3. Skipped 项都有 `[skipped: 原因]` 标注
+4. Backlog 项（建议路由到 `/dev-refactor` 或 `/dev-tdd`）已列出
+
+任一项不满足 → 补完再输出报告。
+
 ## 5. 跨 agent 适配
 
 派发并行子任务的具体形式按当前 agent 平台命名：
