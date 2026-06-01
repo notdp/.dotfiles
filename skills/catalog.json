@@ -271,6 +271,16 @@
       "name": "think-refine",
       "path": "skills/think-refine",
       "domain": "think",
+      "role": "legacy",
+      "migration": {
+        "state": "planned",
+        "canonical": "think-scope"
+      }
+    },
+    {
+      "name": "think-scope",
+      "path": "skills/think-scope",
+      "domain": "think",
       "role": "canonical"
     },
     {

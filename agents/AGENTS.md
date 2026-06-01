@@ -96,7 +96,7 @@
 
 ### Skill 路由总览
 
-- `think-*`：理解问题、调研、综述、架构、规划、结构判断、卡住排查
+- `think-*`：理解问题、需求对齐（scope）、调研、综述、架构、规划、结构判断、卡住排查
 - `dev-*`：调试、TDD、重构、实现后清理（simplify）；长任务/数据任务（operational-task）、长循环（long-loop）、长任务脚手架（long-task-scaffold）、大型交付（large-delivery）
 - `guard-*`：review、secure、threat-model、verify、ship、close、check（交付前总入口）、diff-scan（未 commit 遗留物扫描）、mysql-review（MySQL/InnoDB SQL 审查）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
 - `readable-*`：可读性重写、最终答案/过程播报体裁、指标表达
@@ -104,7 +104,8 @@
 
 常见工作流：
 
-- 新需求 / 大改动：`/think-map` → `/think-plan` → `/dev-tdd` → `/dev-simplify` → `/guard-verify` → `/guard-ship`
+- 新需求 / 大改动：`/think-scope`（需求对齐）→ `/think-plan` → `/dev-tdd` → `/dev-simplify` → `/guard-verify` → `/guard-ship`
+- 陌生仓库 + 新需求：`/think-map`（仓库全局）→ `/think-scope`（需求对齐）→ `/think-plan` → `/dev-tdd` → `/guard-verify` → `/guard-ship`
 - Bug / 异常：`/dev-debug` → （必要时 `/dev-tdd` / `/dev-refactor`）→ `/dev-simplify` → `/guard-verify`
 - 长任务 / 数据任务 / 复杂 CLI：`/dev-operational-task` → `/dev-tdd` → `/guard-verify` → `/guard-check`
 - 交付前总检查：`/guard-check` → 按需路由到 `/guard-review` / `/guard-secure` / `/guard-verify` / `/guard-ship`
