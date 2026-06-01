@@ -130,3 +130,6 @@
 [submodule "refs/EveryInc/compound-engineering-plugin"]
 	path = refs/EveryInc/compound-engineering-plugin
 	url = https://github.com/EveryInc/compound-engineering-plugin
+[submodule "refs/Chachamaru127/claude-code-harness"]
+	path = refs/Chachamaru127/claude-code-harness
+	url = https://github.com/Chachamaru127/claude-code-harness

@@ -18,6 +18,7 @@
 - **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
 - **AWS / 云 Agent 平台**：围绕 AWS Agent 插件、Bedrock AgentCore、云部署、身份、记忆、网关、观测、评估与 IaC 样例。 代表项目：`awslabs/agent-plugins`、`awslabs/agentcore-samples`
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`addyosmani/agent-skills`、`automazeio/ccpm`、`garrytan/gstack`、`gsd-build/get-shit-done`、`obra/superpowers`
+- **Harness 工程 / Agent 工作流框架**：围绕 Agent 交付循环治理、声明式安全护栏、多 Agent 团队编排与结构化证据链。 代表项目：`Chachamaru127/claude-code-harness`
 - **最佳实践 / 知识库**：围绕 Agent / Claude Code 概念地图、LLM 应用工程方法论、目录约定、功能导航与实践经验整理。 代表项目：`humanlayer/12-factor-agents`、`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
 - **安全 / 网络安全技能库**：围绕安全审查、威胁狩猎、事件响应、取证、云安全、红队/渗透测试、framework mapping 与安全 playbook。 代表项目：`mukul975/Anthropic-Cybersecurity-Skills`
@@ -37,6 +38,7 @@
 | [`automazeio/ccpm`](./refs-details/automazeio/ccpm.md) | 研发流程 / 项目管理 | 单技能形态的项目管理与交付编排系统，把 PRD、Epic、Issues、并行 agents 和状态跟踪串成 spec-driven workflow。 |
 | [`awslabs/agent-plugins`](./refs-details/awslabs/agent-plugins.md) | AWS Agent 插件与云开发技能集合 | AWS Labs 的 agent 插件市场仓库，把 AWS 架构、部署、Serverless、Amplify、数据库、SageMaker、迁移现代化等工作流打包为可安装的 skills、MCP servers、hooks 与 references。 |
 | [`awslabs/agentcore-samples`](./refs-details/awslabs/agentcore-samples.md) | AWS / Bedrock AgentCore 样例库 | 覆盖 AgentCore 入门、能力专题、端到端业务用例、第三方集成、IaC 部署和完整 Blueprint 的官方样例集合。 |
+| [`Chachamaru127/claude-code-harness`](./refs-details/Chachamaru127/claude-code-harness.md) | Harness 工程 / Agent 工作流框架 | 为 AI 编码 Agent 构建的结构化交付循环框架，通过 5 动词 skill + 声明式护栏 + 多 Agent 团队编排 + 证据链，将散漫的 Agent 编码约束为可重复的 Plan-Work-Review-Release 路径。 |
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 浏览器自动化与前端调试 | 通过 MCP 控制真实 Chrome，提供自动化、调试、性能分析和配套 skills。 |
 | [`Dimillian/Skills`](./refs-details/Dimillian/Skills.md) | 技能集合与市场 | 偏精选型的 skills 集合，覆盖 Apple 平台开发、GitHub 操作、review swarm、React 性能和重构。 |
 | [`EveryInc/compound-engineering-plugin`](./refs-details/EveryInc/compound-engineering-plugin.md) | 研发流程 / 经验复利工作流 | Every 的多平台 AI 工程工作流插件（37+ skills、50+ agents），把计划→执行→审查→沉淀做成复利闭环，核心是 `docs/solutions/` 这个带受控 frontmatter、可被未来 agent grep 检索并默认前置消费的机构记忆库。 |
@@ -132,6 +134,7 @@
 - **吸收裁决（2026-05-14）**：
   - `Owl-Listener/designer-skills`：吸收“名词型 skill + 动词型 command + 多平台打包”的组织方式；不吸收 8 个设计插件和 87 个 skills 本体。其自然语言澄清和默认保存文档行为需要按本仓库 `AskUser` 与文档创建纪律改写。
   - `K-Dense-AI/scientific-agent-skills`：吸收“短入口 `SKILL.md` + `references/` + `scripts/`”的领域分册结构和安全扫描门禁；不整包安装到默认 skills。触及网络、secrets、医疗/临床、实验室自动化或数据写入的能力必须先经过安全/运行时副作用护栏。
+- `Chachamaru127/claude-code-harness` 是高度工程化的 Agent 交付循环治理系统（v4.13.2，Go 原生引擎），经历 80+ Phase 迭代。最值得吸收的是三个设计哲学：(1) 用 JSON schema（sprint-contract）替代自然语言做 agent 间验收标准传递；(2) exclusion-based verification（deleted-concepts.yaml 扫残骸）补全正向验证；(3) prompt 模糊语审计（要求歧义词同句补充具体条件）。系统复杂度极高，不宜整体吸收。详细洞察分析见 `docs/refs-details/Chachamaru127/claude-code-harness-insights.md`。
 - `Shubhamsaboo/awesome-llm-apps` 是可运行 LLM app 模板库，价值不在直接迁移源码，而在用 `awesome_agent_skills/` 观察 skill 组织、规则拆分和 self-improving skill 的评测闭环。
 - `addyosmani/agent-skills` 是研发流程型 skill 包，值得吸收生命周期 taxonomy、slash command 编排、anti-rationalization、验证证据和 skill 校验脚本模式。
 - `garrytan/gstack` 是重型工程工作流套件，提供浏览器 QA、review、ship、记忆和多 host 生成思路；因安装、浏览器、telemetry、ngrok、发布部署等副作用较多，不宜整包吸收。
