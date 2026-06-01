@@ -799,6 +799,153 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertIn("GUARDRAIL WARNING: guard-demo", result.stdout)
             self.assertIn("/guard-secure", result.stdout)
 
+    def test_verify_script_warns_vague_conditional_without_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n# Demo\n\n必要时引用相关资料\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("VAGUE CONDITIONAL WARNING", result.stdout)
+
+    def test_verify_script_accepts_vague_conditional_with_concrete_condition(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "think-demo",
+                                "path": "skills/think-demo",
+                                "domain": "think",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                )
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n# Demo\n\n必要时引用 /think-quality\n"
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("VAGUE CONDITIONAL WARNING", result.stdout)
+
+    def test_verify_script_warns_deprecated_concept_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            fixture_dir = repo / "scripts" / "fixtures"
+            skill_dir.mkdir(parents=True)
+            fixture_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n\nSee eng-plan for details.\n",
+                encoding="utf-8",
+            )
+            (fixture_dir / "deprecated-concepts.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "concept": "eng-plan",
+                            "type": "skill",
+                            "replacement": "think-plan",
+                            "scan_pattern": "eng-plan",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("DEPRECATED CONCEPT WARNING", result.stdout)
+
+    def test_verify_script_skips_when_no_deprecated_concepts_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("DEPRECATED CONCEPT", result.stdout)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"

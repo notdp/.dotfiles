@@ -1,0 +1,152 @@
+[
+  {
+    "concept": "eng-plan",
+    "type": "skill",
+    "replacement": "think-plan",
+    "scan_pattern": "eng-plan"
+  },
+  {
+    "concept": "eng-map",
+    "type": "skill",
+    "replacement": "think-map",
+    "scan_pattern": "eng-map"
+  },
+  {
+    "concept": "eng-architecture",
+    "type": "skill",
+    "replacement": "think-architecture",
+    "scan_pattern": "eng-architecture"
+  },
+  {
+    "concept": "eng-quality",
+    "type": "skill",
+    "replacement": "think-quality",
+    "scan_pattern": "eng-quality"
+  },
+  {
+    "concept": "eng-research",
+    "type": "skill",
+    "replacement": "think-research",
+    "scan_pattern": "eng-research"
+  },
+  {
+    "concept": "eng-unstuck",
+    "type": "skill",
+    "replacement": "think-unstuck",
+    "scan_pattern": "eng-unstuck"
+  },
+  {
+    "concept": "eng-debug",
+    "type": "skill",
+    "replacement": "dev-debug",
+    "scan_pattern": "eng-debug"
+  },
+  {
+    "concept": "eng-tdd",
+    "type": "skill",
+    "replacement": "dev-tdd",
+    "scan_pattern": "eng-tdd"
+  },
+  {
+    "concept": "eng-refactor",
+    "type": "skill",
+    "replacement": "dev-refactor",
+    "scan_pattern": "eng-refactor"
+  },
+  {
+    "concept": "eng-review",
+    "type": "skill",
+    "replacement": "guard-review",
+    "scan_pattern": "eng-review"
+  },
+  {
+    "concept": "eng-secure",
+    "type": "skill",
+    "replacement": "guard-secure",
+    "scan_pattern": "eng-secure"
+  },
+  {
+    "concept": "eng-ship",
+    "type": "skill",
+    "replacement": "guard-ship",
+    "scan_pattern": "eng-ship"
+  },
+  {
+    "concept": "eng-verify",
+    "type": "skill",
+    "replacement": "guard-verify",
+    "scan_pattern": "eng-verify"
+  },
+  {
+    "concept": "eng-check",
+    "type": "skill",
+    "replacement": "guard-check",
+    "scan_pattern": "eng-check"
+  },
+  {
+    "concept": "eng-close",
+    "type": "skill",
+    "replacement": "guard-close",
+    "scan_pattern": "eng-close"
+  },
+  {
+    "concept": "eng-learn",
+    "type": "skill",
+    "replacement": "assist-learn",
+    "scan_pattern": "eng-learn"
+  },
+  {
+    "concept": "eng-readable-metrics",
+    "type": "skill",
+    "replacement": "readable-metrics",
+    "scan_pattern": "eng-readable-metrics"
+  },
+  {
+    "concept": "se-rewrite-readable",
+    "type": "skill",
+    "replacement": "readable-rewrite",
+    "scan_pattern": "se-rewrite-readable"
+  },
+  {
+    "concept": "se-research",
+    "type": "skill",
+    "replacement": "think-research",
+    "scan_pattern": "se-research"
+  },
+  {
+    "concept": "se-plan",
+    "type": "skill",
+    "replacement": "think-plan",
+    "scan_pattern": "se-plan"
+  },
+  {
+    "concept": "se-tdd",
+    "type": "skill",
+    "replacement": "dev-tdd",
+    "scan_pattern": "se-tdd"
+  },
+  {
+    "concept": "se-unstuck",
+    "type": "skill",
+    "replacement": "think-unstuck",
+    "scan_pattern": "se-unstuck"
+  },
+  {
+    "concept": "frontend-design",
+    "type": "skill",
+    "replacement": "fe-ui-design",
+    "scan_pattern": "frontend-design"
+  },
+  {
+    "concept": "ui-design",
+    "type": "skill",
+    "replacement": "fe-ui-design",
+    "scan_pattern": "ui-design"
+  },
+  {
+    "concept": "tuistory",
+    "type": "skill",
+    "replacement": "fe-ui-design",
+    "scan_pattern": "tuistory"
+  }
+]

@@ -87,6 +87,26 @@ METHODOLOGY_WHY_TERMS = (
     "Why",
     "why",
 )
+VAGUE_CONDITIONAL_WORDS: tuple[str, ...] = (
+    "必要时",
+    "适当",
+    "如需",
+    "如果需要",
+    "视情况",
+    "可能的话",
+    "灵活",
+)
+CONCRETE_CONDITION_PATTERN = re.compile(
+    r"/[a-z][-a-z0-9]+"           # skill reference
+    r"|\d+\s*[%秒次个件条步层]"     # numeric threshold with unit
+    r"|[<>≥≤=]\s*\d+"             # comparison operator with digits
+    r"|\.\w{1,5}\b"              # file extension (.py, .sh, .md, .json)
+    r"|当.{1,40}时"               # trigger clause 当...时
+    r"|若.{1,40}则"               # trigger clause 若...则
+    r"|超过"                      # threshold keyword
+    r"|exit code"                 # exit code
+    r"|`.+?`"                    # backtick-wrapped content
+)
 
 
 class ValidationError(RuntimeError):
@@ -431,6 +451,71 @@ def validate_methodology_why(entry: SkillEntry, skill_file: Path, content: str) 
             )
 
 
+def _is_output_format_heading(heading: str) -> bool:
+    return any(term in heading for term in ("输出格式", "Output Format", "输出"))
+
+
+def collect_vague_conditional_warnings(entry: SkillEntry, skill_file: Path, content: str) -> list[str]:
+    if is_trigger_exempt(entry):
+        return []
+
+    lines = content.splitlines()
+    warnings: list[str] = []
+    in_code_block = False
+    in_output_section = False
+
+    for line_number_0, line in enumerate(lines):
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+
+        if stripped.startswith("## "):
+            in_output_section = _is_output_format_heading(stripped)
+            continue
+        if in_output_section:
+            continue
+
+        for word in VAGUE_CONDITIONAL_WORDS:
+            if word not in stripped:
+                continue
+            # "适当" preceded by "不" is fine ("不适当")
+            if word == "适当":
+                idx = stripped.find(word)
+                if idx > 0 and stripped[idx - 1] == "不":
+                    continue
+
+            # Check same line for concrete condition
+            if CONCRETE_CONDITION_PATTERN.search(stripped):
+                continue
+
+            # Check next non-empty, non-heading line
+            found_concrete = False
+            for next_line in lines[line_number_0 + 1 :]:
+                next_stripped = next_line.strip()
+                if not next_stripped:
+                    continue
+                if next_stripped.startswith("#"):
+                    break
+                if CONCRETE_CONDITION_PATTERN.search(next_stripped):
+                    found_concrete = True
+                break
+            if found_concrete:
+                continue
+
+            # frontmatter occupies lines before content; approximate the file line number
+            # by adding 1 (content starts after frontmatter end marker)
+            warnings.append(
+                f"VAGUE CONDITIONAL WARNING: {entry.name} uses '{word}' "
+                f"at {skill_file}:{line_number_0 + 1} without adjacent concrete condition"
+            )
+
+    return warnings
+
+
 def validate_boundary_references(entry: SkillEntry, content: str, skill_names: set[str]) -> None:
     for reference in sorted(collect_boundary_references(content)):
         if reference not in skill_names:
@@ -505,11 +590,54 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
         if resolved is None:
             fail(f"BROKEN REFERENCE: {skill_file} -> {relative_path}")
         validate_executable_bit(skill_file, resolved)
-    return collect_high_risk_capability_warnings(entry, full_text)
+    warnings = collect_high_risk_capability_warnings(entry, full_text)
+    warnings.extend(collect_vague_conditional_warnings(entry, skill_file, content))
+    return warnings
 
 
 def routing_cases_path(context: ValidationContext) -> Path:
     return context.repo_root / "scripts" / "fixtures" / "skill_routing_cases.json"
+
+
+def deprecated_concepts_path(context: ValidationContext) -> Path:
+    return context.repo_root / "scripts" / "fixtures" / "deprecated-concepts.json"
+
+
+def validate_deprecated_concepts(context: ValidationContext, entries: list[SkillEntry]) -> int:
+    path = deprecated_concepts_path(context)
+    if not path.exists():
+        return 0
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"INVALID DEPRECATED CONCEPTS JSON: {path}: {exc}") from exc
+    if not isinstance(payload, list):
+        raise ValidationError(f"INVALID DEPRECATED CONCEPTS: {path} must contain a list")
+
+    warning_count = 0
+    for entry in entries:
+        skill_file = entry.path / "SKILL.md"
+        if not skill_file.exists():
+            continue
+        # Skip files under refs/ directory
+        if "refs" in skill_file.parts:
+            continue
+        content_lines = skill_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        for concept_entry in payload:
+            concept = concept_entry.get("concept", "")
+            replacement = concept_entry.get("replacement", "")
+            scan_pattern = concept_entry.get("scan_pattern", "")
+            if not scan_pattern:
+                continue
+            pattern_re = re.compile(r"(?<![a-zA-Z0-9_-])" + re.escape(scan_pattern) + r"(?![a-zA-Z0-9_])")
+            for line_number, line in enumerate(content_lines, start=1):
+                if pattern_re.search(line):
+                    print(
+                        f"DEPRECATED CONCEPT WARNING: {entry.name} references deprecated "
+                        f"'{concept}' (replaced by {replacement}) in {skill_file}:{line_number}"
+                    )
+                    warning_count += 1
+    return len(payload)
 
 
 def validate_routing_cases(context: ValidationContext, entries: list[SkillEntry], skill_names: set[str]) -> int:
@@ -660,9 +788,11 @@ def main() -> int:
             warnings.clear()
             print(f"ok: {entry.name} -> {entry.path.relative_to(context.repo_root)}")
         routing_case_count = validate_routing_cases(context, entries, skill_names)
+        deprecated_count = validate_deprecated_concepts(context, entries)
         asset_summary = validate_agent_assets(context)
         print(f"validated {len(entries)} skills")
         print(f"validated {routing_case_count} skill routing cases")
+        print(f"validated {deprecated_count} deprecated concepts")
         print(
             "validated agent assets: "
             f"agents={asset_summary.agents} commands={asset_summary.commands} "

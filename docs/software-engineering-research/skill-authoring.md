@@ -465,6 +465,8 @@ Do not proceed with implementation until this is reviewed.
 - [ ] 如需输入参数，按 5.1 用 `{{var}}`
 - [ ] 如输出本应结构化，按 5.2 附固定表格
 - [ ] 如引用 `scripts/*.sh` 或 `scripts/*.py`（仓库根），脚本必须 `chmod +x`
+- [ ] 模糊条件词（必要时/适当/如需等）已附带具体条件
+- [ ] 废弃的 skill/concept 已登记到 `scripts/fixtures/deprecated-concepts.json`
 - [ ] `python3 scripts/verify_skills.py` 通过
 - [ ] `python3 -m unittest scripts.tests.test_skills_registry` 通过
 
@@ -487,3 +489,43 @@ Do not proceed with implementation until this is reviewed.
 - 引用路径从仓库根开始写（如 `scripts/preflight.sh`），校验脚本会按 skill-local → repo-root 顺序解析
 - 仓库根的 `.sh` / `.py` 必须 `chmod +x`，`verify_skills.py` 会强制校验
 - 脚本输出尽量用 Markdown 表格，方便 agent 直接贴进最终报告
+
+---
+
+## 9. 模糊条件词规则
+
+SKILL.md body（code block 和输出格式区除外）中使用以下条件词时，同句或下一条目须附带具体条件：
+
+| 受检词 | 要求 |
+|--------|------|
+| 必要时 | 同句或下一行须含具体触发条件 |
+| 适当 | 同句或下一行须含具体标准（"不适当"不受检） |
+| 如需 | 同句或下一行须含具体场景 |
+| 如果需要 | 同上 |
+| 视情况 | 同句或下一行须含判断依据 |
+| 可能的话 | 同句或下一行须含具体前提 |
+| 灵活 | 同句或下一行须含约束范围 |
+
+"具体条件"包括：skill 引用（`/skill-name`）、数值阈值、脚本/文件路径、具体触发子句（`当...时`/`若...则`/`超过`）、工具/命令名。
+
+合规示例：
+- `必要时引用 /think-quality 结论` (skill 引用)
+- `连续失败超过 2 次时，适当降级` (数值阈值 + 触发条件)
+
+不合规示例：
+- `必要时引用相关资料` (无具体条件)
+- `适当处理错误` (无具体标准)
+
+`verify_skills.py` 对违规产出 warning（当前不阻断 CI）。
+
+---
+
+## 10. 废弃概念管理
+
+当 skill、command、hook 或重要概念被废弃或重命名时：
+
+1. 在 `scripts/fixtures/deprecated-concepts.json` 登记：concept 名、类型、替代方案、扫描模式
+2. `verify_skills.py` 会在所有 SKILL.md 中扫描已登记的废弃概念引用并发出 warning
+3. 清理所有引用后，条目保留作为历史记录
+
+此机制覆盖正向验证的盲区：逆向验证（检查不该有的东西是否消失）。
