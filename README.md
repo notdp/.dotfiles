@@ -14,8 +14,8 @@ My Droid skills/scripts.
 |------|------|
 | `agents/AGENTS.md` | 全局硬约束、事实纪律、验证门禁、工具纪律 |
 | `coding-skills/` | 按需触发的领域能力和工作流能力（系统级，软连接到 cc/codex/droid/opencode/kilo），权威清单见 `coding-skills/catalog.json` |
-| `writing-skills/` | 写作 / 创作类技能 + `_shared/` 写作硬约束 SSOT，仅软连接到指定创作项目的 `.claude/skills`，不暴露给编程 agent；权威清单见 `writing-skills/catalog.json` |
-| `writing-hooks/` | 写作专用 hook（slop/篇幅/provenance/发布门）+ `verify_writing.py`，与编程 `scripts/hooks/` 隔离，仅在创作项目 `.claude/settings.json` 注册 |
+| `writing-skills/` | 写作类技能，作为创作项目既有方法论的**补充**（write-dissolve / guard-write-facts / assist-write-corpus + article-growth-diagnosis）+ `_shared/`；软连接到创作项目 `.claude/skills`，不暴露给编程 agent；清单见 `writing-skills/catalog.json` |
+| `writing-hooks/` | 写作专用 hook + `verify_writing.py`，与编程 `scripts/hooks/` 隔离；**当前为休眠工具，未在任何项目注册**（创作项目已有自身发布前自查，不挂 hook） |
 | `commands/` | 高频 slash commands |
 | `scripts/` | 编程侧 hooks、验证、Droid mod、长任务、扫描器等本地工具 |
 | `.factory/settings.json` | Droid hook 配置 |

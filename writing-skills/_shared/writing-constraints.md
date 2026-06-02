@@ -1,10 +1,14 @@
-# 中文写作硬约束（writing-constraints · SSOT）
+# 中文写作硬约束（writing-constraints）
 
-> 所有 `writing-skills/` 下的 skill 必须遵守本文件；它是写作产物质量下限的**单一事实源**。
-> 写作 skill 在正文里引用本文件（`_shared/writing-constraints.md`），不要各自重抄一份（会漂移）。
-> `writing-hooks/` 下的静态门（slop_lint / length_budget / provenance_guard 等）按本文件的可机检条款做拦截。
+> **定位（重要）**：当前 writing-skills 只作为创作项目既有方法论的**补充**（write-dissolve 消解、
+> guard-write-facts 事实核验、assist-write-corpus 语料库）。
+> **风格 / 结构 / 排版 / 标题 / 取材 / 发布以创作项目自身的 `写作风格指南.md` 与 `AGENTS.md` 为权威**。
+> 本文件只对那 3 个补充 skill 生效，且实际只用到其中不与项目风格冲突的部分：
+> **第 3 节真实性纪律、第 4 节反空洞、第 7 节 provenance 隔离**。
+> 第 1/2/5 节的排版 / slop / 篇幅条款与项目风格指南重叠，**以项目风格指南为准**，本文件不覆盖它。
 >
-> 条款分两类：**[硬]** = 可被脚本确定性检测、违反应阻断；**[软]** = 需人判断、违反应告警或自检。
+> 写作 skill 在正文里引用本文件而非各自重抄。条款标注：**[硬]** = 可脚本确定性检测；**[软]** = 需人判断、告警或自检。
+> （writing-hooks/ 下的静态门当前**未在任何项目注册**，为休眠工具；本节描述其设计语义，非现行强制。）
 
 ## 1. 中文排版
 

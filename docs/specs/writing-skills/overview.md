@@ -1,8 +1,19 @@
 # writing-skills 体系设计 spec（overview）
 
-> 状态：**设计稿，待用户批准**。本 spec 只做设计，不含实现。SSOT = 本文档。
-> 输入证据：`docs/writing-refs-synthesis.md`（6 大哲学 / 技巧目录 / 候选 taxonomy）、`docs/writing-refs-details/*`（10 份逐仓库 why+how）。
-> 读者：本仓库维护者（你）。产物：可批准的阶段化设计 + 各方向边界 + 验证/回滚。
+> **实现结果（2026-06-03 修订，覆盖原 TL;DR 的全量计划）**：
+> 全量实现后发现创作项目已有一套成熟、按数据反馈更新的写作方法论（`写作风格指南.md` +
+> `AGENTS.md` 的素材→草稿→review→发布脚本工作流 + `gen_image.py` 出图 + `find_material.py` 取材）。
+> 通用 writing-skills 与之高度重叠且多处更弱/冲突，故**缩减为「补充」**（用户决策 B）：
+> - **保留 3 个不重叠 skill**：`write-dissolve`（动笔前消解/证伪）、`guard-write-facts`（事实/引用核验）、
+>   `assist-write-corpus`（语料库）+ 用户既有 `article-growth-diagnosis`。
+> - **删除 12 个与风格指南重叠的 skill**（write-scope/source/outline/draft/revise/hook/voice +
+>   视觉 card/deck/illustration/poster + guard-write-check）——保留在 git 历史（commit c8ac5e2），可恢复。
+> - **不挂 hooks**：移除创作项目 `.claude/settings.json`；`writing-hooks/` 代码保留为**休眠工具**（未注册），
+>   原因见 §「与项目既有方法论的冲突」。风格/结构/取材/发布以项目 `写作风格指南.md` / `AGENTS.md` 为权威。
+> 下文为原始全量设计，留作记录与未来其他写作项目的参考。
+
+> 原状态：设计稿（已批准全量实现，后按 B 缩减）。SSOT = 本文档。
+> 输入证据：`docs/writing-refs-synthesis.md`、`docs/writing-refs-details/*`（10 份逐仓库 why+how）。
 
 ## TL;DR
 
