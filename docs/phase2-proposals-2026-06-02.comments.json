@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "spec_file": "docs/phase2-proposals-2026-06-02.md",
+  "review_version": 1,
+  "anchors": {
+    "决策点-1-—-a6-六段式-mistake-模板": {
+      "heading": "决策点 1 — A6 六段式 mistake 模板",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-1-—-a6-六段式-mistake-模板-0",
+          "role": "user",
+          "status": "resolved",
+          "classification": "blocker",
+          "text": "可以保留",
+          "response": "approve：新增 skills/assist-retrospect/templates/mistake-note.md（轻量快记，头部声明与 8 段完整复盘分工）",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    },
+    "决策点-2-—-a7-trigger-do-not-trigger-正反短语簇": {
+      "heading": "决策点 2 — A7 TRIGGER / DO NOT TRIGGER 正反短语簇",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-2-—-a7-trigger-do-not-trigger-正反短语簇-1",
+          "role": "user",
+          "status": "resolved",
+          "classification": "blocker",
+          "text": "可以保留",
+          "response": "approve：skill-authoring.md §1.3 末尾新增 §1.3.1 正反簇约定（放正文不放 frontmatter，前缀仍必填）",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    },
+    "决策点-3-—-a8-对抗式-qa-体裁": {
+      "heading": "决策点 3 — A8 对抗式 QA 体裁",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-3-—-a8-对抗式-qa-体裁-2",
+          "role": "user",
+          "status": "answered",
+          "classification": "question",
+          "text": "我觉得这条很好，能融入到现有体系中吗",
+          "response": "能。融入 guard-verify 现有 ## Anti-Rationalization Guard，作借口表后的一段对抗姿态，不新增章节、不塞领域 grep 探针，与现有借口→反驳体裁连续。",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    },
+    "决策点-4-—-a9-ai-slop-负向门": {
+      "heading": "决策点 4 — A9 AI slop 负向门",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-4-—-a9-ai-slop-负向门-3",
+          "role": "user",
+          "status": "resolved",
+          "classification": "blocker",
+          "text": "trim",
+          "response": "trim：只在 fe-ui-lint-artifact SKILL.md 扫描项表补 2 个 NEVER 项（标题下划线/正文居中），不动 scan_ui_artifact.py 正则（居中/下划线易误报）。",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    },
+    "决策点-5-—-a15-主动性等级标注": {
+      "heading": "决策点 5 — A15 主动性等级标注",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-5-—-a15-主动性等级标注-4",
+          "role": "user",
+          "status": "answered",
+          "classification": "question",
+          "text": "我建议，如非必须，不要有太多主动 skill\n\n尽量都让 agent 来自己决定使用",
+          "response": "reject A15：按你偏好不加主动性等级标注/约定，保持现状让 agent 自主决定触发，不引入额外主动性机制。",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    },
+    "决策点-6-—-a16-置信度硬停门语义": {
+      "heading": "决策点 6 — A16 置信度硬停门语义",
+      "comments": [
+        {
+          "id": "c-2026-06-02T06-02-05-399Z-决策点-6-—-a16-置信度硬停门语义-5",
+          "role": "user",
+          "status": "answered",
+          "classification": "question",
+          "text": "reject",
+          "response": "reject A16：think-scope/think-refine 现有 Ambiguity Score 硬停门 + 给候选让用户选已覆盖，不新增 Escalate 格式。",
+          "created_in_version": 1,
+          "resolved_in_version": 1
+        }
+      ]
+    }
+  }
+}
