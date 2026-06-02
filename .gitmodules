@@ -133,3 +133,21 @@
 [submodule "refs/Chachamaru127/claude-code-harness"]
 	path = refs/Chachamaru127/claude-code-harness
 	url = https://github.com/Chachamaru127/claude-code-harness
+[submodule "refs/OthmanAdi/planning-with-files"]
+	path = refs/OthmanAdi/planning-with-files
+	url = https://github.com/OthmanAdi/planning-with-files
+[submodule "refs/SuperClaude-Org/SuperClaude_Framework"]
+	path = refs/SuperClaude-Org/SuperClaude_Framework
+	url = https://github.com/SuperClaude-Org/SuperClaude_Framework
+[submodule "refs/MiniMax-AI/skills"]
+	path = refs/MiniMax-AI/skills
+	url = https://github.com/MiniMax-AI/skills
+[submodule "refs/ComposioHQ/awesome-claude-skills"]
+	path = refs/ComposioHQ/awesome-claude-skills
+	url = https://github.com/ComposioHQ/awesome-claude-skills
+[submodule "refs/antfu/skills"]
+	path = refs/antfu/skills
+	url = https://github.com/antfu/skills
+[submodule "refs/voltagent/awesome-agent-skills"]
+	path = refs/voltagent/awesome-agent-skills
+	url = https://github.com/VoltAgent/awesome-agent-skills
