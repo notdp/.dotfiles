@@ -151,3 +151,30 @@
 [submodule "refs/voltagent/awesome-agent-skills"]
 	path = refs/voltagent/awesome-agent-skills
 	url = https://github.com/VoltAgent/awesome-agent-skills
+[submodule "writing-refs/op7418/Humanizer-zh"]
+	path = writing-refs/op7418/Humanizer-zh
+	url = https://github.com/op7418/Humanizer-zh.git
+[submodule "writing-refs/dontbesilent2025/dbskill"]
+	path = writing-refs/dontbesilent2025/dbskill
+	url = https://github.com/dontbesilent2025/dbskill.git
+[submodule "writing-refs/PleasePrompto/notebooklm-skill"]
+	path = writing-refs/PleasePrompto/notebooklm-skill
+	url = https://github.com/PleasePrompto/notebooklm-skill.git
+[submodule "writing-refs/KKKKhazix/khazix-skills"]
+	path = writing-refs/KKKKhazix/khazix-skills
+	url = https://github.com/KKKKhazix/khazix-skills.git
+[submodule "writing-refs/helloianneo/ian-xiaohei-illustrations"]
+	path = writing-refs/helloianneo/ian-xiaohei-illustrations
+	url = https://github.com/helloianneo/ian-xiaohei-illustrations.git
+[submodule "writing-refs/op7418/guizang-social-card-skill"]
+	path = writing-refs/op7418/guizang-social-card-skill
+	url = https://github.com/op7418/guizang-social-card-skill.git
+[submodule "writing-refs/JimLiu/baoyu-skills"]
+	path = writing-refs/JimLiu/baoyu-skills
+	url = https://github.com/JimLiu/baoyu-skills.git
+[submodule "writing-refs/op7418/guizang-ppt-skill"]
+	path = writing-refs/op7418/guizang-ppt-skill
+	url = https://github.com/op7418/guizang-ppt-skill.git
+[submodule "writing-refs/nexu-io/html-anything"]
+	path = writing-refs/nexu-io/html-anything
+	url = https://github.com/nexu-io/html-anything.git
