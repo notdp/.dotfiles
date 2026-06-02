@@ -774,11 +774,36 @@ def validate_agent_assets(context: ValidationContext) -> AssetValidationSummary:
     )
 
 
+def validate_catalog_coverage(context: ValidationContext, entries: list[SkillEntry]) -> None:
+    """反向对账：skills/ 下任何带 SKILL.md 的目录都必须在 catalog.json 注册。
+
+    catalog -> 目录方向已由 load_catalog 校验（MISSING PATH）；本函数补目录 -> catalog
+    方向，抓"有 SKILL.md 但未注册"的孤儿目录（注册后才会进路由/校验，否则静默漏检）。
+    隐藏目录（如 skills/.system/ 下的工具类 skill）故意不进 catalog，按段名以 '.' 开头豁免。
+    """
+    registered = {entry.path.resolve() for entry in entries}
+    orphans: list[str] = []
+    for skill_file in context.skills_root.rglob("SKILL.md"):
+        skill_dir = skill_file.parent
+        rel_parts = skill_dir.relative_to(context.skills_root).parts
+        if any(part.startswith(".") for part in rel_parts):
+            continue
+        if skill_dir.resolve() not in registered:
+            orphans.append(str(skill_dir.relative_to(context.repo_root)))
+    if orphans:
+        fail(
+            "ORPHAN SKILL: "
+            + ", ".join(sorted(orphans))
+            + " (有 SKILL.md 但未在 catalog.json 注册)"
+        )
+
+
 def main() -> int:
     try:
         repo_root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
         context = ValidationContext(repo_root=repo_root)
         entries = load_catalog(context)
+        validate_catalog_coverage(context, entries)
         skill_names = {entry.name for entry in entries}
         warnings: list[str] = []
         for entry in entries:

@@ -946,6 +946,89 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
             self.assertNotIn("DEPRECATED CONCEPT", result.stdout)
 
+    def test_verify_script_reports_orphan_skill_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            cataloged = repo / "skills" / "dev-demo"
+            orphan = repo / "skills" / "think-orphan"
+            cataloged.mkdir(parents=True)
+            orphan.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (cataloged / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+            # think-orphan 有 SKILL.md 但不在 catalog，应被反向对账抓到
+            (orphan / "SKILL.md").write_text(
+                "---\nname: think-orphan\ndescription: 当测试时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ORPHAN SKILL", result.stderr)
+            self.assertIn("skills/think-orphan", result.stderr)
+
+    def test_verify_script_excludes_hidden_dir_from_orphan_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            cataloged = repo / "skills" / "dev-demo"
+            system = repo / "skills" / ".system" / "skill-creator"
+            cataloged.mkdir(parents=True)
+            system.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {
+                        "skills": [
+                            {
+                                "name": "dev-demo",
+                                "path": "skills/dev-demo",
+                                "domain": "dev",
+                                "role": "canonical",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (cataloged / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+            # .system/ 下的工具类 skill 故意不进 catalog，应被豁免
+            (system / "SKILL.md").write_text(
+                "---\nname: skill-creator\ndescription: 当创建 skill 时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("ORPHAN SKILL", result.stderr)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
