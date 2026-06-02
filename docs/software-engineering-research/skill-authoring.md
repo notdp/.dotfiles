@@ -144,6 +144,8 @@ frontmatter 的 `description` 字段必须分两段，以触发词开头：
 
 **分段符号**：中文场景用 `；`，英文场景用 `.` 或 `;`。
 
+**保留符号 gotcha**：description 内不要出现裸 `---`。YAML frontmatter 用 `---` 作分隔符，值里出现裸 `---` 会被解析截断（planning-files v2.38.1 实证：注入 `---` 截断了 description）。本仓库 `context_capsule.py` 等向 SKILL.md / capsule 注入文本的链路，分隔符用 `===` 或正文标题，不要用 `---`。（来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A13）
+
 ### 1.2 允许的触发词（四选一）
 
 ```
@@ -508,6 +510,7 @@ Do not proceed with implementation until this is reviewed.
 - 引用路径从仓库根开始写（如 `scripts/preflight.sh`），校验脚本会按 skill-local → repo-root 顺序解析
 - 仓库根的 `.sh` / `.py` 必须 `chmod +x`，`verify_skills.py` 会强制校验
 - 脚本输出尽量用 Markdown 表格，方便 agent 直接贴进最终报告
+- **大脚本/纯执行类默认黑盒调用**：当脚本是大体量、纯执行的工具（几百行 CLI、生成器、扫描器），skill 正文让 agent 先 `--help` 再当 CLI 调，不要求 agent 通读脚本源码，理由是省上下文预算（来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A14，源 awesome-composio webapp-testing）。限定范围：只对"大脚本/纯执行"成立；需要按环境改写逻辑、或要 review 行为的小脚本仍要读，避免与可 review 性冲突
 
 ---
 

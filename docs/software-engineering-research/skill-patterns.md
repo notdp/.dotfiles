@@ -422,6 +422,44 @@ Only changed:
 
 ---
 
+## 模式 K：MCP 工具发现替代硬编码 schema
+
+> 来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A18，源 ComposioHQ/awesome-claude-skills（composio-skills）。
+
+### 用它的场景
+
+skill 要驱动外部工具/MCP（SaaS API、Composio toolkit），而上游 API/工具 schema 会演进。把工具名、参数 schema 硬编码进 SKILL.md，上游一改 skill 就静默腐烂。
+
+### 写法
+
+- 正文不写死工具 schema，而是让 agent 在运行时通过 MCP `ToolSearch` / 工具发现拿到当前 schema 再调用。
+- 配一份 `known-pitfalls` 清单（哪些工具有坑、参数顺序、鉴权前置），用确定性文字补运行时发现的不确定性。
+
+### 张力与边界
+
+运行时发现增加不确定性，和本仓库"事实驱动 / 显式化"有张力。仅用于"工具 schema 必然漂移"的外部集成；本仓库内部能力不要为了"灵活"放弃显式 schema。
+
+---
+
+## 模式 L：否定式护栏 command
+
+> 来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A18b，源 ComposioHQ（connect-apps-plugin setup.md）。
+
+### 用它的场景
+
+install / config / setup 型流程容易发散（agent 反复搜索、连环追问、试错）。用一组"不要做"的否定式护栏 + 时限收紧流程，比正向 SOP 更能止血。
+
+### 写法
+
+- 列 `Do NOT ...` 清单：如 `Do NOT 反复多轮追问`、`Do NOT 无界搜索`，配明确时限/步数上限。
+- 措辞必须改写以符合本仓库 Truth Directive：源项目的 `Ignore pretrained data` 这类原话不能照搬（与事实纪律冲突），只吸收"否定式 + 时限"的结构。
+
+### 反模式
+
+照搬外部护栏原话（`Ignore pretrained data` / `Do NOT search config`）——见本文末"反模式"第 5 条与第 6 条。
+
+---
+
 ## 模式汇总表
 
 | 模式 | 代表样例 | 行数 | 何时用 |
@@ -436,6 +474,8 @@ Only changed:
 | H 领域分册型 Skill | `scientific-agent-skills` | 80-200 + 分册 | 知识密集、引用多、示例脚本多 |
 | I Command 编排型 Workflow | `designer-skills` commands | 10-80 | 高频串联多个 skill |
 | J Wrong / Should Happen 反例库 | `andrej-karpathy-skills/EXAMPLES.md` | 混入 | 用对照反例校准行为边界 |
+| K MCP 工具发现 | composio-skills | 混入 | 驱动会漂移的外部工具/MCP，避免硬编码 schema |
+| L 否定式护栏 command | connect-apps-plugin setup | 10-40 | install/config 流程发散，用 Do NOT + 时限止血 |
 
 ---
 
