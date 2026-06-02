@@ -55,6 +55,25 @@ Command 可以引用多个 skill；本仓库不采用“禁止跨插件引用”
 
 原则：可以规定流程纪律和验收标准，不要微操具体操作路径。
 
+### 六维度完整性自查（authoring lens）
+
+参考：`docs/refs-details/agent-behavior-6d-framework.md`。写或审 action skill（`dev-*` / `guard-*`）时，用这六个维度做一次完整性扫描，确认这类任务的判断力和边界都被某一层覆盖：
+
+| 维度 | 含义 | 默认落点 |
+|---|---|---|
+| Outcome | 完成后应达到什么状态 | per-skill（任务契约/产物形态） |
+| Verification | 怎么验证完成 | per-skill 质量门 + 全局四条红线闭环验证 |
+| Constraints | 哪些东西不能退化 | 多数全局（Surgical Changes、行为不变） |
+| Boundaries | 能用哪些工具、碰哪些文件 | **多数全局**（AGENTS.md `边界决策`） |
+| Iteration | 失败后怎么继续 | **多数全局**（"连续失败 2 次 → /think-unstuck"） |
+| Stopping | 什么时候停下来问人 | per-skill 退出条件 + 全局默认停止 |
+
+关键判据（防止 lens 反向制造膨胀）：
+
+- **Boundaries / Iteration / Verification / Stopping 四维度已由 `agents/AGENTS.md` 全局覆盖，并由 `scripts/verify_skills.py` 部分机器强制**（`WORKFLOW_QUALITY` / `GUARDRAIL_ANCHOR` / `VAGUE_CONDITIONAL`）。默认**不在 SKILL.md 重复这些**，否则与全局规则冗余、制造 runtime 上下文膨胀。
+- **只有当该 skill 存在超出全局规则的特定风险时**，才在 SKILL.md 写 per-skill 正文。判据沿用"按失败模式校准约束强度"：能说出这条 per-skill 规则防止的、全局规则覆盖不到的具体坏结果，才写；说不出就指向全局。
+- 例：`dev-long-loop` 是 orchestrator 循环，全局"连续失败 2 次"针对单轮排错，覆盖不到"循环连续 N 轮无进展 / 预算耗尽"——这是超出全局的特定风险，所以在 SKILL.md 补循环停止条件。普通改代码 skill 没有这种循环风险，依赖全局即可。
+
 ### Prompt pressure 与诚实失败路径
 
 参考：`docs/software-engineering-research/prompt-pressure-risk.md`。

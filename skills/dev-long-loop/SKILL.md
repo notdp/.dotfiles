@@ -76,6 +76,8 @@ argument-hint: <任务目标或需求>
 - worker 返回后，orchestrator 必须检查 `HANDOFF.md`、`logs.md`、`fix_plan.md`、phase QA、验证输出和 git diff。
 - worker 是否完成以 `HANDOFF.md + fix_plan.md + phase QA` 为 evidence；如果 handoff complete 但 worker process still running，先按观测冲突复核 workspace 文件，不要只凭进程或空输出判断卡死。
 - 只有 evidence 支持继续时才启动下一轮；遇到 blocked、权限、secret、push/deploy/DB/第三方副作用时停止并问用户。
+- 循环无进展停止（全局"连续失败 2 次"的循环版）：同一 `fix_plan.md` item 连续 2 轮未达成其 phase QA、且 `HANDOFF.md` 状态未向好（仍 `in_progress` 或证据无新增）时，停止起新轮，向用户报告无进展事实和已尝试动作，AskUser 决定改方向 / 缩范围 / 终止。worker 跑了但没推进，不等于 `blocked`，必须靠这条捕获。
+- 预算 checkpoint 停止：剩余 token budget 不足以安全完成一轮（保守按一轮典型消耗估算）时，先把当前状态写入 `logs.md` 和 `HANDOFF.md` 作为干净检查点，再 AskUser 是否加预算或收尾；不在预算耗尽边缘起新轮，避免断在无证据的中间态。
 
 ## Worker Contract
 
@@ -107,7 +109,7 @@ argument-hint: <任务目标或需求>
 - 阶段完成必须满足阶段 `qa.md`。
 - 每轮必须更新 `logs.md` 和所选 item 在 `fix_plan.md` 中的状态。
 - 每轮必须更新 `HANDOFF.md`，否则 orchestrator 不能声称该轮完成。
-- 定期用 `/guard-close` 思路判断是否发散或该停止。
+- 每完成一个 phase 边界，走一次 `/guard-close` 思路判断是否发散或该停止；同一 item 连续 2 轮无进展时也必须触发。
 - 不自动 push、deploy、改数据库、改 secrets 或触碰第三方系统。
 
 ## Legacy Helper Boundary
