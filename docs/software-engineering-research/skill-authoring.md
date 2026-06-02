@@ -193,6 +193,21 @@ Invoke when ...
 ✅ 当对话进展停滞、agent 路径漂移或需要结构化排查时使用；也接受用户手动触发。
 ```
 
+### 1.3.1 TRIGGER / DO NOT TRIGGER 正反短语簇（可选增强）
+
+> 来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A7（源 MiniMax）。§1.3 管"措辞轴"（怎么写场景）；本节是"边界轴"，给高误触发 skill 补具体用户原话样例。
+
+对在通用对话里容易误触发 / 漏触发的 skill，可在 SKILL.md **正文**（不是 frontmatter）补一组用户原话样例，帮 agent 划路由边界：
+
+- **TRIGGER**：列 3-5 条会命中的用户原话
+- **DO NOT TRIGGER**：列 3-5 条貌似相关但不该命中的原话
+
+约束：
+
+- 放正文，不放 `description`（避免 description 超长）。
+- 触发前缀仍必填（本节是补充，不替代 §1.2 / §1.3 硬约束）。
+- 样例写"客观场景"，不写"用户是否明示请求"（沿用 §1.3）。
+
 ### 1.4 豁免机制（trigger-exempt）
 
 当一条 skill **改写后会丢失原 description 携带的关键语义**（如时序感、外部依赖契约、原 prompt 触发词法），允许在 `skills/catalog.json` 中标注豁免：

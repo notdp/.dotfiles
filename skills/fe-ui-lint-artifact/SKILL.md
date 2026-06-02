@@ -58,7 +58,12 @@ rg '#[0-9a-fA-F]{3,8}' <scope>
 ```bash
 rg '!important|z-\\[|w-\\[|h-\\[|text-\\[|rounded-\\[' <scope>
 rg 'modal|dialog|drawer' -i <scope>
+rg 'text-decoration:\\s*underline|<u>|\\bunderline\\b' <scope>   # 标题加下划线（h1-h6 命中需人工确认）
+rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段落容器居中（标题/按钮居中是合理的，需人工判断范围）
 ```
+
+> [!NOTE]
+> 上面两条（标题下划线、正文居中）是手动 rg 项，命中需人工判断；**不**进 `scripts/scan_ui_artifact.py` 的 gating 规则（居中/下划线正则误报率高）。来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A9。
 
 ## 输出契约
 
