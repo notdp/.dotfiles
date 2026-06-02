@@ -5,3 +5,8 @@ __pycache__/
 .agent-state/
 *.review.html
 .aider*
+
+# media / yt-dlp 下载残片（非仓库产物）
+*.mp4
+*.part
+*.ytdl
