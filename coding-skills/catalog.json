@@ -2,49 +2,49 @@
   "skills": [
     {
       "name": "agent-browser",
-      "path": "skills/agent-browser",
+      "path": "coding-skills/agent-browser",
       "domain": "web",
       "role": "brand-exception"
     },
     {
       "name": "hive",
-      "path": "skills/hive",
+      "path": "coding-skills/hive",
       "domain": "team",
       "role": "brand-exception"
     },
     {
       "name": "react-doctor",
-      "path": "skills/react-doctor",
+      "path": "coding-skills/react-doctor",
       "domain": "ui",
       "role": "brand-exception"
     },
     {
       "name": "readable-final-answer",
-      "path": "skills/readable-final-answer",
+      "path": "coding-skills/readable-final-answer",
       "domain": "readable",
       "role": "canonical"
     },
     {
       "name": "web-read",
-      "path": "skills/web-read",
+      "path": "coding-skills/web-read",
       "domain": "web",
       "role": "canonical"
     },
     {
       "name": "agent-health",
-      "path": "skills/agent-health",
+      "path": "coding-skills/agent-health",
       "domain": "agent",
       "role": "canonical"
     },
     {
       "name": "agent-harness-creator",
-      "path": "skills/agent-harness-creator",
+      "path": "coding-skills/agent-harness-creator",
       "domain": "agent",
       "role": "canonical"
     },
     {
       "name": "read-droid-session",
-      "path": "skills/read-droid-session",
+      "path": "coding-skills/read-droid-session",
       "domain": "agent",
       "role": "legacy",
       "migration": {
@@ -53,223 +53,223 @@
     },
     {
       "name": "workflow-helper",
-      "path": "skills/workflow-helper",
+      "path": "coding-skills/workflow-helper",
       "domain": "workflow",
       "role": "canonical"
     },
     {
       "name": "guard-check",
-      "path": "skills/guard-check",
+      "path": "coding-skills/guard-check",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "fe-ui-design",
-      "path": "skills/fe-ui-design",
+      "path": "coding-skills/fe-ui-design",
       "domain": "fe",
       "role": "canonical"
     },
     {
       "name": "fe-ui-critique",
-      "path": "skills/fe-ui-critique",
+      "path": "coding-skills/fe-ui-critique",
       "domain": "fe",
       "role": "canonical"
     },
     {
       "name": "fe-ui-design-system",
-      "path": "skills/fe-ui-design-system",
+      "path": "coding-skills/fe-ui-design-system",
       "domain": "fe",
       "role": "canonical"
     },
     {
       "name": "fe-ui-lint-artifact",
-      "path": "skills/fe-ui-lint-artifact",
+      "path": "coding-skills/fe-ui-lint-artifact",
       "domain": "fe",
       "role": "canonical"
     },
     {
       "name": "think-architecture",
-      "path": "skills/think-architecture",
+      "path": "coding-skills/think-architecture",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "guard-close",
-      "path": "skills/guard-close",
+      "path": "coding-skills/guard-close",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "dev-debug",
-      "path": "skills/dev-debug",
+      "path": "coding-skills/dev-debug",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "think-map",
-      "path": "skills/think-map",
+      "path": "coding-skills/think-map",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "think-plan",
-      "path": "skills/think-plan",
+      "path": "coding-skills/think-plan",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "think-compare",
-      "path": "skills/think-compare",
+      "path": "coding-skills/think-compare",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "think-quality",
-      "path": "skills/think-quality",
+      "path": "coding-skills/think-quality",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "readable-metrics",
-      "path": "skills/readable-metrics",
+      "path": "coding-skills/readable-metrics",
       "domain": "readable",
       "role": "canonical"
     },
     {
       "name": "readable-html-artifact",
-      "path": "skills/readable-html-artifact",
+      "path": "coding-skills/readable-html-artifact",
       "domain": "readable",
       "role": "canonical"
     },
     {
       "name": "readable-rewrite",
-      "path": "skills/readable-rewrite",
+      "path": "coding-skills/readable-rewrite",
       "domain": "readable",
       "role": "canonical"
     },
     {
       "name": "dev-refactor",
-      "path": "skills/dev-refactor",
+      "path": "coding-skills/dev-refactor",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "think-research",
-      "path": "skills/think-research",
+      "path": "coding-skills/think-research",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "guard-review",
-      "path": "skills/guard-review",
+      "path": "coding-skills/guard-review",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "guard-secure",
-      "path": "skills/guard-secure",
+      "path": "coding-skills/guard-secure",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "guard-mysql-review",
-      "path": "skills/guard-mysql-review",
+      "path": "coding-skills/guard-mysql-review",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "guard-ship",
-      "path": "skills/guard-ship",
+      "path": "coding-skills/guard-ship",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "guard-gitops",
-      "path": "skills/guard-gitops",
+      "path": "coding-skills/guard-gitops",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "dev-tdd",
-      "path": "skills/dev-tdd",
+      "path": "coding-skills/dev-tdd",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "dev-large-delivery",
-      "path": "skills/dev-large-delivery",
+      "path": "coding-skills/dev-large-delivery",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "dev-long-loop",
-      "path": "skills/dev-long-loop",
+      "path": "coding-skills/dev-long-loop",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "dev-long-run-v2",
-      "path": "skills/dev-long-run-v2",
+      "path": "coding-skills/dev-long-run-v2",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "dev-long-task-scaffold",
-      "path": "skills/dev-long-task-scaffold",
+      "path": "coding-skills/dev-long-task-scaffold",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "dev-operational-task",
-      "path": "skills/dev-operational-task",
+      "path": "coding-skills/dev-operational-task",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "think-unstuck",
-      "path": "skills/think-unstuck",
+      "path": "coding-skills/think-unstuck",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "guard-verify",
-      "path": "skills/guard-verify",
+      "path": "coding-skills/guard-verify",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "assist-learn",
-      "path": "skills/assist-learn",
+      "path": "coding-skills/assist-learn",
       "domain": "assist",
       "role": "canonical"
     },
     {
       "name": "assist-retrospect",
-      "path": "skills/assist-retrospect",
+      "path": "coding-skills/assist-retrospect",
       "domain": "assist",
       "role": "canonical"
     },
     {
       "name": "assist-review-doc",
-      "path": "skills/assist-review-doc",
+      "path": "coding-skills/assist-review-doc",
       "domain": "assist",
       "role": "canonical"
     },
     {
       "name": "think-ask-context",
-      "path": "skills/think-ask-context",
+      "path": "coding-skills/think-ask-context",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "think-context-map",
-      "path": "skills/think-context-map",
+      "path": "coding-skills/think-context-map",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "think-refine",
-      "path": "skills/think-refine",
+      "path": "coding-skills/think-refine",
       "domain": "think",
       "role": "legacy",
       "migration": {
@@ -279,37 +279,37 @@
     },
     {
       "name": "think-scope",
-      "path": "skills/think-scope",
+      "path": "coding-skills/think-scope",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "guard-diff-scan",
-      "path": "skills/guard-diff-scan",
+      "path": "coding-skills/guard-diff-scan",
       "domain": "guard",
       "role": "canonical"
     },
     {
       "name": "fe-ui-visual-iterate",
-      "path": "skills/fe-ui-visual-iterate",
+      "path": "coding-skills/fe-ui-visual-iterate",
       "domain": "fe",
       "role": "canonical"
     },
     {
       "name": "think-survey",
-      "path": "skills/think-survey",
+      "path": "coding-skills/think-survey",
       "domain": "think",
       "role": "canonical"
     },
     {
       "name": "dev-simplify",
-      "path": "skills/dev-simplify",
+      "path": "coding-skills/dev-simplify",
       "domain": "dev",
       "role": "canonical"
     },
     {
       "name": "guard-threat-model",
-      "path": "skills/guard-threat-model",
+      "path": "coding-skills/guard-threat-model",
       "domain": "guard",
       "role": "canonical"
     }

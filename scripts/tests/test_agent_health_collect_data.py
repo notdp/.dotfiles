@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COLLECT_SCRIPT = REPO_ROOT / "skills" / "agent-health" / "scripts" / "collect_data.sh"
+COLLECT_SCRIPT = REPO_ROOT / "coding-skills" / "agent-health" / "scripts" / "collect_data.sh"
 
 
 class AgentHealthCollectDataTests(unittest.TestCase):

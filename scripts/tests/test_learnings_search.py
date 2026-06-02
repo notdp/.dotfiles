@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "skills" / "assist-learn" / "scripts" / "learnings_search.py"
+SCRIPT = REPO_ROOT / "coding-skills" / "assist-learn" / "scripts" / "learnings_search.py"
 
 
 class LearningsSearchTests(unittest.TestCase):

@@ -13,7 +13,8 @@ My Droid skills/scripts.
 | 路径 | 作用 |
 |------|------|
 | `agents/AGENTS.md` | 全局硬约束、事实纪律、验证门禁、工具纪律 |
-| `skills/` | 按需触发的领域能力和工作流能力，权威清单见 `skills/catalog.json` |
+| `coding-skills/` | 按需触发的领域能力和工作流能力（系统级，软连接到 cc/codex/droid/opencode/kilo），权威清单见 `coding-skills/catalog.json` |
+| `writing-skills/` | 写作 / 创作类技能，仅软连接到指定创作项目的 `.claude/skills`，不暴露给编程 agent |
 | `commands/` | 高频 slash commands |
 | `scripts/` | hooks、验证、Droid mod、长任务、扫描器等本地工具 |
 | `.factory/settings.json` | Droid hook 配置 |
@@ -55,7 +56,7 @@ python3 -m unittest discover -s scripts/tests -p "test_*.py"
 
 ## Skills
 
-按域前缀组织：`think-*` 思考 / `dev-*` 开发 / `guard-*` 护栏 / `readable-*` 可读性 / `assist-*` 沉淀，其余为专项能力。完整权威清单以 `skills/catalog.json` 为准，下面只保留常用入口。
+按域前缀组织：`think-*` 思考 / `dev-*` 开发 / `guard-*` 护栏 / `readable-*` 可读性 / `assist-*` 沉淀，其余为专项能力。完整权威清单以 `coding-skills/catalog.json` 为准，下面只保留常用入口。
 
 | Skill | Description |
 |-------|-------------|
@@ -108,7 +109,7 @@ python3 -m unittest discover -s scripts/tests -p "test_*.py"
 |--------|----------|------------|
 | `agents/AGENTS.md` | 全局硬约束、事实与验证红线、所有任务都成立的行为边界 | 高频流程步骤、领域细则、长篇背景知识 |
 | `commands/` | 一天会重复多次的高频 inner-loop 工作流 | 只在少数场景才需要的长知识库 |
-| `skills/` | 领域能力、流程能力、按需触发的专项约束 | 本应全局生效的硬规则 |
+| `coding-skills/` | 领域能力、流程能力、按需触发的专项约束 | 本应全局生效的硬规则 |
 | `docs/` | 调研沉淀、refs 详情、设计取舍与可追溯背景 | 需要每次任务都注入上下文的规则 |
 
 ### 相邻 Skill 路由矩阵

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-LONG_LOOP_SCRIPT = REPO_ROOT / "skills" / "dev-long-loop" / "long_loop.py"
+LONG_LOOP_SCRIPT = REPO_ROOT / "coding-skills" / "dev-long-loop" / "long_loop.py"
 LONG_LOOP_SYMLINK = REPO_ROOT / "scripts" / "long_loop.py"
 
 

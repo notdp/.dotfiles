@@ -1,1 +1,1 @@
-../skills/dev-long-loop/long_loop.py
+../coding-skills/dev-long-loop/long_loop.py

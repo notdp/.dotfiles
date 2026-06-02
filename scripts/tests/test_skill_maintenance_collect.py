@@ -148,17 +148,17 @@ class SkillMaintenanceCollectTests(unittest.TestCase):
     def test_multiple_high_risk_capabilities_are_should_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir = repo / "coding-skills" / "guard-demo"
             skill_dir.mkdir(parents=True)
             scripts_dir = repo / "scripts"
             scripts_dir.mkdir()
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "guard-demo",
-                                "path": "skills/guard-demo",
+                                "path": "coding-skills/guard-demo",
                                 "domain": "guard",
                                 "role": "canonical",
                             }

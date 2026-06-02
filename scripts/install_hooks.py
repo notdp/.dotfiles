@@ -369,7 +369,7 @@ def dotfiles_agents_path() -> str:
 
 
 def dotfiles_skills_path() -> str:
-    return (runtime_root() / "skills").as_posix()
+    return (runtime_root() / "coding-skills").as_posix()
 
 
 def dotfiles_commands_path() -> str:

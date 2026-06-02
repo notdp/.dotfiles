@@ -135,7 +135,7 @@ class ValidationContext:
 
     @property
     def skills_root(self) -> Path:
-        return self.repo_root / "skills"
+        return self.repo_root / "coding-skills"
 
     @property
     def catalog_path(self) -> Path:

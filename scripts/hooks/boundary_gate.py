@@ -20,7 +20,7 @@ RISK_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
 CONTEXT_SURFACE_PATH_RE = re.compile(
-    r"(^|/)(agents/AGENTS\.md|\.claude/settings\.json|\.factory/settings\.json|scripts/hooks/|scripts/hook_|agents/context-capsules/|skills/|commands/)",
+    r"(^|/)(agents/AGENTS\.md|\.claude/settings\.json|\.factory/settings\.json|scripts/hooks/|scripts/hook_|agents/context-capsules/|coding-skills/|writing-skills/|commands/)",
     re.I,
 )
 FACT_FIELD_RE = re.compile(

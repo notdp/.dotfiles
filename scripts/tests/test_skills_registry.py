@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CATALOG = REPO_ROOT / "skills" / "catalog.json"
+CATALOG = REPO_ROOT / "coding-skills" / "catalog.json"
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_skills.py"
 
 
@@ -62,7 +62,7 @@ class SkillsRegistryTests(unittest.TestCase):
     }
 
     def test_catalog_exists_and_declares_phase1_skills(self) -> None:
-        self.assertTrue(CATALOG.exists(), "skills/catalog.json should exist")
+        self.assertTrue(CATALOG.exists(), "coding-skills/catalog.json should exist")
         catalog = json.loads(CATALOG.read_text())
         names = {entry["name"] for entry in catalog["skills"]}
         self.assertIn("web-read", names)
@@ -87,10 +87,10 @@ class SkillsRegistryTests(unittest.TestCase):
         names = {entry["name"] for entry in catalog["skills"]}
         self.assertTrue(self.CANONICAL_NAMES.issubset(names))
         self.assertTrue(self.RENAMED_LEGACY_NAMES.isdisjoint(names))
-        self.assertFalse((REPO_ROOT / "skills" / "frontend-design").exists())
-        self.assertFalse((REPO_ROOT / "skills" / "eng-plan").exists())
-        self.assertFalse((REPO_ROOT / "skills" / "eng-review").exists())
-        self.assertFalse((REPO_ROOT / "skills" / "ui-design").exists())
+        self.assertFalse((REPO_ROOT / "coding-skills" / "frontend-design").exists())
+        self.assertFalse((REPO_ROOT / "coding-skills" / "eng-plan").exists())
+        self.assertFalse((REPO_ROOT / "coding-skills" / "eng-review").exists())
+        self.assertFalse((REPO_ROOT / "coding-skills" / "ui-design").exists())
 
     def test_verify_script_exists_and_repo_passes(self) -> None:
         self.assertTrue(VERIFY_SCRIPT.exists(), "scripts/verify_skills.py should exist")
@@ -105,15 +105,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_broken_skill_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "web-demo"
+            skill_dir = repo / "coding-skills" / "web-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "web-demo",
-                                "path": "skills/web-demo",
+                                "path": "coding-skills/web-demo",
                                 "domain": "web",
                                 "role": "canonical",
                             }
@@ -137,15 +137,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_unknown_future_canonical_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "legacy-demo"
+            skill_dir = repo / "coding-skills" / "legacy-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "legacy-demo",
-                                "path": "skills/legacy-demo",
+                                "path": "coding-skills/legacy-demo",
                                 "domain": "think",
                                 "role": "legacy",
                                 "migration": {
@@ -173,15 +173,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_description_trigger_prefix_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -205,15 +205,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_trigger_exempt_skill(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                                 "trigger-exempt": True,
@@ -248,17 +248,17 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_rejects_unknown_routing_skill(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             fixture_dir = repo / "scripts" / "fixtures"
             skill_dir.mkdir(parents=True)
             fixture_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -299,18 +299,18 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_requires_reject_skill_boundary_declaration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            dev_dir = repo / "skills" / "dev-demo"
-            think_dir = repo / "skills" / "think-demo"
+            dev_dir = repo / "coding-skills" / "dev-demo"
+            think_dir = repo / "coding-skills" / "think-demo"
             fixture_dir = repo / "scripts" / "fixtures"
             dev_dir.mkdir(parents=True)
             think_dir.mkdir(parents=True)
             fixture_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
-                            {"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"},
-                            {"name": "think-demo", "path": "skills/think-demo", "domain": "think", "role": "canonical"},
+                            {"name": "dev-demo", "path": "coding-skills/dev-demo", "domain": "dev", "role": "canonical"},
+                            {"name": "think-demo", "path": "coding-skills/think-demo", "domain": "think", "role": "canonical"},
                         ]
                     }
                 ),
@@ -353,17 +353,17 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_agent_asset_missing_required_field(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             agent_dir = repo / ".kilo" / "agent"
             skill_dir.mkdir(parents=True)
             agent_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -404,7 +404,7 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_non_executable_repo_root_script(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir = repo / "coding-skills" / "guard-demo"
             skill_dir.mkdir(parents=True)
             scripts_dir = repo / "scripts"
             scripts_dir.mkdir(parents=True)
@@ -412,13 +412,13 @@ class SkillsRegistryTests(unittest.TestCase):
             script_file.write_text("#!/usr/bin/env bash\necho hi\n")
             # 显式去掉执行位
             script_file.chmod(0o644)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "guard-demo",
-                                "path": "skills/guard-demo",
+                                "path": "coding-skills/guard-demo",
                                 "domain": "guard",
                                 "role": "canonical",
                             }
@@ -442,15 +442,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_long_workflow_without_quality_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -477,15 +477,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_methodology_table_without_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -513,15 +513,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_methodology_table_with_why_column(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -548,15 +548,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_methodology_nearby_rationale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -584,15 +584,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_model_heading_without_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -619,15 +619,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_core_loop_without_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -655,15 +655,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_ignores_output_format_tables_without_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -690,15 +690,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_unknown_skill_boundary_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir = repo / "coding-skills" / "guard-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "guard-demo",
-                                "path": "skills/guard-demo",
+                                "path": "coding-skills/guard-demo",
                                 "domain": "guard",
                                 "role": "canonical",
                             }
@@ -724,15 +724,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_warns_about_high_risk_skill_capabilities(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -763,15 +763,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_warns_when_high_risk_skill_lacks_guardrails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "guard-demo"
+            skill_dir = repo / "coding-skills" / "guard-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "guard-demo",
-                                "path": "skills/guard-demo",
+                                "path": "coding-skills/guard-demo",
                                 "domain": "guard",
                                 "role": "canonical",
                             }
@@ -802,15 +802,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_warns_vague_conditional_without_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -834,15 +834,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_vague_conditional_with_concrete_condition(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "think-demo",
-                                "path": "skills/think-demo",
+                                "path": "coding-skills/think-demo",
                                 "domain": "think",
                                 "role": "canonical",
                             }
@@ -866,17 +866,17 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_warns_deprecated_concept_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             fixture_dir = repo / "scripts" / "fixtures"
             skill_dir.mkdir(parents=True)
             fixture_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -915,15 +915,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_skips_when_no_deprecated_concepts_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -949,17 +949,17 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_orphan_skill_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            cataloged = repo / "skills" / "dev-demo"
-            orphan = repo / "skills" / "think-orphan"
+            cataloged = repo / "coding-skills" / "dev-demo"
+            orphan = repo / "coding-skills" / "think-orphan"
             cataloged.mkdir(parents=True)
             orphan.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -986,22 +986,22 @@ class SkillsRegistryTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ORPHAN SKILL", result.stderr)
-            self.assertIn("skills/think-orphan", result.stderr)
+            self.assertIn("coding-skills/think-orphan", result.stderr)
 
     def test_verify_script_excludes_hidden_dir_from_orphan_check(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            cataloged = repo / "skills" / "dev-demo"
-            system = repo / "skills" / ".system" / "skill-creator"
+            cataloged = repo / "coding-skills" / "dev-demo"
+            system = repo / "coding-skills" / ".system" / "skill-creator"
             cataloged.mkdir(parents=True)
             system.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "dev-demo",
-                                "path": "skills/dev-demo",
+                                "path": "coding-skills/dev-demo",
                                 "domain": "dev",
                                 "role": "canonical",
                             }
@@ -1032,11 +1032,11 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_machine_specific_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
-                    {"skills": [{"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                    {"skills": [{"name": "dev-demo", "path": "coding-skills/dev-demo", "domain": "dev", "role": "canonical"}]}
                 ),
                 encoding="utf-8",
             )
@@ -1058,11 +1058,11 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_anonymized_machine_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
-                    {"skills": [{"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                    {"skills": [{"name": "dev-demo", "path": "coding-skills/dev-demo", "domain": "dev", "role": "canonical"}]}
                 ),
                 encoding="utf-8",
             )
@@ -1085,11 +1085,11 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_warns_oversized_skill_body(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "think-demo"
+            skill_dir = repo / "coding-skills" / "think-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
-                    {"skills": [{"name": "think-demo", "path": "skills/think-demo", "domain": "think", "role": "canonical"}]}
+                    {"skills": [{"name": "think-demo", "path": "coding-skills/think-demo", "domain": "think", "role": "canonical"}]}
                 ),
                 encoding="utf-8",
             )
@@ -1114,11 +1114,11 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_exempts_brand_exception_from_body_length(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "hive"
+            skill_dir = repo / "coding-skills" / "hive"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
-                    {"skills": [{"name": "hive", "path": "skills/hive", "domain": "team", "role": "brand-exception"}]}
+                    {"skills": [{"name": "hive", "path": "coding-skills/hive", "domain": "team", "role": "brand-exception"}]}
                 ),
                 encoding="utf-8",
             )
@@ -1140,11 +1140,11 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_reports_non_hyphen_case_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir = repo / "coding-skills" / "dev-demo"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
-                    {"skills": [{"name": "Bad_Name", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                    {"skills": [{"name": "Bad_Name", "path": "coding-skills/dev-demo", "domain": "dev", "role": "canonical"}]}
                 ),
                 encoding="utf-8",
             )
@@ -1165,15 +1165,15 @@ class SkillsRegistryTests(unittest.TestCase):
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
-            skill_dir = repo / "skills" / "hive"
+            skill_dir = repo / "coding-skills" / "hive"
             skill_dir.mkdir(parents=True)
-            (repo / "skills" / "catalog.json").write_text(
+            (repo / "coding-skills" / "catalog.json").write_text(
                 json.dumps(
                     {
                         "skills": [
                             {
                                 "name": "hive",
-                                "path": "skills/hive",
+                                "path": "coding-skills/hive",
                                 "domain": "team",
                                 "role": "brand-exception",
                             }

@@ -273,7 +273,7 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-8"]["limit"]["input"], 1000000)
         self.assert_cliproxy_model_set(payload)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
-        self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
+        self.assertIn(str(REPO_ROOT / "coding-skills"), payload["skills"]["paths"])
         self.assertIn("scripts/opencode/dotfiles_hooks.mjs", rendered)
 
     def test_droid_models_print_updates_supported_compaction_fields(self) -> None:
@@ -397,7 +397,7 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(payload["provider"]["cliproxy"]["models"]["claude-opus-4-8"]["limit"]["input"], 1000000)
         self.assert_cliproxy_model_set(payload)
         self.assertIn(str(REPO_ROOT / "agents" / "AGENTS.md"), payload["instructions"])
-        self.assertIn(str(REPO_ROOT / "skills"), payload["skills"]["paths"])
+        self.assertIn(str(REPO_ROOT / "coding-skills"), payload["skills"]["paths"])
         self.assertIn("scripts/kilo/dotfiles_hooks.mjs", rendered)
         self.assertEqual(payload["permission"]["read"][dotfiles_glob], "allow")
         self.assertEqual(payload["permission"]["external_directory"][dotfiles_glob], "allow")
@@ -681,19 +681,19 @@ class InstallHooksTests(unittest.TestCase):
 
             expected_links = {
                 home / ".claude" / "commands": REPO_ROOT / "commands",
-                home / ".claude" / "skills": REPO_ROOT / "skills",
+                home / ".claude" / "skills": REPO_ROOT / "coding-skills",
                 home / ".codex" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".codex" / "prompts": REPO_ROOT / "commands",
-                home / ".codex" / "skills": REPO_ROOT / "skills",
+                home / ".codex" / "skills": REPO_ROOT / "coding-skills",
                 home / ".factory" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".factory" / "commands": REPO_ROOT / "commands",
-                home / ".factory" / "skills": REPO_ROOT / "skills",
+                home / ".factory" / "skills": REPO_ROOT / "coding-skills",
                 home / ".config" / "opencode" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".config" / "opencode" / "commands": REPO_ROOT / "commands",
-                home / ".config" / "opencode" / "skills": REPO_ROOT / "skills",
+                home / ".config" / "opencode" / "skills": REPO_ROOT / "coding-skills",
                 home / ".config" / "kilo" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".config" / "kilo" / "commands": REPO_ROOT / "commands",
-                home / ".config" / "kilo" / "skills": REPO_ROOT / "skills",
+                home / ".config" / "kilo" / "skills": REPO_ROOT / "coding-skills",
             }
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

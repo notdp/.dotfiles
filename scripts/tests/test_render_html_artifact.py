@@ -6,7 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "render_html_artifact.py"
-SKILL_WRAPPER = REPO_ROOT / "skills" / "readable-html-artifact" / "render_html_artifact.py"
+SKILL_WRAPPER = REPO_ROOT / "coding-skills" / "readable-html-artifact" / "render_html_artifact.py"
 
 
 class RenderHtmlArtifactTests(unittest.TestCase):

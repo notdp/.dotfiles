@@ -146,7 +146,7 @@ def extract_workspaces(session_path: Path) -> list[Path]:
 
 
 def harness_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "skills" / "dev-long-loop" / "long_loop.py"
+    return Path(__file__).resolve().parents[1] / "coding-skills" / "dev-long-loop" / "long_loop.py"
 
 
 def dashboard_path() -> Path:

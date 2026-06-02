@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FETCH_SCRIPT = REPO_ROOT / "skills" / "web-read" / "scripts" / "fetch.sh"
+FETCH_SCRIPT = REPO_ROOT / "coding-skills" / "web-read" / "scripts" / "fetch.sh"
 
 
 class WebReadFetchTests(unittest.TestCase):

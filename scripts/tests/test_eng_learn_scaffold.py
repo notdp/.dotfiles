@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCAFFOLD_SCRIPT = REPO_ROOT / "skills" / "assist-learn" / "scripts" / "scaffold_note.py"
+SCAFFOLD_SCRIPT = REPO_ROOT / "coding-skills" / "assist-learn" / "scripts" / "scaffold_note.py"
 
 
 class EngLearnScaffoldTests(unittest.TestCase):

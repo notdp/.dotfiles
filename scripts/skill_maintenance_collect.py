@@ -42,7 +42,7 @@ def preflight(repo: Path) -> dict[str, Any]:
 
 
 def inventory(repo: Path) -> dict[str, Any]:
-    skill_files = sorted(repo.glob("skills/*/SKILL.md"))
+    skill_files = sorted(repo.glob("coding-skills/*/SKILL.md"))
     root_commands = sorted((repo / "commands").glob("*.md")) if (repo / "commands").exists() else []
     hook_scripts = sorted((repo / "scripts" / "hooks").glob("*.py")) if (repo / "scripts" / "hooks").exists() else []
     hook_tests = sorted((repo / "scripts" / "tests").glob("test_hook_*.py")) if (repo / "scripts" / "tests").exists() else []
