@@ -14,13 +14,15 @@ My Droid skills/scripts.
 |------|------|
 | `agents/AGENTS.md` | 全局硬约束、事实纪律、验证门禁、工具纪律 |
 | `coding-skills/` | 按需触发的领域能力和工作流能力（系统级，软连接到 cc/codex/droid/opencode/kilo），权威清单见 `coding-skills/catalog.json` |
-| `writing-skills/` | 写作 / 创作类技能，仅软连接到指定创作项目的 `.claude/skills`，不暴露给编程 agent |
+| `writing-skills/` | 写作 / 创作类技能 + `_shared/` 写作硬约束 SSOT，仅软连接到指定创作项目的 `.claude/skills`，不暴露给编程 agent；权威清单见 `writing-skills/catalog.json` |
+| `writing-hooks/` | 写作专用 hook（slop/篇幅/provenance/发布门）+ `verify_writing.py`，与编程 `scripts/hooks/` 隔离，仅在创作项目 `.claude/settings.json` 注册 |
 | `commands/` | 高频 slash commands |
-| `scripts/` | hooks、验证、Droid mod、长任务、扫描器等本地工具 |
+| `scripts/` | 编程侧 hooks、验证、Droid mod、长任务、扫描器等本地工具 |
 | `.factory/settings.json` | Droid hook 配置 |
 | `statusline.sh` | Droid / Claude statusline |
-| `docs/` | 调研沉淀、refs 详情、设计取舍与可追溯背景 |
-| `refs/` | 第三方 agent skills / workflows submodules |
+| `docs/` | 调研沉淀、refs 详情、设计取舍与可追溯背景（含 `writing-refs-summary.md` / `writing-refs-details/` / `specs/writing-skills/`） |
+| `refs/` | 第三方编程 agent skills / workflows submodules |
+| `writing-refs/` | 第三方中文写作 skills submodules（9 个），分析见 `docs/writing-refs-details/` |
 
 ## 本地工具与护栏
 
