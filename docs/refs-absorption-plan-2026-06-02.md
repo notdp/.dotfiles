@@ -224,3 +224,24 @@
 - 本仓库现状（hooks / verify_skills.py / assist-* / registry）为直接 Read 文件所得事实。
 - 上游项目细节来自传入的 digest JSON，**未逐条回到 upstream 源码核对**，按 digest 给出的行号引用标注；落地前应回 `docs/refs-details/<repo>.md` 与 upstream 复核。
 - 本文档为计划，未改动任何 runtime；所有 add/improve 项落地时按对应 Phase 走 `/dev-tdd`（涉行为变更）或文档豁免，并跑验证贴证据。
+
+---
+
+## 落地状态（2026-06-02 收尾）
+
+| 项 | 裁决 | 落点 / 原因 | commit |
+|---|---|---|---|
+| A11 血缘 | absorbed | 6 份 refs-details 加 Source SHA + 方法论字段约定 | `21d7ecf` |
+| A12 反向对账 | absorbed | `verify_skills.py` ORPHAN SKILL 检查（.system 豁免） | `94b576a` |
+| A13/A14/A10/A17/A18 | absorbed | Phase 0 文档约定（skill-authoring / hook-robustness / deletion-rationale / skill-patterns K-L） | `922fbe1` |
+| A1 行数上限 | absorbed | `verify_skills.py` BODY LENGTH WARNING >400（brand-exception 豁免） | `675711a` |
+| A2 机器路径 | absorbed | `verify_skills.py` MACHINE PATH hard fail；修 read-droid 泄漏 | `675711a` |
+| A4b name hyphen-case | absorbed | `verify_skills.py` NAME CASE hard fail | `675711a` |
+| A3 tools 通配 | rejected | 全仓 0 个 SKILL.md 声明 tools 字段，无目标（YAGNI） | — |
+| A4a 禁尖括号 | rejected | 现有 `<>` 均为合法占位/语法，会误伤 | — |
+| A6/A7/A8/A9 | absorbed | Phase 2，经 `/assist-review-doc` 用户逐条裁决（A9 trim） | `b892fbf` |
+| A15 主动性标注 | rejected | 用户：不要太多主动 skill，让 agent 自决 | — |
+| A16 置信硬停 | rejected | 现有 Ambiguity Score 硬停门 + 给候选已覆盖 | — |
+| A5 reflexion 签名 | rejected | 与 learnings_search 的 opt-in 设计 + 跨 agent + 克制主动性结构性冲突；A6 已覆盖六段模板部分；mindbase 已 reject。2026-06-02 评估后用户确认 reject | — |
+
+全部 23 项裁决完成：absorbed 13、rejected 7（A3/A4a/A15/A16/A5 + 计划内 A19/A20 等已列"明确不吸收"）。无 P0 缺口。
