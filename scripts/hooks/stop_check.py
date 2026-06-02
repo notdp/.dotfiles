@@ -30,6 +30,8 @@ BOUNDARY_MANIFEST_RE = re.compile(r"^Boundary decisions:\s*(?P<body>.*?)(?:\n\n|
 EMPTY_MANIFEST_RE = re.compile(r"^\s*(?:none|无|n/a|not applicable)\s*$", re.I)
 CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".rb", ".php", ".cs", ".swift", ".kt"}
 UI_SUFFIXES = {".tsx", ".jsx", ".css", ".scss", ".vue", ".svelte"}
+TEST_DIR_PARTS = {"tests", "test", "__tests__", "spec", "specs"}
+TEST_NAME_RE = re.compile(r"(^test_|_test\.|\.test\.|\.spec\.|_spec\.|^test\.)", re.I)
 
 
 def project_root() -> Path:
@@ -49,7 +51,9 @@ def suppress() -> dict:
 
 
 def changed_files(root: Path) -> list[str]:
-    result = subprocess.run(["git", "status", "--short"], cwd=root, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        ["git", "status", "--short", "--untracked-files=all"], cwd=root, text=True, capture_output=True, check=False
+    )
     if result.returncode != 0:
         return []
     files: list[str] = []
@@ -174,6 +178,13 @@ def is_ui_file(path: str) -> bool:
     return Path(path).suffix.lower() in UI_SUFFIXES
 
 
+def is_test_file(path: str) -> bool:
+    p = Path(path)
+    if any(part.lower() in TEST_DIR_PARTS for part in p.parts[:-1]):
+        return True
+    return bool(TEST_NAME_RE.search(p.name))
+
+
 def stop_message(files: list[str], transcript: str) -> str | None:
     code_files = [path for path in files if is_code_file(path)]
     if not code_files:
@@ -183,6 +194,13 @@ def stop_message(files: list[str], transcript: str) -> str | None:
     problems: list[str] = []
     if not validation_evidence_present(window_records):
         problems.append("code changes exist but no validation evidence was found; run /guard-verify before claiming completion")
+    source_files = [path for path in code_files if not is_test_file(path)]
+    test_files = [path for path in files if is_test_file(path)]
+    if source_files and not test_files:
+        problems.append(
+            "source changed but no test was added or changed; map each 功能点 to a test layer "
+            "(功能点/集成/单元) or justify why none is needed: " + ", ".join(source_files[:8])
+        )
     if any(is_ui_file(path) for path in code_files) and not VISUAL_RE.search(window_text):
         problems.append("UI files changed but no visual/screenshot/overflow evidence was found")
     if boundary_findings_in_transcript(window_text) and not assistant_boundary_manifest_present(window_records):

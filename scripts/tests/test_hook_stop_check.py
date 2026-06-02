@@ -62,6 +62,7 @@ class HookStopCheckTests(unittest.TestCase):
             repo = Path(tmp)
             subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
             (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+            (repo / "test_app.py").write_text("def test_app():\n    assert True\n", encoding="utf-8")
             transcript = repo / "session.jsonl"
             transcript.write_text(
                 json.dumps(
@@ -72,6 +73,44 @@ class HookStopCheckTests(unittest.TestCase):
                     }
                 )
                 + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_stop_check(repo, transcript)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_warns_when_source_changed_without_test_change(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            (repo / "app.py").write_text("def feature():\n    return 1\n", encoding="utf-8")
+            transcript = repo / "session.jsonl"
+            # validation present(隔离: 不触发 validation 维度), 只剩 test-coverage 维度
+            transcript.write_text(
+                json.dumps({"type": "tool_result", "tool": "bash", "content": "python3 -m unittest discover -s tests\nOK"}) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_stop_check(repo, transcript)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("systemMessage", payload)
+            self.assertIn("test layer", payload["systemMessage"])
+            self.assertIn("app.py", payload["systemMessage"])
+
+    def test_stays_quiet_when_source_and_test_both_changed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            (repo / "app.py").write_text("def feature():\n    return 1\n", encoding="utf-8")
+            (repo / "tests").mkdir()
+            (repo / "tests" / "test_app.py").write_text("def test_feature():\n    assert True\n", encoding="utf-8")
+            transcript = repo / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "tool_result", "tool": "bash", "content": "python3 -m unittest discover -s tests\nOK"}) + "\n",
                 encoding="utf-8",
             )
 
@@ -272,6 +311,7 @@ class HookStopCheckTests(unittest.TestCase):
             repo = Path(tmp)
             subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
             (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+            (repo / "test_app.py").write_text("def test_app():\n    assert True\n", encoding="utf-8")
             transcript = repo / "session.jsonl"
             transcript.write_text(
                 "\n".join(
