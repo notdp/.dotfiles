@@ -2,6 +2,7 @@
 
 - 上游仓库: `https://github.com/ComposioHQ/awesome-claude-skills`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/ComposioHQ/awesome-claude-skills`
+- Source SHA: `92568c1edaff1bde5371154f036d959346c145a8`（heads/master），分析日期: 2026-06-02
 - 一句话总结: 一个由 Composio 维护的 "awesome list" 式 Claude Skills 目录，README 是 1000+ 外链索引，仓库内同时夹带少量高质量 exemplar skill（含 Anthropic 官方文档处理技能）和一套规模化的 MCP 自动化 skill 工厂；其核心价值不在某个 skill，而在它沉淀的 skill 格式规范、progressive disclosure 设计原则、以及"用 MCP 工具发现替代硬编码工具"的批量生成模式。
 
 ## 思路哲学 (Why)

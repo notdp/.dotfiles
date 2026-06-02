@@ -61,6 +61,12 @@ flowchart TD
 - 当 doc 里的"下一级候选"被真正写进目标 asset 后，目标 asset 应**反向引用**该 ref doc，registry `status` 改 `absorbed`，并记证据落点。
 - 只登记、目标 asset 不反向引用的，视为 registry-only，仍是 `observe`，不算 `absorbed`。
 
+submodule 型详情（`docs/refs-details/<owner>/<repo>.md`，对应 `refs/` 下的 submodule）头部必须记血缘，让分析结论可判断是否已对应当前 upstream 版本：
+
+- `Source SHA`：分析时 `git submodule status <path>` 的 commit SHA（附 tag/branch 描述）。
+- `分析日期`：本轮分析日期（绝对日期，不写"今天"）。
+- 复核或重新分析时更新这两行；upstream 落后多少 commit 可由当前 submodule SHA 与上游对比得出。
+
 ## Decision Matrix
 
 | 维度 | 高分信号 | 低分信号 |

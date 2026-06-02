@@ -2,6 +2,7 @@
 
 - 上游仓库: `https://github.com/SuperClaude-Org/SuperClaude_Framework`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/SuperClaude-Org/SuperClaude_Framework`
+- Source SHA: `226c45cc93b865108843a669c6545d421784b68c`（v4.0.7-150-g226c45c），分析日期: 2026-06-02
 - 版本: v4.3.0
 - 一句话总结: 一个把 Claude Code 当成"可被改造的开发平台"的 meta-programming 框架，靠"行为指令注入 + 组件编排"提供 30 命令 / 20 agent / 7 行为模式，并把"动手前置信度门 + 动手后证据自检 + 跨 session 错误学习"这套 PM 方法论用 Python 代码 + pytest 插件 + prompt 文件双轨固化下来。
 

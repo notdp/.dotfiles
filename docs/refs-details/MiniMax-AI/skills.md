@@ -2,6 +2,7 @@
 
 - 上游仓库: `https://github.com/MiniMax-AI/skills`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/MiniMax-AI/skills`
+- Source SHA: `60aaae52bb2af8162732751a4332f62a5fef518b`（heads/main），分析日期: 2026-06-02
 - 一句话总结: 一套面向「内容/媒体/应用产出」的领域 skill 库 (frontend / mobile / shader / PDF / PPTX / XLSX / DOCX / 多模态媒体)，核心不是流程纪律，而是把**专家级设计品味与产出 pipeline 编码成可触发的 SKILL.md + 脚本**，并用一个**可执行的 PR 校验脚本 + 双层 (硬规则/软指南) review skill** 守住 skill 库自身的质量与可移植性。
 
 ## 思路哲学 (Why)
