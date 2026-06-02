@@ -109,6 +109,12 @@ CONCRETE_CONDITION_PATTERN = re.compile(
 )
 
 
+NAME_CASE_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# 机器特定的 user-home 绝对路径（非可移植）。匿名占位 /Users/.../ 因首字符为 '.' 不匹配。
+MACHINE_PATH_PATTERN = re.compile(r"/(?:Users|home)/[A-Za-z0-9][\w.-]*/")
+BODY_LENGTH_WARN_THRESHOLD = 400
+
+
 class ValidationError(RuntimeError):
     pass
 
@@ -182,6 +188,8 @@ def load_catalog(context: ValidationContext) -> list[SkillEntry]:
 
         if not isinstance(name, str) or not name:
             fail("INVALID CATALOG: skill name must be a non-empty string")
+        if not NAME_CASE_PATTERN.fullmatch(name):
+            fail(f"NAME CASE: {name} 必须是 hyphen-case（小写字母/数字，连字符分隔）")
         if not isinstance(raw_path, str) or not raw_path:
             fail(f"INVALID CATALOG: {name} path must be a non-empty string")
         if not isinstance(domain, str) or domain not in ALLOWED_DOMAINS:
@@ -584,6 +592,7 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
     validate_methodology_why(entry, skill_file, content)
     full_text = frontmatter["description"] + "\n" + content
     validate_boundary_references(entry, full_text, skill_names)
+    validate_no_machine_paths(skill_file, full_text)
 
     for relative_path in sorted(collect_references(skill_file)):
         resolved = resolve_reference(entry, context, relative_path)
@@ -592,7 +601,37 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
         validate_executable_bit(skill_file, resolved)
     warnings = collect_high_risk_capability_warnings(entry, full_text)
     warnings.extend(collect_vague_conditional_warnings(entry, skill_file, content))
+    warnings.extend(collect_body_length_warning(entry, skill_file))
     return warnings
+
+
+def validate_no_machine_paths(skill_file: Path, text: str) -> None:
+    """禁止机器特定 user-home 绝对路径（不可移植、泄漏作者机器名）。
+
+    匿名占位写法 `/Users/.../` 或 `/Users/<you>/` 不匹配；用这些代替具体用户名。
+    """
+    match = MACHINE_PATH_PATTERN.search(text)
+    if match:
+        fail(
+            f"MACHINE PATH: {skill_file} 含机器特定绝对路径 {match.group(0)!r}"
+            "（改用 ~/ 或 /Users/<you>/ 等可移植写法）"
+        )
+
+
+def collect_body_length_warning(entry: SkillEntry, skill_file: Path) -> list[str]:
+    """SKILL.md 过长会挤占上下文预算；超阈值给 warning，建议拆到 references/。
+
+    brand-exception（如 agent-browser 这类 CLI 包装）天然较长，豁免。
+    """
+    if entry.role == "brand-exception":
+        return []
+    line_count = len(skill_file.read_text(encoding="utf-8").splitlines())
+    if line_count > BODY_LENGTH_WARN_THRESHOLD:
+        return [
+            f"BODY LENGTH WARNING: {entry.name} SKILL.md {line_count} 行 "
+            f"> {BODY_LENGTH_WARN_THRESHOLD}，考虑把机械细节拆到 references/"
+        ]
+    return []
 
 
 def routing_cases_path(context: ValidationContext) -> Path:

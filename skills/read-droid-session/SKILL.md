@@ -53,7 +53,7 @@ done
 
 ### List recent sessions for the current repo
 
-First encode the project path. Example: `/Users/zhenninglang/.dotfiles` becomes `-Users-zhenninglang-.dotfiles`.
+First encode the project path. Example: `/Users/<you>/.dotfiles` becomes `-Users-<you>-.dotfiles`.
 
 ```bash
 ls -lt ~/.factory/sessions/-Users-zhenninglang-.dotfiles/ | head

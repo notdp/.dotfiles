@@ -1029,6 +1029,139 @@ class SkillsRegistryTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
             self.assertNotIn("ORPHAN SKILL", result.stderr)
 
+    def test_verify_script_reports_machine_specific_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {"skills": [{"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n\n"
+                "Run it under `/Users/alice/project/` then check output.\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("MACHINE PATH", result.stderr)
+
+    def test_verify_script_accepts_anonymized_machine_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {"skills": [{"name": "dev-demo", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                ),
+                encoding="utf-8",
+            )
+            # /Users/.../ 是匿名占位, 不应误报
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: dev-demo\ndescription: 当测试时使用；demo\n---\n# demo\n\n"
+                "Put the file at `/Users/.../reference.png` (anonymized example).\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("MACHINE PATH", result.stderr)
+
+    def test_verify_script_warns_oversized_skill_body(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "think-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {"skills": [{"name": "think-demo", "path": "skills/think-demo", "domain": "think", "role": "canonical"}]}
+                ),
+                encoding="utf-8",
+            )
+            body = "\n".join(f"普通正文行 {index}" for index in range(410))
+            # 加质量门内容, 避开既有 WORKFLOW QUALITY 检查, 隔离 BODY LENGTH 行为
+            quality = "## 验证\n\n- 证据：跑测试并贴输出\n- 停止条件：验收通过\n- 风险：回归\n"
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: think-demo\ndescription: 当测试时使用；demo\n---\n# Demo\n\n" + quality + "\n" + body + "\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("BODY LENGTH WARNING", result.stdout)
+            self.assertIn("think-demo", result.stdout)
+
+    def test_verify_script_exempts_brand_exception_from_body_length(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "hive"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {"skills": [{"name": "hive", "path": "skills/hive", "domain": "team", "role": "brand-exception"}]}
+                ),
+                encoding="utf-8",
+            )
+            body = "\n".join(f"普通正文行 {index}" for index in range(410))
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: hive\ndescription: Hive 基础 skill，无固定触发前缀\n---\n# Demo\n\n" + body + "\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertNotIn("BODY LENGTH WARNING", result.stdout)
+
+    def test_verify_script_reports_non_hyphen_case_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            skill_dir = repo / "skills" / "dev-demo"
+            skill_dir.mkdir(parents=True)
+            (repo / "skills" / "catalog.json").write_text(
+                json.dumps(
+                    {"skills": [{"name": "Bad_Name", "path": "skills/dev-demo", "domain": "dev", "role": "canonical"}]}
+                ),
+                encoding="utf-8",
+            )
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: Bad_Name\ndescription: 当测试时使用；demo\n---\n# demo\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["python3", str(VERIFY_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("NAME CASE", result.stderr)
+
     def test_verify_script_accepts_brand_exception_without_trigger_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
