@@ -48,8 +48,8 @@
 ## 资产盘点（事实）
 
 项目仅 2 个内容文件 + LICENSE/.gitignore（单 skill 形态）：
-- `/Users/zhenninglang/.dotfiles/writing-refs/op7418/Humanizer-zh/SKILL.md`（484 行）：唯一 skill 定义。frontmatter（name=humanizer-zh、description、allowed-tools=Read/Write/Edit/AskUserQuestion、metadata.trigger/source）+ 任务说明 + 5 条核心规则 + 个性与灵魂章节 + 24 条模式（4 大类各 6 条）+ 快速检查清单 + 处理流程 + 输出格式 + 质量评分表 + 完整示例 + 参考。
-- `/Users/zhenninglang/.dotfiles/writing-refs/op7418/Humanizer-zh/README.md`（239 行）：安装（npx skills add / git clone / 手动）、3 种使用方式、3 个场景示例、24 模式清单、手动流程、AI 词汇警示列表、贡献说明、参考资源、反检测器立场声明。
+- `writing-refs/op7418/Humanizer-zh/SKILL.md`（484 行）：唯一 skill 定义。frontmatter（name=humanizer-zh、description、allowed-tools=Read/Write/Edit/AskUserQuestion、metadata.trigger/source）+ 任务说明 + 5 条核心规则 + 个性与灵魂章节 + 24 条模式（4 大类各 6 条）+ 快速检查清单 + 处理流程 + 输出格式 + 质量评分表 + 完整示例 + 参考。
+- `writing-refs/op7418/Humanizer-zh/README.md`（239 行）：安装（npx skills add / git clone / 手动）、3 种使用方式、3 个场景示例、24 模式清单、手动流程、AI 词汇警示列表、贡献说明、参考资源、反检测器立场声明。
 - `LICENSE`、`.gitignore`：[未验证] 未逐字读，按文件名归类。
 
 无 scripts/、无 prompts/ 子目录、无 agents/、无 hooks、无测试、无配置文件——整个能力是纯 prompt（单 SKILL.md）实现。
