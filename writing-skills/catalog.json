@@ -1,7 +1,15 @@
 {
-  "//": "writing-skills 仅作为创作项目既有方法论（写作风格指南.md + AGENTS.md 工作流）的补充。只保留不重叠的能力：动笔前消解、事实/引用核验、语料库。风格/结构/取材/发布以项目自身为准。",
+  "//": "通用、account-agnostic 的中文写作能力库。账号特定 voice/定位/参考对标由项目 account-style.md（见 _shared/style-contract.schema.md）承载；通用方法论见 _shared/narrative-methodology.md；质量下限见 _shared/writing-constraints.md。软连接到创作项目 .claude/skills，不暴露给编程 agent。",
   "skills": [
+    { "name": "write-scope", "path": "writing-skills/write-scope", "domain": "write", "role": "canonical" },
     { "name": "write-dissolve", "path": "writing-skills/write-dissolve", "domain": "write", "role": "canonical" },
+    { "name": "write-source", "path": "writing-skills/write-source", "domain": "write", "role": "canonical" },
+    { "name": "write-outline", "path": "writing-skills/write-outline", "domain": "write", "role": "canonical" },
+    { "name": "write-draft", "path": "writing-skills/write-draft", "domain": "write", "role": "canonical" },
+    { "name": "write-revise", "path": "writing-skills/write-revise", "domain": "write", "role": "canonical" },
+    { "name": "write-hook", "path": "writing-skills/write-hook", "domain": "write", "role": "canonical" },
+    { "name": "write-voice", "path": "writing-skills/write-voice", "domain": "write", "role": "canonical" },
+    { "name": "guard-write-check", "path": "writing-skills/guard-write-check", "domain": "guard", "role": "canonical" },
     { "name": "guard-write-facts", "path": "writing-skills/guard-write-facts", "domain": "guard", "role": "canonical" },
     { "name": "assist-write-corpus", "path": "writing-skills/assist-write-corpus", "domain": "assist", "role": "canonical" },
     { "name": "article-growth-diagnosis", "path": "writing-skills/article-growth-diagnosis", "domain": "write", "role": "brand-exception" }

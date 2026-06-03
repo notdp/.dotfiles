@@ -1,5 +1,19 @@
 # writing-skills 体系设计 spec（overview）
 
+> **最终架构（2026-06-03 二次重构，覆盖下方 B 缩减）**：两层写作能力体系。
+> 用户指出「去 AI 味等是**通用能力**应沉淀 dotfiles，敏感+定制留项目」，故把 B 的误删纠正回来：
+> - **Layer 1 — dotfiles `writing-skills`（通用、account-agnostic、零敏感）**：12 个 skill
+>   = 8 个恢复的通用管道（write-scope/source/outline/draft/revise/hook/voice + guard-write-check）
+>   + write-dissolve / guard-write-facts / assist-write-corpus + 脱敏后的 article-growth-diagnosis。
+>   `_shared/` = writing-constraints（质量下限）+ **narrative-methodology（从项目风格指南抽出的通用方法论）**
+>   + style-contract.schema（**接缝**：账号 voice/定位/对标 由项目 `account-style.md` 提供）。
+>   视觉 4 个不纳入（平台/渲染耦合）；writing-hooks 通用工具，默认休眠。
+> - **Layer 2 — 创作项目（定制+平台+敏感）**：`account-style.md`（账号声音/定位/对标/AI 味反例）+
+>   微信排版（瘦身后的 `写作风格指南.md`）+ 发布管线（AGENTS.md/scripts/VPS）+ 敏感文件（不动）。
+> - **接缝**：dotfiles skill 通用 + 运行时读项目 `account-style.md` 注入账号特性；skill 正文零账号名/零微信特定。
+>   新账号 = 软连接 writing-skills + 自带 account-style.md + 自带平台层。
+> 计划见 `~/.claude/plans/1-2-lovely-breeze.md`。下方 B 段与原始全量设计留作演进记录。
+
 > **实现结果（2026-06-03 修订，覆盖原 TL;DR 的全量计划）**：
 > 全量实现后发现创作项目已有一套成熟、按数据反馈更新的写作方法论（`写作风格指南.md` +
 > `AGENTS.md` 的素材→草稿→review→发布脚本工作流 + `gen_image.py` 出图 + `find_material.py` 取材）。

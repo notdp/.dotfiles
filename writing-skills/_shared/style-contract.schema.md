@@ -14,17 +14,22 @@
 ```yaml
 # style-contract
 voice:
-  persona: "一句话定位作者/账号（如：写给技术人的 AI/Agent 实践者）"
+  persona: "一句话定位作者/账号气质（如：像懂技术的朋友饭桌聊天）"
   tone: ["克制", "有观点", "口语但不油"]      # 语气关键词，3-5 个
   person: "第一人称『我』/ 中性 / 团队『我们』"  # 称谓人称
   rhythm: "长短句交替，允许单句成段"            # 节奏偏好
+positioning:                                    # 账号定位（write-scope/draft 读，决定痛点与情绪方向）
+  audience: "目标读者画像（如：被 AI 推着走的技术打工人）"
+  pain_points: ["该账号读者的高频痛点（如：怕被替代、不知怎么 AI 化）"]
+  default_emotion: "默认主打情绪（焦虑制造/缓解/认同/启蒙，见 narrative-methodology 第 1 节）"
+references: ["参考对标账号 + 学什么（如：某号·口语化金句收尾）"]  # write-hook/draft 可借口味
 avoid:                                          # 负向约束（Avoid 段，压漂移最关键）
   - "夸张象征与宏大叙事"
   - "三段式排比"
   - "营销腔与空话（赋能/抓手/闭环）"
 banned_words: ["赋能", "抓手", "闭环", "干货满满"]  # 该账号明确禁用词，叠加在 writing-constraints 之上
 lexicon:                                         # 该账号特有口语词/术语（白名单）
-  preferred: ["碎碎念", "顺手", "踩坑"]
+  preferred: ["说白了", "顺手", "踩坑"]
 signature:
   sign_off: "署名/结尾惯例（可空）"
   cta: "默认 CTA 措辞（可空）"
