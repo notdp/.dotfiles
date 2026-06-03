@@ -5,7 +5,7 @@
 
 ## 存放位置（三级，就近覆盖）
 
-1. 创作项目根 `EXTEND.md` 或 `.writing/style.md`（项目级，最高优先级）
+1. 创作项目根 `account-style.md` / `EXTEND.md` / `.writing/style.md`（项目级，最高优先级）
 2. 用户级 `~/.config/writing/style.md`（跨项目默认）
 3. 不存在时：skill 用保守默认 + 现场问 1–2 个问题补齐，不擅自假设。
 
