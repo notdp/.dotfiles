@@ -419,6 +419,17 @@ def consume_claude_trust(pane: str, timeout_s: int = 20) -> bool:
     return False
 
 
+def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
+    """轮询 kilo TUI 直到出现就绪标识,防止 prompt 在 TUI 加载完前抢跑丢失。"""
+    for _ in range(timeout_s):
+        time.sleep(1)
+        screen = capture_pane(pane)
+        if "Ask anything" in screen or "? for shortcuts" in screen:
+            return True
+    sys.stderr.write(f"WARN: kilo pane {pane} 未在 {timeout_s}s 内就绪,仍尝试发送\n")
+    return False
+
+
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
 
 
@@ -476,7 +487,10 @@ def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: st
     if role_cfg["backend"] == "claude_cli":
         send_to_pane(pane, role_cfg["cmd"])
         consume_claude_trust(pane)
-    time.sleep(1)
+    elif role_cfg["backend"] == "kilo":
+        wait_kilo_ready(pane)
+    else:
+        time.sleep(1)
     send_to_pane(pane, intro)
     _register(workspace, role, phase, pane)
     return pane
