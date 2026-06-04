@@ -65,7 +65,7 @@ argument-hint: <任务目标或需求>
 | `SPEC_OVERVIEW.md` | 任务目标、非目标、代码事实、影响面、风险、整体 phase map |
 | `ORCHESTRATOR.md` | `dev-long-loop` 使用的调度协议；scaffold 阶段只生成/保留，不执行 |
 | `WORKER_PROMPT.md` | `dev-long-loop` tmux worker 的单轮执行协议；scaffold 阶段不注入 worker |
-| `HANDOFF.md` | 后续 worker 的交接面；scaffold 阶段保持初始状态 |
+| `HANDOFF.md` | 后续 worker 的交接面；用行为契约（current behavior / desired behavior / key interfaces / acceptance criteria / out of scope）而非易腐 file:line；scaffold 阶段保持初始状态 |
 | `PROMPT.md` | 后续 agent 的阶段执行协议；只执行用户指定 phase，不自动跨 phase；保留 harness 生成的 Long Loop Prompt 语义 |
 | `fix_plan.md` | 全局任务清单；item 状态只允许 `pending / in_progress / done / blocked` |
 | `qa.md` | 整体验收标准、验证命令、acceptance verifier、回归检查 |
@@ -122,6 +122,14 @@ Rules:
 
 ## Blockers / open questions
 ```
+
+Phase 模板中的 Goal / QA / Blockers 优先使用行为契约而非易腐路径：
+
+- **Goal**: 用 current behavior → desired behavior 描述，而非"改文件 X 的第 N 行"
+- **QA / acceptance**: 写可观察行为和验收标准，而非只列文件路径
+- **Blockers / open questions**: 用接口契约和依赖描述，而非行号引用
+
+短期 Code facts 和 Files likely touched 仍可用 `file:line`，因为它们的生命周期不超过当前 phase。
 
 ## 质量门禁
 

@@ -148,6 +148,32 @@ class HookCommandGuardTests(unittest.TestCase):
         self.assert_warned_with_approval_request(self.run_guard("terraform apply"), "terraform")
         self.assert_warned_with_approval_request(self.run_guard("psql prod -c \"update users set active=false where id=1\""), "database")
 
+    def test_warns_for_git_branch_force_delete(self) -> None:
+        self.assert_warned(self.run_guard("git branch -D feature/old"), "branch -D")
+        self.assert_warned(self.run_guard("git branch --delete --force feature/old"), "branch -D")
+        self.assert_warned(self.run_guard("git branch -df feature/old"), "branch -D")
+        self.assert_warned(self.run_guard("git branch -fd feature/old"), "branch -D")
+
+    def test_allows_git_branch_safe_delete(self) -> None:
+        self.assert_suppressed(self.run_guard("git branch -d feature/merged"))
+        self.assert_suppressed(self.run_guard("git branch --delete feature/merged"))
+
+    def test_warns_for_git_checkout_dot(self) -> None:
+        self.assert_warned(self.run_guard("git checkout ."), "checkout .")
+        self.assert_warned(self.run_guard("git checkout -- ."), "checkout .")
+
+    def test_warns_for_git_restore_dot(self) -> None:
+        self.assert_warned(self.run_guard("git restore ."), "restore .")
+
+    def test_warns_for_git_stash_drop(self) -> None:
+        self.assert_warned(self.run_guard("git stash drop"), "stash drop")
+        self.assert_warned(self.run_guard("git stash drop stash@{0}"), "stash drop")
+
+    def test_allows_safe_git_stash_operations(self) -> None:
+        self.assert_suppressed(self.run_guard("git stash"))
+        self.assert_suppressed(self.run_guard("git stash list"))
+        self.assert_suppressed(self.run_guard("git stash show"))
+
     def test_denies_catastrophic_commands(self) -> None:
         self.assert_denied(self.run_guard("git push --force origin main"), "force")
         self.assert_denied(self.run_guard("git clean -fdx"), "cleanup")

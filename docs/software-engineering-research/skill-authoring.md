@@ -237,7 +237,30 @@ Invoke when ...
 | `hive` | 外挂 brand-exception，由上游维护 |
 | `react-doctor` | 原 `Run after making React changes ...` 的"after"时序感无法用 4 种触发词无损表达 |
 
-### 1.4 能力描述段约束
+### 1.5 `manual-only` 标记（可选）
+
+来源吸收：`mattpocock/skills` 的 `disable-model-invocation: true`。
+
+某些 skill 不应被 agent 自动调用，只允许用户手动触发。在 `catalog.json` 中标记：
+
+```json
+{
+  "name": "think-zoom-out",
+  "path": "coding-skills/think-zoom-out",
+  "domain": "think",
+  "role": "canonical",
+  "manual-only": true
+}
+```
+
+适用场景：
+- 反思类 skill（如 zoom-out、retrospect）——agent 不应在常规流程中自动调用
+- 危险操作准备类——只在用户明确请求时触发
+- description 仍需遵守触发前缀规范（§1.2），`manual-only` 只控制运行时行为，不免除 description 校验
+
+与 `trigger-exempt` 的区别：`trigger-exempt` 免除 description 格式校验，`manual-only` 控制运行时是否自动调用。两者正交，可同时使用。
+
+### 1.6 能力描述段约束
 
 - 压缩到一行内，不展开步骤
 - 可以标注"与 X skill 的边界"，但必须放能力描述段，不放触发段
@@ -415,6 +438,49 @@ Do not proceed with implementation until this is reviewed.
 ```
 
 样例：awesome-copilot `what-context-needed`（39 行）、`context-map`（52 行）。
+
+### 4.5 词汇治理（推荐）
+
+来源吸收：`mattpocock/skills` 的 `improve-codebase-architecture/LANGUAGE.md`。
+
+知识密集型 skill（尤其 `think-*`、`fe-*`、领域分册型）可附 `LANGUAGE.md` 或在正文中设词汇表节，为核心术语配 `_Avoid_` 列表。
+
+目的：降低 skill 间和 skill 内的术语漂移。_Avoid_ 列表比单纯定义更有效——它告诉 agent "不要用什么替换词"，减少 agent 自行选用近义词导致的命名污染。
+
+模板：
+
+```markdown
+**<Canonical Term>**:
+一句话定义。
+_Avoid_: <近义词 1>、<近义词 2>、<容易混淆的词>
+```
+
+写法规则：
+
+- 只收录 domain expert 也会使用的概念，不收录通用编程词（如 function、variable）
+- _Avoid_ 列表只列本项目中确实出现过混用的词，不预防性穷举
+- 发现用户术语和代码术语冲突时，标为待决策而非沉默选边
+- 不要求每个 skill 都有词汇表；只在术语漂移已造成可观察问题时新增
+
+### 4.6 正反 Contract Cases 适用规则
+
+来源吸收：`mattpocock/skills` 的 WRONG/RIGHT 对比模式，以及本仓库模式 J (Wrong / Should Happen 反例库)。
+
+§0 的"条件边界控制（高风险）"已经要求"把条件边界写成正反 contract cases"。本节补充**何时用**的适用规则，避免每个 skill 都堆 Good/Bad 对比：
+
+| 场景 | 是否用正反 contract cases |
+|---|---|
+| 高风险条件边界（危险动作、反例、例外路径） | 必须：正反 contract cases + 恢复路径 |
+| 抽象规则容易被 agent 泛化错（如 Surgical Changes、scope drift） | 推荐：至少一对 Good/Bad 样例 |
+| 规则已经具体且无歧义（如"description 以触发词开头"） | 不需要：规则本身就是 contract |
+| 风格偏好（如缩进风格、注释密度） | 不需要：交给 lint / 项目配置 |
+
+写法规则：
+
+- Good/Bad 样例尽量用最小 diff 或最小代码片段，不要写完整文件
+- 每对样例附一句"为什么 Bad 是错的"——不附理由的反例是无效的
+- Bad 样例不单独出现；必须同段配 Good 样例和替代动作
+- 反例库放在 `docs/` 或 skill 的支撑文件中，不塞进 `AGENTS.md`
 
 ---
 

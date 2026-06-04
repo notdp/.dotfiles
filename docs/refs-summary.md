@@ -51,6 +51,7 @@
 | [`humanlayer/12-factor-agents`](./refs-details/humanlayer/12-factor-agents.md) | 最佳实践 / 知识库 | 面向生产级 LLM 应用的 12-factor agent 工程方法论，强调 prompt/context/tool/state/control flow 的显式所有权。 |
 | [`K-Dense-AI/scientific-agent-skills`](./refs-details/K-Dense-AI/scientific-agent-skills.md) | 科研 / 数据分析 / 领域技能 | 大型科学研究 skill 集合，把科研数据库、科学 Python 包、实验平台、医学/临床工作流、科学写作和可视化整理成多 Agent 可读的能力包。 |
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
+| [`mattpocock/skills`](./refs-details/mattpocock/skills.md) | 研发流程 / Skill 工程 | "小、可组合、可 hack"的 Claude Code skill 集合，核心价值在于 prompt 结构设计（指令-知识分离、Grilling 模式、Vertical Slice 可视化、强制词汇表+Avoid 列表）和工程纪律编码方式（.out-of-scope 知识库、Durability over precision）。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
 | [`msitarzewski/agency-agents`](./refs-details/msitarzewski/agency-agents.md) | Agent 角色库 / 多工具 Agent 资产 | 144 个 Markdown agent + 转换/安装脚本 + NEXUS 编排方法论，适合作为 agent catalog、handoff/quality-gate 模板和多工具适配参考。 |

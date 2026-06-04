@@ -433,6 +433,25 @@ def segment_decision(segment: list[str]) -> Decision | None:
 
     if cmd.name == "git" and args[:1] == ["push"]:
         return git_push_decision(args[1:])
+    if cmd.name == "git" and args[:1] == ["branch"]:
+        original_args = segment[2:]
+        has_combined_force_delete = any(
+            a.startswith("-") and not a.startswith("--") and "d" in a and "f" in a
+            for a in args
+        )
+        is_force_delete = (
+            any(a == "-D" for a in original_args)
+            or has_combined_force_delete
+            or (any(a in {"-d", "--delete"} for a in args) and any(a in {"--force", "-f"} for a in args))
+        )
+        if is_force_delete:
+            return Decision("warn", "git branch -D can lose unmerged commits; confirm the branch is fully merged or backed up before proceeding.")
+    if cmd.name == "git" and args[:1] == ["checkout"] and "." in args:
+        return Decision("warn", "git checkout . discards all unstaged changes; confirm no uncommitted work will be lost before proceeding.")
+    if cmd.name == "git" and args[:1] == ["restore"] and "." in args:
+        return Decision("warn", "git restore . discards unstaged changes; confirm no uncommitted work will be lost before proceeding.")
+    if cmd.name == "git" and args[:1] == ["stash"] and args[1:2] == ["drop"]:
+        return Decision("warn", "git stash drop permanently removes stashed work; confirm the stash is no longer needed before proceeding.")
     if cmd.name == "git" and args[:1] == ["clean"] and not is_dry_run(args):
         if any("x" in arg for arg in args if arg.startswith("-")):
             return Decision("deny", "destructive git cleanup including ignored files is too risky for automatic execution.")

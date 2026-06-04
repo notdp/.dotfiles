@@ -11,6 +11,7 @@ from typing import Any
 
 ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team", "workflow"}
 ALLOWED_ROLES = {"canonical", "legacy", "brand-exception"}
+CATALOG_OPTIONAL_BOOLEANS = {"trigger-exempt", "manual-only"}
 BRAND_EXCEPTIONS = {"hive", "agent-browser", "react-doctor"}
 REFERENCE_PATTERN = re.compile(
     r"(?<![/.])\b(?:refs|references|examples|scripts|agents|templates)/[\w./-]+\b"
@@ -127,6 +128,7 @@ class SkillEntry:
     role: str
     migration: dict[str, Any] | None
     trigger_exempt: bool
+    manual_only: bool
 
 
 @dataclass(frozen=True)
@@ -185,6 +187,7 @@ def load_catalog(context: ValidationContext) -> list[SkillEntry]:
         role = raw_entry.get("role")
         migration = raw_entry.get("migration")
         trigger_exempt = bool(raw_entry.get("trigger-exempt", False))
+        manual_only = bool(raw_entry.get("manual-only", False))
 
         if not isinstance(name, str) or not name:
             fail("INVALID CATALOG: skill name must be a non-empty string")
@@ -246,6 +249,7 @@ def load_catalog(context: ValidationContext) -> list[SkillEntry]:
                 role=role,
                 migration=migration,
                 trigger_exempt=trigger_exempt,
+                manual_only=manual_only,
             )
         )
         seen_names.add(name)
