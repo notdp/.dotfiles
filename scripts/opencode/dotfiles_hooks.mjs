@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const COMMAND_GUARD = "/Users/zhenninglang/.dotfiles/scripts/hooks/command_guard.py";
-const STOP_CHECK = "/Users/zhenninglang/.dotfiles/scripts/hooks/stop_check.py";
-const NOTIFY_TMUX_TITLE = "/Users/zhenninglang/.dotfiles/scripts/notify-tmux-title.sh";
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const COMMAND_GUARD = resolve(REPO_ROOT, "scripts", "hooks", "command_guard.py");
+const STOP_CHECK = resolve(REPO_ROOT, "scripts", "hooks", "stop_check.py");
+const NOTIFY_TMUX_TITLE = resolve(REPO_ROOT, "scripts", "notify-tmux-title.sh");
 const IDLE_NOTICE_DEBOUNCE_MS = 2000;
 const COMPLETION_TITLE = "OpenCode task complete";
 const COMPLETION_MESSAGE = "OpenCode task complete.";

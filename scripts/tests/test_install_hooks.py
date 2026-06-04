@@ -56,9 +56,13 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(models["claude-opus-4-8"]["variants"]["max"]["reasoningEffort"], "max")
         self.assertEqual(models["gpt-5.5"]["variants"]["xhigh"]["reasoningEffort"], "xhigh")
 
-    def test_droid_check_accepts_current_project_settings(self) -> None:
-        result = self.run_install("--target", "droid", "--check")
+    def test_droid_check_accepts_applied_project_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            apply_result = self.run_install("--target", "droid", "--apply", "--yes", cwd=repo)
+            result = self.run_install("--target", "droid", "--check", cwd=repo)
 
+        self.assertEqual(apply_result.returncode, 0, apply_result.stdout + apply_result.stderr)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("scripts/hooks runtime", result.stdout)
 
@@ -429,6 +433,8 @@ class InstallHooksTests(unittest.TestCase):
 
     def test_kilo_plugin_guards_tool_execute_before_shell_command(self) -> None:
         plugin_path = REPO_ROOT / "scripts" / "kilo" / "dotfiles_hooks.mjs"
+        opencode_plugin = (REPO_ROOT / "scripts" / "opencode" / "dotfiles_hooks.mjs").read_text(encoding="utf-8")
+        self.assertNotIn("/Users/zhenninglang/.dotfiles/scripts", opencode_plugin)
         script = f"""
             import {{ pathToFileURL }} from "node:url";
             const plugin = await import(pathToFileURL({json.dumps(str(plugin_path))}));
@@ -677,7 +683,13 @@ class InstallHooksTests(unittest.TestCase):
     def test_agent_assets_apply_links_all_supported_agents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            result = self.run_install("--target", "agent-assets", "--apply", "--yes", env={"HOME": str(home)})
+            result = self.run_install(
+                "--target",
+                "agent-assets",
+                "--apply",
+                "--yes",
+                env={"HOME": str(home), "KILO_CONFIG_DIR": str(home / ".config" / "kilo")},
+            )
 
             expected_links = {
                 home / ".claude" / "commands": REPO_ROOT / "commands",
@@ -703,7 +715,12 @@ class InstallHooksTests(unittest.TestCase):
 
     def test_agent_assets_apply_requires_yes_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            result = self.run_install("--target", "agent-assets", "--apply", env={"HOME": tmp})
+            result = self.run_install(
+                "--target",
+                "agent-assets",
+                "--apply",
+                env={"HOME": tmp, "KILO_CONFIG_DIR": str(Path(tmp) / ".config" / "kilo")},
+            )
 
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("--yes", result.stdout)

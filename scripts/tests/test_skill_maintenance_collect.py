@@ -43,7 +43,7 @@ class SkillMaintenanceCollectTests(unittest.TestCase):
     def test_session_sampling_reads_real_io_but_excludes_raw_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            session_dir = home / ".factory" / "sessions" / "-Users-zhenninglang-.dotfiles"
+            session_dir = skill_maintenance_collect.encoded_repo_session_dir(REPO_ROOT, home)
             session_dir.mkdir(parents=True)
             for index in range(5):
                 session = session_dir / f"session-{index}.jsonl"

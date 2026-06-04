@@ -294,8 +294,10 @@ emit_sound() {
   [[ -z "$1" ]] && return 0
   if [[ "${NOTIFY_TMUX_TITLE_DRY_RUN:-}" == "1" ]]; then
     printf 'sound:%s\n' "$1"
-  else
+  elif [[ -x /usr/bin/afplay ]]; then
     /usr/bin/afplay "$1"
+  else
+    return 0
   fi
 }
 
