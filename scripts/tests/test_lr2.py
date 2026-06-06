@@ -205,6 +205,41 @@ class WorkerStatusTests(unittest.TestCase):
         # 不在已知 state 词表 → unknown(避免把 prose 误判成完成)
         self.assertEqual(lr2.parse_worker_status("almost done maybe")[0], "unknown")
 
+    def test_assignment_form_with_equals(self) -> None:
+        # worker 把 prompt 里的 `phase_coder.status = done ...` 整行写进文件 → 仍能取到 done
+        self.assertEqual(
+            lr2.parse_worker_status("phase_coder.status = done commit=2e49a706"),
+            ("done", "commit=2e49a706"),
+        )
+
+    def test_assignment_form_with_colon(self) -> None:
+        self.assertEqual(lr2.parse_worker_status("status: blocked need creds"), ("blocked", "need creds"))
+
+    def test_assignment_form_with_garbage_rhs_is_unknown(self) -> None:
+        # 赋值左边像 status key,但右边不是合法 state → 仍 unknown(不放行 prose)
+        self.assertEqual(lr2.parse_worker_status("phase_coder.status = almost there")[0], "unknown")
+
+
+class PaneIdleTests(unittest.TestCase):
+    def test_ready_marker_is_idle(self) -> None:
+        self.assertTrue(lr2.pane_looks_idle("...\n? for shortcuts"))
+        self.assertTrue(lr2.pane_looks_idle("Ask anything\n"))
+
+    def test_active_screen_not_idle(self) -> None:
+        self.assertFalse(lr2.pane_looks_idle("Editing file foo.py\nrunning tests..."))
+
+    def test_idle_strike_accrues_when_ready_and_unchanged(self) -> None:
+        prev = "work done\n? for shortcuts"
+        self.assertEqual(lr2.update_idle(prev, prev, 1), 2)
+
+    def test_idle_strike_resets_when_screen_changes(self) -> None:
+        # 画面还在变(在干活)→ strike 清零, 即便当前帧带就绪标识
+        self.assertEqual(lr2.update_idle("frame A\n? for shortcuts", "frame B\n? for shortcuts", 3), 0)
+
+    def test_idle_strike_resets_when_not_ready(self) -> None:
+        screen = "still generating tokens"
+        self.assertEqual(lr2.update_idle(screen, screen, 3), 0)
+
 
 class YamlLoaderTests(unittest.TestCase):
     def test_loads_generated_config_and_passes_validate(self) -> None:

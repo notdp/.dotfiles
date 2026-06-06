@@ -16,7 +16,7 @@
     - **观察**：一条条编号写明应看到什么现象(如:达人 JavierYexi 成本显示 `$750` 而非 `$9000`；交付物显示 `TT video+ repost IG Reel`)
 
 ## 完成信号(机器可读)
-- 三个文件写完后,写 **`phases/<id>/phase_planner.status` = `done`**(卡住写 `blocked <reason>`)。orchestrator 靠它判完成,别只在 pane 里说。
+- 三个文件写完后,把 **`phases/<id>/phase_planner.status`** 整文件写成一行 `done`(卡住写 `blocked <reason>`;别把文件名或 `=` 写进文件)。orchestrator 靠它判完成,别只在 pane 里说。
 
 ## 约束
 - 评估是否需要 `/think-map` `/think-research`，不强制。

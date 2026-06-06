@@ -230,12 +230,35 @@ def parse_worker_status(text: str) -> tuple[str, str]:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines:
         return ("unknown", "")
-    parts = lines[0].split(None, 1)
+    first = lines[0]
+    # 容错: worker 常把 prompt 里的 `phase_coder.status = done ...`(或 `status: done`)整行
+    # 写进文件 → 剥掉 `<…status> = / :` 赋值左边, 用右边判 state(右边非法仍回落 unknown)。
+    assign = re.match(r"(?i)^[\w./-]*status\s*[:=]\s*(\S.*)$", first)
+    if assign:
+        first = assign.group(1).strip()
+    parts = first.split(None, 1)
     state = parts[0].lower()
     detail = parts[1].strip() if len(parts) > 1 else ""
     if state not in WORKER_STATES:
         return ("unknown", lines[0])
     return (state, detail)
+
+
+# TUI worker"完成"=回到就绪输入框(pane 不死)。这些标识表示 pane 在等输入而非在干活。
+IDLE_READY_MARKERS = ("? for shortcuts", "Ask anything", "bypass permissions")
+
+
+def pane_looks_idle(screen: str) -> bool:
+    """pane 当前是否停在就绪输入框(等输入, 不在生成)。"""
+    return any(marker in screen for marker in IDLE_READY_MARKERS)
+
+
+def update_idle(prev_screen: str, screen: str, strikes: int) -> int:
+    """idle 兜底计数(纯逻辑): pane 停在就绪框且画面与上一轮完全相同 → strike+1, 否则清零。
+    画面还在变(spinner/出 token)说明在干活, 不算 idle —— 杜绝把'在思考'误判成'卡住'。"""
+    if pane_looks_idle(screen) and screen == prev_screen:
+        return strikes + 1
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -716,11 +739,22 @@ def cmd_pane_alive(args: argparse.Namespace) -> int:
     return 0 if pane_is_alive(live, args.pane) else 1
 
 
+def _pane_tail(pane: str | None, n: int = 15) -> str:
+    """抓 pane 末 n 行(供 IDLE/TIMEOUT 诊断: orchestrator 不必再单独 capture-pane 看现场)。"""
+    if not pane:
+        return "(无 pane)"
+    screen = capture_pane(pane)
+    return "\n".join(screen.splitlines()[-n:])
+
+
 def cmd_await(args: argparse.Namespace) -> int:
-    """健壮地等 worker 完成: 轮询 status 文件 token + 查 pane 死活 + 有界超时 + 短间隔。
-    退出码: 0 DONE / 2 BLOCKED / 3 DEAD(pane 没了) / 4 TIMEOUT / 5 COMPACT。不 grep prose。"""
+    """健壮地等 worker 完成: 轮询 status 文件 token + 查 pane 死活 + idle 兜底 + 有界超时。
+    退出码: 0 DONE / 2 BLOCKED / 3 DEAD(pane 没了) / 4 TIMEOUT / 5 COMPACT / 6 IDLE(停在
+    就绪框却没写 status)。idle/timeout 附 pane tail 便于诊断。不 grep prose 判完成。"""
     status_path = Path(args.status)
     deadline = time.monotonic() + args.timeout
+    prev_screen = ""
+    idle_strikes = 0
     while time.monotonic() < deadline:
         if args.pane:
             live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
@@ -738,8 +772,23 @@ def cmd_await(args: argparse.Namespace) -> int:
         if state == "compact":
             sys.stdout.write(f"COMPACT {detail}\n")
             return 5
+        # idle 兜底: TUI worker 干完回到输入框却忘写/写错 status, pane 不死、status 不变 →
+        # 不该死等到 timeout。连续 idle 超过 idle_timeout 即返回 6, 让 orchestrator 立即介入。
+        if args.pane and args.idle_timeout > 0:
+            screen = capture_pane(args.pane)
+            idle_strikes = update_idle(prev_screen, screen, idle_strikes)
+            prev_screen = screen
+            if idle_strikes * args.interval >= args.idle_timeout:
+                sys.stdout.write(
+                    f"IDLE {args.pane} (停在就绪输入框 ~{idle_strikes * args.interval}s 未写 status)\n"
+                    f"--- pane tail ---\n{_pane_tail(args.pane)}\n"
+                )
+                return 6
         time.sleep(args.interval)
-    sys.stdout.write(f"TIMEOUT after {args.timeout}s (status={status_path})\n")
+    sys.stdout.write(
+        f"TIMEOUT after {args.timeout}s (status={status_path})\n"
+        f"--- pane tail ---\n{_pane_tail(args.pane)}\n"
+    )
     return 4
 
 
@@ -883,9 +932,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("await", help="(orchestrator 调用) 健壮等 worker 完成: 轮询 status 文件 + 查 pane 死活")
     p.add_argument("--status", required=True, help="worker 写的 status 文件路径(phases/<id>/<role>.status)")
-    p.add_argument("--pane", help="worker pane id; 给了就每轮查死活, 死了立即 DEAD 退出")
-    p.add_argument("--timeout", type=int, default=1800, help="有界超时秒数(默认 1800)")
+    p.add_argument("--pane", help="worker pane id; 给了就每轮查死活+idle 兜底, 死了立即 DEAD 退出")
+    p.add_argument("--timeout", type=int, default=600, help="有界超时秒数(默认 600)")
     p.add_argument("--interval", type=int, default=5, help="轮询间隔秒(默认 5)")
+    p.add_argument("--idle-timeout", type=int, default=120,
+                   help="pane 停在就绪框且画面不变多少秒判 IDLE(退出码 6, 需 --pane; 0=禁用, 默认 120)")
     p.set_defaults(func=cmd_await)
 
     p = sub.add_parser("sessions", help="打印 SESSIONS.md + pane 存活")

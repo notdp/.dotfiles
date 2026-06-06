@@ -13,7 +13,7 @@
 - **`[blocker]` 是机器读的门禁标记**(完成门禁数 review 的 `[blocker]` 对 coder ack 的 `[fixed]`)：只把"不修就不能算完成"的问题标 blocker；别把 should/nit 夸成 blocker，也别把真 blocker 降级成 should 放水(首次实战就栽在把半修的 00167 当 should 放过)。
 
 ## 完成信号(机器可读)
-- 写完 `review.md` 后,写 **`phases/<id>/phase_reviewer.status` = `done`**。orchestrator 靠它判完成,别只在 pane 里说。
+- 写完 `review.md` 后,把 **`phases/<id>/phase_reviewer.status`** 整文件写成一行 `done`(别把文件名或 `=` 写进文件)。orchestrator 靠它判完成,别只在 pane 里说。
 
 ## 约束
 - 只读，不动代码、不跑命令。

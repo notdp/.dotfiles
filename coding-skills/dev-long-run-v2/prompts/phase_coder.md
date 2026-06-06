@@ -31,7 +31,7 @@
 - **最后一步永远是更新这个文件**;别只在 pane 里说"已完成",orchestrator 看不到。
 
 ## 每 phase 收口(L14)
-- ack 处理完、按优先级修完后：① 写好 `verify.sh`、本地 `bash verify.sh` 跑通(失败就继续修，别带病收口)→ ② **commit 本 phase 改动到分支**，不 push → ③ 写 `phase_coder.status = done commit=<hash>`。
+- ack 处理完、按优先级修完后：① 写好 `verify.sh`、本地 `bash verify.sh` 跑通(失败就继续修，别带病收口)→ ② **commit 本 phase 改动到分支**，不 push → ③ 把 `phases/<id>/phase_coder.status` 的**整个文件内容**写成一行 `done commit=<hash>`(只写状态本身,**别把文件名或 `=` 写进文件**)。
 - 你写 `done` 只代表"我自认改完且 verify.sh 本地能过";**真正标 phase 完成是 orchestrator 跑 `lr2.py verify` + `lr2.py complete-phase` 过门禁**(verify.json.ok=真 且 blocker 全 fixed),门禁不过会打回。
 - **只 stage 本 phase 实际改的文件**（显式 `git add <path1> <path2> …`），**禁止 `git add -A` / `git add .`**。
   原因:in-place 模式下分支是用户已有的活跃分支,`git add -A` 会把工作树里无关的未提交改动一并裹进本 phase commit。先 `git status` 看清,只加你这轮动过的文件。
