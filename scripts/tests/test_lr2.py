@@ -97,6 +97,17 @@ class NamingTests(unittest.TestCase):
     def test_branch_name(self) -> None:
         self.assertEqual(lr2.branch_name("compliance"), "lr2/compliance")
 
+    def test_pane_title_is_phase_and_identity(self) -> None:
+        # 用户决策(USER 2026-06-06): pane 名 `phase {n} {身份}`(不含任务名, 太长), 方便调试。
+        # 身份去掉 phase_ 前缀(planner/coder/reviewer)。
+        self.assertEqual(lr2.pane_title("phase_coder", "01"), "phase 01 coder")
+        self.assertEqual(lr2.pane_title("phase_planner", "02"), "phase 02 planner")
+        self.assertEqual(lr2.pane_title("phase_reviewer", "03"), "phase 03 reviewer")
+
+    def test_pane_title_keeps_unknown_role_verbatim(self) -> None:
+        # 非 phase_ 前缀的 role 原样保留, 不臆造转换
+        self.assertEqual(lr2.pane_title("orchestrator", "01"), "phase 01 orchestrator")
+
     def test_worktree_path_is_sibling_of_repo(self) -> None:
         wt = lr2.worktree_path(Path("/home/u/myrepo"), "compliance")
         self.assertEqual(wt, Path("/home/u/myrepo-lr2-compliance"))
@@ -303,6 +314,37 @@ class TmuxArgTests(unittest.TestCase):
 
     def test_find_live_role_pane_none_when_absent(self) -> None:
         self.assertIsNone(lr2.find_live_role_pane([], "phase_coder", "%42\n"))
+
+    def test_panes_to_close_selects_running_alive_in_roleset(self) -> None:
+        rows = [
+            {"role": "phase_planner", "phase": "01", "pane_id": "%41", "started_at": "t", "last_seen": "t", "status": "running"},
+            {"role": "phase_reviewer", "phase": "01", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "running"},
+        ]
+        self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%41\n%43\n%7\n"), ["%41", "%43"])
+
+    def test_panes_to_close_excludes_closed_status(self) -> None:
+        rows = [{"role": "phase_reviewer", "phase": "01", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "closed"}]
+        self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%43\n"), [])
+
+    def test_panes_to_close_excludes_dead_pane(self) -> None:
+        rows = [{"role": "phase_reviewer", "phase": "01", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "running"}]
+        self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%7\n"), [])  # %43 不在活 pane
+
+    def test_panes_to_close_role_set_decides_coder(self) -> None:
+        # coder 不在 PHASE_TRANSIENT_ROLES → phase 收口不关 coder(跨 phase 复用); WORKER_ROLES(run 收尾)才关
+        rows = [{"role": "phase_coder", "phase": "01", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"}]
+        self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%42\n"), [])
+        self.assertEqual(lr2.panes_to_close(rows, lr2.WORKER_ROLES, "%42\n"), ["%42"])
+
+    def test_panes_to_close_empty_rows(self) -> None:
+        self.assertEqual(lr2.panes_to_close([], lr2.WORKER_ROLES, "%42\n"), [])
+
+    def test_role_sets_membership(self) -> None:
+        self.assertNotIn("phase_coder", lr2.PHASE_TRANSIENT_ROLES)
+        self.assertIn("phase_planner", lr2.PHASE_TRANSIENT_ROLES)
+        self.assertIn("phase_reviewer", lr2.PHASE_TRANSIENT_ROLES)
+        for r in ("phase_planner", "phase_coder", "phase_reviewer"):
+            self.assertIn(r, lr2.WORKER_ROLES)
 
 
 class LaunchCommandTests(unittest.TestCase):

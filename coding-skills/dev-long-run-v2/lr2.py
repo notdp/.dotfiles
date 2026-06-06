@@ -355,6 +355,15 @@ def find_live_role_pane(rows: list[dict[str, str]], role: str, list_panes_output
     return None
 
 
+def panes_to_close(rows: list[dict[str, str]], roles, list_panes_output: str) -> list[str]:
+    """该关哪些 pane(纯逻辑): SESSIONS 里 status==running 且 pane 仍 alive 且 role∈roles 的 pane_id。
+    teardown 据此决定关谁 — phase 收口传 PHASE_TRANSIENT_ROLES(不含 coder), run 收尾传 WORKER_ROLES。"""
+    roleset = set(roles)
+    return [r["pane_id"] for r in rows
+            if r["role"] in roleset and r["status"] == "running"
+            and pane_is_alive(list_panes_output, r["pane_id"])]
+
+
 def launch_command(role_cfg: dict) -> str | None:
     """role 的 pane 启动命令。kilo → `kilo -m <model>`(TUI 直接 exec, L19 用默认 effort);
     claude_cli → None(走默认交互 zsh, 再 send-keys cfg['cmd'], 以拿 .zshrc 的 token)。"""
@@ -407,8 +416,11 @@ def _git(repo_root: Path, args: list[str]) -> str:
     return result.stdout.strip()
 
 
-def pane_title(slug: str, role: str, phase: str) -> str:
-    return f"lr2:{slug}:{role}:{phase}"
+def pane_title(role: str, phase: str) -> str:
+    # `phase {n} {身份}`(用户决策 2026-06-06): 比 lr2:slug:role:phase 更易调试; 不含任务名(太长)。
+    # 身份去掉 phase_ 前缀 → planner/coder/reviewer。
+    identity = role[len("phase_"):] if role.startswith("phase_") else role
+    return f"phase {phase} {identity}"
 
 
 def capture_pane(pane: str) -> str:
@@ -454,22 +466,36 @@ def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
 
 
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
+# L24(pane 生命周期收尾): phase 收口该清的临时角色(coder 不在内 — 跨 phase 复用); run 收尾清全部 worker。
+PHASE_TRANSIENT_ROLES = ("phase_planner", "phase_reviewer")
+WORKER_ROLES = ("phase_planner", "phase_coder", "phase_reviewer")
+
+
+def _close_roles(workspace: Path, roles) -> list[str]:
+    """关掉这些 role 所有 running+alive pane, 在 SESSIONS.md 标 closed, 写回。返回被关的 pane_id 列表。
+    teardown 兜底: 无 tmux / 无 SESSIONS / 没有可关的 → 静默返回 [](best-effort, 不阻断门禁)。"""
+    if not os.environ.get("TMUX"):
+        return []
+    sessions_path = workspace / "SESSIONS.md"
+    if not sessions_path.exists():
+        return []
+    rows = parse_sessions(sessions_path.read_text(encoding="utf-8"))
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    pids = panes_to_close(rows, roles, live)
+    if not pids:
+        return []
+    for pid in pids:
+        _tmux(["kill-pane", "-t", pid], capture=True)
+    closed = set(pids)
+    rows = [dict(r, status="closed", last_seen=_now()) if r["pane_id"] in closed else r for r in rows]
+    sessions_path.write_text(render_sessions(rows), encoding="utf-8")
+    return pids
 
 
 def _close_role_pane(workspace: Path, role: str) -> str | None:
     """关掉某 role 上一个仍存活的 pane 并在 SESSIONS.md 标 closed。返回被关的 pane_id。"""
-    sessions_path = workspace / "SESSIONS.md"
-    if not sessions_path.exists():
-        return None
-    rows = parse_sessions(sessions_path.read_text(encoding="utf-8"))
-    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
-    pid = find_live_role_pane(rows, role, live)
-    if not pid:
-        return None
-    _tmux(["kill-pane", "-t", pid], capture=True)
-    rows = [dict(r, status="closed", last_seen=_now()) if r["pane_id"] == pid else r for r in rows]
-    sessions_path.write_text(render_sessions(rows), encoding="utf-8")
-    return pid
+    pids = _close_roles(workspace, (role,))
+    return pids[0] if pids else None
 
 
 def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> str:
@@ -486,7 +512,7 @@ def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> st
     return "\n".join(p for p in parts if p)
 
 
-def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> str:
+def launch_role(workspace: Path, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> str:
     """在用户当前 tmux window split 出一个 role pane(就在当前 tab,不新建 session/tab),
     注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。phase_coder 已存活则复用(L6)。"""
     if not os.environ.get("TMUX"):
@@ -505,7 +531,11 @@ def launch_role(workspace: Path, slug: str, role: str, role_cfg: dict, phase: st
     pane = _tmux(split_window_args(str(worktree), mode, command, target=current_pane), capture=True)
     if not pane:
         raise RuntimeError(f"failed to obtain pane_id for role {role}")
-    _tmux(["select-pane", "-t", pane, "-T", pane_title(slug, role, phase)])
+    title = pane_title(role, phase)
+    _tmux(["select-pane", "-t", pane, "-T", title])
+    # notify-tmux-title.sh hook 的 pane-border-format 显示 @notify_tmux_title_pane_name(不是 -T 标题),
+    # 且只在该选项为空时才分配水浒传随机名 → 这里先占住, hook 就不会覆盖, border 直接显示 phase 名。
+    _tmux(["set-option", "-pt", pane, "@notify_tmux_title_pane_name", title])
     time.sleep(1)
     if role_cfg["backend"] == "claude_cli":
         send_to_pane(pane, role_cfg["cmd"])
@@ -704,7 +734,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
         sys.stderr.write(f"unknown role {args.role}\n")
         return 1
     mode = args.mode or ("split-down" if "reviewer" in args.role else "split-right")
-    pane = launch_role(workspace, state["slug"], args.role, config["roles"][args.role], args.phase, mode, brief=args.brief)
+    pane = launch_role(workspace, args.role, config["roles"][args.role], args.phase, mode, brief=args.brief)
     sys.stdout.write(pane + "\n")
     return 0
 
@@ -720,6 +750,20 @@ def cmd_send(args: argparse.Namespace) -> int:
         )
         return 1
     send_to_pane(args.pane, args.text)
+    return 0
+
+
+def cmd_close(args: argparse.Namespace) -> int:
+    # 故障导向安全: 不在 tmux 里就没 pane 可关, 明确报错(与 cmd_send 一致)。
+    if not os.environ.get("TMUX"):
+        sys.stderr.write("refusing: 不在 tmux 里, 无 pane 可关\n")
+        return 1
+    workspace = Path(args.workspace).resolve()
+    pids = _close_roles(workspace, (args.role,))
+    if pids:
+        sys.stdout.write(f"closed {args.role}: {' '.join(pids)}\n")
+    else:
+        sys.stdout.write(f"no live pane for role {args.role}\n")  # 幂等: 已关过/没开过都算成功
     return 0
 
 
@@ -874,6 +918,10 @@ def cmd_complete_phase(args: argparse.Namespace) -> int:
         return 1
     fp.write_text(new, encoding="utf-8")
     _append_log(workspace, f"phase {args.phase} gate passed → marked complete")
+    # L24 teardown 兜底: 门禁已过, 清掉该 phase 残留的 planner/reviewer(coder 跨 phase 复用, 不关)。
+    closed = _close_roles(workspace, PHASE_TRANSIENT_ROLES)
+    if closed:
+        _append_log(workspace, f"phase {args.phase} teardown: closed {' '.join(closed)}")
     sys.stdout.write(f"phase {args.phase} 完成(门禁已过, fix_plan 已勾)\n")
     return 0
 
@@ -892,6 +940,13 @@ def cmd_complete_run(args: argparse.Namespace) -> int:
     state["state"] = "completed"
     save_state(workspace / "state.json", state)
     _append_log(workspace, "run completed: acceptance gate passed")
+    # L24 teardown: run 结束清掉所有 worker(含跨 phase 的 coder); --keep-panes 保留现场调试。
+    if args.keep_panes:
+        _append_log(workspace, "teardown skipped (--keep-panes)")
+    else:
+        closed = _close_roles(workspace, WORKER_ROLES)
+        if closed:
+            _append_log(workspace, f"run teardown: closed {' '.join(closed)}")
     sys.stdout.write("run completed(acceptance 门禁已过)\n")
     return 0
 
@@ -930,6 +985,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--text", required=True)
     p.set_defaults(func=cmd_send)
 
+    p = sub.add_parser("close", help="(orchestrator 调用) 关掉某 role 的 worker pane, 标 closed(幂等)")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--role", required=True)
+    p.set_defaults(func=cmd_close)
+
     p = sub.add_parser("await", help="(orchestrator 调用) 健壮等 worker 完成: 轮询 status 文件 + 查 pane 死活")
     p.add_argument("--status", required=True, help="worker 写的 status 文件路径(phases/<id>/<role>.status)")
     p.add_argument("--pane", help="worker pane id; 给了就每轮查死活+idle 兜底, 死了立即 DEAD 退出")
@@ -965,6 +1025,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("complete-run", help="过 acceptance 门禁才置 state=completed")
     p.add_argument("--workspace", required=True)
+    p.add_argument("--keep-panes", action="store_true", help="收尾不关 worker pane(保留现场调试)")
     p.set_defaults(func=cmd_complete_run)
 
     args = parser.parse_args(argv)

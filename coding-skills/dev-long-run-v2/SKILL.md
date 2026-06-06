@@ -53,9 +53,9 @@ python3 ~/.dotfiles/coding-skills/dev-long-run-v2/lr2.py launch --workspace <ws>
 
 ### ② 逐 phase 开发(你扮演 loop orchestrator,见 `prompts/loop_orchestrator.md`)
 用户同意后,每个 phase:
-1. `lr2.py launch --role phase_planner` 开 planner pane → 轮询它写完 `phases/<id>/{research,plan,qa}.md` → 关。
+1. `lr2.py launch --role phase_planner` 开 planner pane → 轮询它写完 `phases/<id>/{research,plan,qa}.md` → `lr2.py close --role phase_planner`(或交给 complete-phase 兜底)。
 2. `lr2.py launch --role phase_coder` → 轮询 `HANDOFF.md` 更新完成。**每 phase fresh coder**(L6,用户决策):工具会先**关掉上一个 phase 的 coder pane**(SESSIONS 标 closed),再开一个新的;新 coder 读 `HANDOFF.md` 续上一 phase 的交接,不靠长驻 context。
-3. `lr2.py launch --role phase_reviewer --mode split-down` → 轮询 `phases/<id>/review.md` 写好 → 关。
+3. `lr2.py launch --role phase_reviewer --mode split-down` → 轮询 `phases/<id>/review.md` 写好 → `lr2.py close --role phase_reviewer`(或交给 complete-phase 兜底)。
 4. `lr2.py send --pane <coder> --text "<review>"` → coder 写 `ack.md`(含 `## Blocker Resolutions`)逐项 ack + 修 + 写 `verify.sh` → **commit 本 phase 到分支(L14)**。
 5. **完成门禁(L23,硬门)**:`lr2.py verify --phase NN`(真跑 verify.sh)→ `lr2.py complete-phase --phase NN`(过门禁才翻 `fix_plan [x]`,exit 2 就打回,**绝不手翻**)→ qa.md 有 `## 人工验证` 就把 目的/操作/观察 贴给用户点验确认。
 6. 在对话里告诉用户「Phase N 完成(门禁已过、verify 真跑通),要点…,继续/收尾/停?」,等用户自然语言回。
@@ -77,7 +77,7 @@ python3 ~/.dotfiles/coding-skills/dev-long-run-v2/lr2.py launch --workspace <ws>
   - **claude(reviewer)**:paste 功能正常(不提前提交、内容正确),但 claude TUI 把多行折叠成 `[Pasted text +N lines]` 占位符,窗口里看不到原文(claude 自身行为)。reviewer 的可观测性靠它产出的 `review.md` 文件,不靠 pane 回显。
 
 ### ③ 收尾 / 恢复
-- 用户说"完成":写根 `acceptance.sh` → `lr2.py verify --acceptance`(真跑端到端验收)→ 人工验收项贴给用户确认 → `lr2.py complete-run`(acceptance 门禁过了才置 `state=completed`,**没过不准说完成**)→ 扫 `BACKLOG.md` 标可快速收敛项、写 `CLEANUP_PROPOSAL.md`(只建议不删)。
+- 用户说"完成":写根 `acceptance.sh` → `lr2.py verify --acceptance`(真跑端到端验收)→ 人工验收项贴给用户确认 → `lr2.py complete-run`(acceptance 门禁过了才置 `state=completed`,**没过不准说完成**;过后自动关所有 worker pane,要留现场调试加 `--keep-panes`)→ 扫 `BACKLOG.md` 标可快速收敛项、写 `CLEANUP_PROPOSAL.md`(只建议不删)。
 - 崩溃/重启后:`lr2.py resume --workspace <ws>` 看 worktree + worker pane 死活,你据此续上或重开 fresh coder(读 HANDOFF)。
 
 ## 你的机械工具(全部你执行,用户不碰)
@@ -85,14 +85,15 @@ python3 ~/.dotfiles/coding-skills/dev-long-run-v2/lr2.py launch --workspace <ws>
 lr2.py scaffold --requirement <p> --goal <g> --repo-root .   # 建 worktree+工作区(不 spawn orchestrator)
 lr2.py launch   --workspace <ws> --role <planner|coder|reviewer|scaffold_reviewer> [--phase NN]
 lr2.py send     --pane <id> --text "<prompt>"                # literal send-keys + Enter
+lr2.py close    --workspace <ws> --role <role>               # 关该 role 存活 pane + SESSIONS 标 closed(幂等)
 lr2.py sessions --workspace <ws>                             # worker pane 注册表 + 存活
 lr2.py pane-alive --pane <id>                                # exit 0/1
 lr2.py resume   --workspace <ws>                             # 恢复
 lr2.py develop  --workspace <ws>                             # (可选)标记进入 develop 状态
 lr2.py verify   --workspace <ws> --phase NN                  # 在 worktree 真跑 verify.sh,写 verify.json(执行证据)
 lr2.py verify   --workspace <ws> --acceptance                # 真跑根 acceptance.sh,写 acceptance.json(端到端验收)
-lr2.py complete-phase --workspace <ws> --phase NN            # 过门禁才翻 fix_plan [x](唯一标完成入口);不过 exit 2
-lr2.py complete-run   --workspace <ws>                       # 过 acceptance 门禁才置 state=completed
+lr2.py complete-phase --workspace <ws> --phase NN            # 过门禁才翻 fix_plan [x](唯一标完成入口);不过 exit 2;过后自动关 planner/reviewer 残留 pane
+lr2.py complete-run   --workspace <ws> [--keep-panes]        # 过 acceptance 门禁才置 state=completed;过后自动关所有 worker pane(--keep-panes 保留现场)
 ```
 
 ## 硬约束(见 spec 已锁定 L1-L23)
