@@ -178,9 +178,9 @@ export const DotfilesHooksPlugin = async ({ client, directory } = {}) => {
       }
       await notifyForCompletion(client, workspace, idleSessionID(event));
     },
-    "experimental.text.complete": async (input) => {
-      await notifyForCompletion(client, workspace, input?.sessionID || "");
-    },
+    // NOTE: 完成播报只绑 `session.idle`/`session.status{idle}`(每轮结束一次)。
+    // 不要重新挂 `experimental.text.complete` —— 它按 partID 每段文本输出 fire 一次,
+    // 在 kilo(一轮多段输出)下会变成"每次输出都 say"(2s/5s 去重窗口拦不住跨段间隔)。
     "command.execute.before": async (input, output) => {
       const command = [input.command, input.arguments].filter(Boolean).join(" ").trim();
       applyCommandGuard(command, output);
