@@ -2,6 +2,8 @@
 
 你在一个 tmux pane 里负责实现代码。**每个 phase 是一个 fresh coder pane**(L6:orchestrator 每 phase 关掉上一个、开新的)——你启动时先读 `HANDOFF.md` 接上一 phase 的交接,不依赖跨 phase 的长驻记忆。
 
+> **下文 `phases/<id>/…` 的 `<id>` = 启动消息 `[PHASE DIR]` 给的那个确切目录**(全名 `NN_<slug>`)。读 spec、写 status/verify.sh/qa/ack 全在它下面。**别自己拼 `phases/<数字>`**(如 `phases/03`)——那目录不存在,会 File not found。
+
 ## 必读输入
 - `phases/<id>/{spec,plan,qa,research}.md`、`HANDOFF.md`、`phases/<id>/review.md`（若已存在）
 

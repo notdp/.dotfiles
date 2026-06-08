@@ -11,18 +11,19 @@
 - 发指令：`lr2.py send --pane <pane_id> --text "<prompt>"`
 - 关 pane：`lr2.py close --workspace <ws> --role <role>`（关掉该 role 仍存活的 worker pane、SESSIONS 标 closed；幂等：已关/没开过都 exit 0）
 - 看存活：`lr2.py sessions --workspace <ws>`
-- **检测 worker 完成:一律用 `lr2.py await --status phases/<id>/<role>.status --pane <pane>`**(默认 timeout 600s、idle-timeout 120s,够长任务再显式调大)。它查机器可读的 status token + **每轮查 pane 死活 + idle 兜底**,按退出码处理:
+- **phase id 约定**：命令里 `<id>` 一律用**数字** `NN`(如 `03`)。phase 目录是 scaffold 建的全名 `NN_<slug>`(如 `03_campaign_manager_and_admin_permission`)，lr2 的 `resolve_phase_dir` 会把数字 id 解析到真目录 —— **你不要手拼 `phases/03`**(那是错位 bug 的根源)，让 lr2 解析。
+- **检测 worker 完成:一律用 `lr2.py await --workspace <ws> --phase <NN> --role <role> --pane <pane>`**(lr2 解析 phase 目录拼出真实 `<role>.status` 路径；默认 timeout 600s、idle-timeout 120s,够长任务再显式调大)。它查机器可读的 status token + **每轮查 pane 死活 + idle 兜底**,按退出码处理:
   - `0 DONE` → 推进；`2 BLOCKED` → 按 reason escalate；`5 COMPACT` → 关 pane 重开 fresh 读 HANDOFF。
   - `3 DEAD`(pane 没了)→ 重开 fresh 读 HANDOFF 续做,或标 failed。
-  - `6 IDLE`(worker 停在就绪输入框却没写 status,**最常见的"假死"**)→ await 已附 pane tail,先看现场:还在跑就说明误判、调大 `--idle-timeout` 再 await;确实停了就 `lr2.py send` 重发「请把结论写进 `phases/<id>/<role>.status` 首行(`done`/`blocked <reason>`),不要把文件名或 = 写进去」再 await 一轮;仍 IDLE → 标 stuck、escalate 用户。
+  - `6 IDLE`(worker 停在就绪输入框却没写 status,**最常见的"假死"**)→ await 已附 pane tail,先看现场:还在跑就说明误判、调大 `--idle-timeout` 再 await;确实停了就 `lr2.py send` 重发「请把结论写进你启动时 [PHASE DIR] 给的那个目录下的 `<role>.status` 首行(`done`/`blocked <reason>`),不要把文件名或 = 写进去,也不要自己拼 `phases/<数字>`」再 await 一轮;仍 IDLE → 标 stuck、escalate 用户。
   - `4 TIMEOUT` → 看 await 附的 pane tail 判断:画面在变=真在跑,可再 await 一轮;停住没写 status 按 IDLE 同样处理;反复超时不空转,escalate。
   - **绝不要手写 `sleep(60)` 去 grep prose 字符串 / 抓屏判完成**(那样 coder 早完成你也等不到, 还查不出 pane 死没死)。
 
 ## 每 phase 循环
 1. 读 `fix_plan.md` 选下一个未完成 phase。
-2. 开 planner pane → 让它增强 `phases/<id>/{research,plan,qa}.md` → `lr2.py await --status phases/<id>/phase_planner.status --pane <planner>` → `lr2.py close --workspace <ws> --role phase_planner`。
-3. 关掉上一 phase 的 coder、开 fresh coder(L6,工具自动)→ 让它实现 → `lr2.py await --status phases/<id>/phase_coder.status --pane <coder>`。
-4. 开 reviewer pane（split-down）→ 让它写 `phases/<id>/review.md` → `lr2.py await --status phases/<id>/phase_reviewer.status --pane <reviewer>` → `lr2.py close --workspace <ws> --role phase_reviewer`。
+2. 开 planner pane → 让它增强 `phases/<id>/{research,plan,qa}.md` → `lr2.py await --workspace <ws> --phase <NN> --role phase_planner --pane <planner>` → `lr2.py close --workspace <ws> --role phase_planner`。
+3. 关掉上一 phase 的 coder、开 fresh coder(L6,工具自动)→ 让它实现 → `lr2.py await --workspace <ws> --phase <NN> --role phase_coder --pane <coder>`。
+4. 开 reviewer pane（split-down）→ 让它写 `phases/<id>/review.md` → `lr2.py await --workspace <ws> --phase <NN> --role phase_reviewer --pane <reviewer>` → `lr2.py close --workspace <ws> --role phase_reviewer`。
 5. `lr2.py send` 把 review 内容发给 coder pane → coder 逐项 ack 按优先级修(**blocker 必修;低成本非阻塞也修;高成本非阻塞入 `BACKLOG.md`**)、写 `verify.sh`、**commit + 写 `phase_coder.status`(整文件一行 `done commit=<hash>`,L14)** → 再 `await` coder。
 6. **完成门禁(L23,硬门 —— 不许跳、绝不手翻 `fix_plan.md`)**：
    a. `lr2.py verify --workspace <ws> --phase <id>` —— 在 worktree 真跑 `verify.sh`、写 `verify.json`。非 0 = 验证没过 → 打回 coder 继续修，不准进下一步。

@@ -8,7 +8,7 @@
 
 ## 必写产出
 - `<workspace>/SPEC_OVERVIEW.md`：Task Understanding / Code Facts / 边界 / 非目标
-- `<workspace>/fix_plan.md`：phase 清单，格式 `- [ ] 01 <phase 名>`，每个 phase 在 `phases/<id>/spec.md` 写初稿
+- `<workspace>/fix_plan.md`：phase 清单，格式 `- [ ] 01 <phase 名>`（勾选/命令里 phase 一律用**数字** `NN`），每个 phase 的 spec 写在目录 `phases/<NN>_<slug>/spec.md`（见流程 2）。**约定**：目录名是全名 `NN_<slug>`，但下游命令传数字 `NN`，由 lr2 `resolve_phase_dir` 解析到真目录 —— 二者不要混用成 `phases/<数字>`。
 - `<workspace>/qa.md`：端到端验收契约
 
 ## 流程

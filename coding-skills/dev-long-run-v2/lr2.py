@@ -516,14 +516,35 @@ def _close_role_pane(workspace: Path, role: str) -> str | None:
     return pids[0] if pids else None
 
 
+def resolve_phase_dir(workspace: Path, phase: str) -> Path:
+    """把 phase id 解析到真实目录, 桥接 SSOT 不一致(命令里用数字 `03`, scaffold 建的是全名
+    `03_<slug>`)。优先级:
+    - `phases/<phase>` 精确存在 → 用它(显式传全名 slug, 或历史数字目录)
+    - 否则唯一 `phases/<phase>_*`(scaffold 的 `<NN>_<slug>`) → 用它
+    - 多个匹配 → 报歧义, 不静默猜(L: 边界决策不自决)
+    - 都没有 → 回落 `phases/<phase>`, 让调用方按原路径暴露 not found(不掩盖缺失)"""
+    phases = workspace / "phases"
+    exact = phases / phase
+    if exact.is_dir():
+        return exact
+    matches = sorted(d for d in phases.glob(f"{phase}_*") if d.is_dir()) if phases.is_dir() else []
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise RuntimeError(f"phase {phase!r} 匹配到多个目录 {[m.name for m in matches]} —— id 有歧义, 请用更具体的 id")
+    return exact
+
+
 def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> str:
     """worker pane 的初始 prompt(多行结构化, 经 bracketed paste 注入, 窗口可读)。"""
     prompt_file = PROMPTS_DIR / f"{role}.md"
+    phase_dir = resolve_phase_dir(workspace, phase)
     parts = [
         f"You are the {role} for phase {phase}. Do your role's job, then STOP when your output files are written.",
         f"[ROLE CONTRACT] {prompt_file}",
         f"[TASK BRIEF] {brief}" if brief else "",
-        f"[MUST READ — workspace SSOT] {workspace}/REQUIREMENT.md ; {workspace}/SPEC_OVERVIEW.md ; {workspace}/fix_plan.md ; your phase spec under {workspace}/phases/",
+        f"[MUST READ — workspace SSOT] {workspace}/REQUIREMENT.md ; {workspace}/SPEC_OVERVIEW.md ; {workspace}/fix_plan.md",
+        f"[PHASE DIR — this exact directory holds your spec; read it here and write ALL your phase outputs (status/verify.sh/qa/ack/...) here, do not invent phases/{phase}] {phase_dir}",
         "[EVALUATE] whether /think-map or /think-research helps (per your role contract; evaluate, not forced).",
         "[RULES] Workspace files are the SSOT, your memory is not. Stay within your role's allowed outputs; do not touch files outside them.",
     ]
@@ -816,8 +837,18 @@ def _pane_tail(pane: str | None, n: int = 15) -> str:
 def cmd_await(args: argparse.Namespace) -> int:
     """健壮地等 worker 完成: 轮询 status 文件 token + 查 pane 死活 + idle 兜底 + 有界超时。
     退出码: 0 DONE / 2 BLOCKED / 3 DEAD(pane 没了) / 4 TIMEOUT / 5 COMPACT / 6 IDLE(停在
-    就绪框却没写 status)。idle/timeout 附 pane tail 便于诊断。不 grep prose 判完成。"""
-    status_path = Path(args.status)
+    就绪框却没写 status)。idle/timeout 附 pane tail 便于诊断。不 grep prose 判完成。
+
+    status 路径二选一: 直接 `--status <path>`(裸路径); 或 `--workspace+--phase+--role`,
+    由 lr2 `resolve_phase_dir` 解析真实 phase 目录再拼 `<role>.status` —— 后者推荐, 避免
+    orchestrator 用数字 id 拼出 `phases/03` 而 worker 实际写在 `phases/03_<slug>` 的错位。"""
+    if args.status:
+        status_path = Path(args.status)
+    elif args.workspace and args.phase and args.role:
+        status_path = resolve_phase_dir(Path(args.workspace).resolve(), args.phase) / f"{args.role}.status"
+    else:
+        sys.stderr.write("await: 需要 --status, 或 --workspace+--phase+--role(由 lr2 解析 phase 目录构造 status 路径)\n")
+        return 2
     deadline = time.monotonic() + args.timeout
     prev_screen = ""
     idle_strikes = 0
@@ -891,7 +922,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if args.acceptance:
         script, out_path, label = workspace / "acceptance.sh", workspace / "acceptance.json", "acceptance"
     else:
-        pdir = workspace / "phases" / args.phase
+        pdir = resolve_phase_dir(workspace, args.phase)
         script, out_path, label = pdir / "verify.sh", pdir / "verify.json", f"phase {args.phase}"
     if not script.exists():
         sys.stderr.write(f"refusing: {script} 不存在 —— 先写 {label} 的可执行验证脚本(真跑测试/端到端验收)\n")
@@ -904,7 +935,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _phase_gate_for(workspace: Path, phase: str) -> dict:
-    pdir = workspace / "phases" / phase
+    pdir = resolve_phase_dir(workspace, phase)
     vj = pdir / "verify.json"
     verify = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else None
     review = (pdir / "review.md").read_text(encoding="utf-8") if (pdir / "review.md").exists() else ""
@@ -1013,7 +1044,10 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_close)
 
     p = sub.add_parser("await", help="(orchestrator 调用) 健壮等 worker 完成: 轮询 status 文件 + 查 pane 死活")
-    p.add_argument("--status", required=True, help="worker 写的 status 文件路径(phases/<id>/<role>.status)")
+    p.add_argument("--status", help="status 文件裸路径; 或改用 --workspace+--phase+--role 让 lr2 解析 phase 目录")
+    p.add_argument("--workspace", help="配合 --phase+--role: lr2 resolve_phase_dir 解析真实目录再拼 <role>.status")
+    p.add_argument("--phase", help="配合 --workspace+--role 构造 status 路径(数字 id 即可, 会解析到 <NN>_<slug>)")
+    p.add_argument("--role", help="配合 --workspace+--phase 构造 status 路径(如 phase_coder)")
     p.add_argument("--pane", help="worker pane id; 给了就每轮查死活+idle 兜底, 死了立即 DEAD 退出")
     p.add_argument("--timeout", type=int, default=600, help="有界超时秒数(默认 600)")
     p.add_argument("--interval", type=int, default=5, help="轮询间隔秒(默认 5)")

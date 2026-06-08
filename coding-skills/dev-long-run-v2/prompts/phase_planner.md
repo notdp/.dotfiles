@@ -2,6 +2,8 @@
 
 为单个 phase 做调研增强。不写业务代码。
 
+> **下文 `phases/<id>/…` 的 `<id>` = 启动消息 `[PHASE DIR]` 给的那个确切目录**(全名 `NN_<slug>`)。读写都在它下面，**别自己拼 `phases/<数字>`**(如 `phases/03`)——那目录不存在。
+
 ## 必读输入
 - `<workspace>/SPEC_OVERVIEW.md`、`phases/<id>/spec.md`、目标 worktree 代码
 

@@ -365,6 +365,41 @@ class TmuxArgTests(unittest.TestCase):
         self.assertEqual([r["last_seen"] for r in new_rows], ["t", "t"])
 
 
+class ResolvePhaseDirTests(unittest.TestCase):
+    def _ws(self, tmp: str, *dirs: str) -> Path:
+        ws = Path(tmp)
+        for d in dirs:
+            (ws / "phases" / d).mkdir(parents=True)
+        return ws
+
+    def test_resolves_numeric_id_to_slug_dir(self) -> None:
+        # 核心 bug: 命令传数字 03, scaffold 建的是 03_<slug> → 解析到真目录
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._ws(tmp, "03_campaign_manager_and_admin_permission")
+            self.assertEqual(lr2.resolve_phase_dir(ws, "03").name, "03_campaign_manager_and_admin_permission")
+
+    def test_exact_dir_wins_over_slug_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._ws(tmp, "03", "03_campaign_manager_and_admin_permission")
+            self.assertEqual(lr2.resolve_phase_dir(ws, "03").name, "03")  # 精确匹配优先
+
+    def test_full_slug_id_resolves_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._ws(tmp, "03_foo")
+            self.assertEqual(lr2.resolve_phase_dir(ws, "03_foo").name, "03_foo")
+
+    def test_ambiguous_prefix_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._ws(tmp, "03_foo", "03_bar")  # 两个 03_* → 不静默猜
+            with self.assertRaises(RuntimeError):
+                lr2.resolve_phase_dir(ws, "03")
+
+    def test_missing_falls_back_to_literal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self._ws(tmp)  # phases/ 空
+            self.assertEqual(lr2.resolve_phase_dir(ws, "07").name, "07")  # 回落字面, 让调用方暴露 not found
+
+
 class LaunchCommandTests(unittest.TestCase):
     def test_kilo_launch_uses_model_no_variant(self) -> None:
         # L19: 不注入 variant

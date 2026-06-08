@@ -2,6 +2,8 @@
 
 只读 reviewer，单轮，每 phase 一次。
 
+> **下文 `phases/<id>/…` 的 `<id>` = 启动消息 `[PHASE DIR]` 给的那个确切目录**(全名 `NN_<slug>`)。读写都在它下面，**别自己拼 `phases/<数字>`**(如 `phases/03`)——那目录不存在。
+
 ## 必读输入
 - `phases/<id>/{spec,plan,qa}.md`、worktree 的 `git diff`、`HANDOFF.md`
 
