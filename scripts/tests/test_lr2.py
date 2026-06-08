@@ -346,6 +346,24 @@ class TmuxArgTests(unittest.TestCase):
         for r in ("phase_planner", "phase_coder", "phase_reviewer"):
             self.assertIn(r, lr2.WORKER_ROLES)
 
+    def test_reconcile_marks_dead_running_row_closed(self) -> None:
+        # pane 已不在 tmux 但行仍 running(非 lr2 路径关掉) → 标 closed + 更新 last_seen
+        rows = [{"role": "phase_planner", "phase": "02", "pane_id": "%742", "started_at": "t", "last_seen": "t", "status": "running"}]
+        new_rows, reconciled = lr2.reconcile_dead_sessions(rows, "%743\n%747\n", "NOW")
+        self.assertEqual(reconciled, ["%742"])
+        self.assertEqual(new_rows[0]["status"], "closed")
+        self.assertEqual(new_rows[0]["last_seen"], "NOW")
+
+    def test_reconcile_leaves_live_running_and_already_closed_rows(self) -> None:
+        rows = [
+            {"role": "phase_coder", "phase": "02", "pane_id": "%743", "started_at": "t", "last_seen": "t", "status": "running"},
+            {"role": "phase_planner", "phase": "01", "pane_id": "%738", "started_at": "t", "last_seen": "t", "status": "closed"},
+        ]
+        new_rows, reconciled = lr2.reconcile_dead_sessions(rows, "%743\n", "NOW")
+        self.assertEqual(reconciled, [])  # %743 还活着不动; %738 已 closed(即便不在活 pane 列表)也不动
+        self.assertEqual([r["status"] for r in new_rows], ["running", "closed"])
+        self.assertEqual([r["last_seen"] for r in new_rows], ["t", "t"])
+
 
 class LaunchCommandTests(unittest.TestCase):
     def test_kilo_launch_uses_model_no_variant(self) -> None:

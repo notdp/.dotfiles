@@ -364,6 +364,22 @@ def panes_to_close(rows: list[dict[str, str]], roles, list_panes_output: str) ->
             and pane_is_alive(list_panes_output, r["pane_id"])]
 
 
+def reconcile_dead_sessions(rows: list[dict[str, str]], list_panes_output: str, now: str) -> tuple[list[dict[str, str]], list[str]]:
+    """SSOT 自愈(纯逻辑): SESSIONS 里 status==running 但 pane 已不在 tmux 的行 → 标 closed。
+    这类行来自非 lr2 路径的关闭(worker 进程自退 / 用户手关 pane) —— teardown 的 _close_roles
+    只更新它亲手 kill 的行, 不会碰这些, 否则它们永远 stale 在 running, 误导任何信 status 的消费方。
+    now 由调用方传(不在纯函数里取时间, 便于测试)。返回 (新 rows, 被 reconcile 的 pane_id 列表)。"""
+    reconciled: list[str] = []
+    new_rows: list[dict[str, str]] = []
+    for r in rows:
+        if r["status"] == "running" and not pane_is_alive(list_panes_output, r["pane_id"]):
+            reconciled.append(r["pane_id"])
+            new_rows.append(dict(r, status="closed", last_seen=now))
+        else:
+            new_rows.append(r)
+    return new_rows, reconciled
+
+
 def launch_command(role_cfg: dict) -> str | None:
     """role 的 pane 启动命令。kilo → `kilo -m <model>`(TUI 直接 exec, L19 用默认 effort);
     claude_cli → None(走默认交互 zsh, 再 send-keys cfg['cmd'], 以拿 .zshrc 的 token)。"""
@@ -481,14 +497,16 @@ def _close_roles(workspace: Path, roles) -> list[str]:
         return []
     rows = parse_sessions(sessions_path.read_text(encoding="utf-8"))
     live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    # SSOT 自愈: 先把"已死但仍记 running"的行标 closed —— 它们不进 panes_to_close(alive 检查为假),
+    # 不在这里收口就永远 stale。reconcile 后再算该 kill 哪些活 pane。
+    rows, reconciled = reconcile_dead_sessions(rows, live, _now())
     pids = panes_to_close(rows, roles, live)
-    if not pids:
-        return []
     for pid in pids:
         _tmux(["kill-pane", "-t", pid], capture=True)
     closed = set(pids)
     rows = [dict(r, status="closed", last_seen=_now()) if r["pane_id"] in closed else r for r in rows]
-    sessions_path.write_text(render_sessions(rows), encoding="utf-8")
+    if pids or reconciled:
+        sessions_path.write_text(render_sessions(rows), encoding="utf-8")
     return pids
 
 
@@ -553,6 +571,10 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
     sessions_path = workspace / "SESSIONS.md"
     text = sessions_path.read_text(encoding="utf-8") if sessions_path.exists() else render_sessions([])
     rows = parse_sessions(text)
+    # 每次注册新 pane 时顺手收口已死的 stale running 行(常见写入路径自愈, 不必等到下次 teardown)。
+    if os.environ.get("TMUX"):
+        live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+        rows, _ = reconcile_dead_sessions(rows, live, _now())
     rows = upsert_session(
         rows,
         {"role": role, "phase": phase, "pane_id": pane, "started_at": _now(), "last_seen": _now(), "status": status},
