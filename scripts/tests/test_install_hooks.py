@@ -586,7 +586,10 @@ class InstallHooksTests(unittest.TestCase):
         self.assertEqual(notifications[0]["event"], "stop")
         self.assertEqual(notifications[0]["stdout"].splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
 
-    def test_opencode_plugin_notifies_when_text_completion_hook_fires(self) -> None:
+    def test_opencode_plugin_does_not_register_per_part_text_completion_hook(self) -> None:
+        # 回归守卫: 完成播报只能绑 `session.idle`(每轮一次)。`experimental.text.complete`
+        # 按 partID 每段文本输出 fire 一次, 重新挂上会变成"每次输出都 say"。断言它不存在,
+        # 且 plugin 初始化不产生任何 notify 副作用。
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             notify_log = repo / "notify.log"
@@ -603,19 +606,11 @@ class InstallHooksTests(unittest.TestCase):
                 process.env.PATH = {json.dumps(str(fake_bin))} + ":" + process.env.PATH;
                 process.env.TMUX_PANE = "%1";
                 const plugin = await import(pathToFileURL({json.dumps(str(plugin_path))}));
-                const toasts = [];
                 const hooks = await plugin.default({{
-                  client: {{ tui: {{ showToast: async (payload) => toasts.push(payload) }} }},
+                  client: {{ tui: {{ showToast: async () => {{}} }} }},
                   directory: {json.dumps(str(repo))}
                 }});
-                if (hooks["experimental.text.complete"]) {{
-                  await hooks["experimental.text.complete"]({{
-                    sessionID: "text-session",
-                    messageID: "message-1",
-                    partID: "part-1"
-                  }}, {{ text: "done" }});
-                }}
-                console.log(JSON.stringify({{ hasHook: Boolean(hooks["experimental.text.complete"]), toasts }}));
+                console.log(JSON.stringify({{ hasHook: Boolean(hooks["experimental.text.complete"]) }}));
             """
 
             result = subprocess.run(
@@ -624,13 +619,11 @@ class InstallHooksTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
-            notifications = [json.loads(line) for line in notify_log.read_text(encoding="utf-8").splitlines()]
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        self.assertTrue(payload["hasHook"])
-        self.assertEqual(payload["toasts"][0]["body"]["variant"], "success")
-        self.assertEqual(notifications[0]["stdout"].splitlines(), ["pane-name:%1:海獭", "say:opencode-test 海獭"])
+        self.assertFalse(payload["hasHook"], "experimental.text.complete 不应再注册(会导致每段输出都播报)")
+        self.assertFalse(notify_log.exists(), "plugin 初始化不应触发任何 notify 副作用")
 
     def test_aider_print_renders_model_config_without_loading_all_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
