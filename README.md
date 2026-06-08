@@ -6,6 +6,14 @@ My Droid skills/scripts.
 
 这是我的 AI coding agent dotfiles 仓库，用来管理 Droid / Claude / Codex 等 agent 的全局规则、skills、slash commands、hooks、statusline、本地辅助脚本和第三方 refs 调研。
 
+本质上这是一个 **agent harness**：不是被动的配置集合，而是通过三类机制主动约束和驱动 agent 的工作方式。
+
+| 机制 | 载体 | 作用 |
+|------|------|------|
+| 规则层 | `agents/`（`AGENTS.md` 硬约束 + `dev-guideLines.md` 开发准则 + `harness-ops.md` 维护规范） | 定义所有任务都成立的行为边界与事实纪律 |
+| 护栏层 | `scripts/hooks/`（boundary gate / command guard / context capsule / stop check） | 在编辑前、命令执行前、交付前做强制门禁 |
+| 能力层 | `coding-skills/` + `commands/` | 按需触发的工作流能力包，不污染 idle context |
+
 项目目标是把软件工程工作流拆成可按需触发、可验证、可复用的能力包：理解问题、调研、规划、TDD、调试、重构、验证、审查、安全、交付、UI 设计和经验沉淀。
 
 ## 目录结构

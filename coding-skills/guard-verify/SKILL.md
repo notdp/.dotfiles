@@ -67,6 +67,19 @@ argument-hint: <交付物|验证范围>
 
 UI verified 状态只在截图、overflow 和适用交互状态证据齐备时成立。缺截图或 overflow 证据时，UI 交付物状态写为 `partial`。
 
+## 代码可观测性门禁（错误路径 / 外部调用 / 状态变更的改动）
+
+当本次改动引入或修改了错误处理、外部调用（DB/HTTP/MQ/文件/子进程）、状态变更或关键分支时，验证可观测性是否到位（细则与分级见 `/dev-observe`）：
+
+| Check | 必需证据 |
+|---|---|
+| 错误可发现 | 新增/改动的 catch、失败分支不静默吞错；错误带定位上下文（关键变量，不含 secret） |
+| 关键路径可观测 | 外部调用、写操作、关键分支有日志或 trace，能还原一次执行 |
+| 分级合理 | 观测强度匹配影响面，未在热路径制造逐行噪音，未引入平行 logger |
+| 无敏感泄露 | 日志/trace/metric label 不含 secret、token、完整 PII |
+
+纯文档/配置/样式改动，或无错误路径/外部调用/状态变更的纯内部纯函数改动，此门禁标 `not applicable` 并说明原因。
+
 ## Data / Operational 任务额外门禁
 
 当交付物涉及长耗时批处理、数据同步/回填/修复、迁移脚本、复杂 CLI、`dry-run/apply` 时，必须补充 operational evidence：
@@ -172,6 +185,14 @@ verification: none -- structural gap
 | text overflow | pass/partial | selector / screenshot region |
 | interaction states | pass/partial | selector / screenshot / snapshot |
 | DESIGN.md adherence | pass/partial | `DESIGN.md` path + token/direction evidence |
+
+### 代码可观测性验证（含错误路径 / 外部调用 / 状态变更的改动）
+| Check | Result | Evidence |
+|-------|--------|----------|
+| 错误可发现 | pass/partial/n.a. | 静默吞错检查 / 错误上下文 |
+| 关键路径可观测 | pass/partial/n.a. | 外部调用 / 写操作的日志或 trace |
+| 分级合理 | pass/partial/n.a. | 未制造噪音 / 未引入平行 logger |
+| 无敏感泄露 | pass/partial/n.a. | 日志无 secret/PII |
 
 ### Data / Operational 验证（仅长任务 / 数据任务 / 复杂 CLI）
 | Check | Result | Evidence |

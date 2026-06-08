@@ -312,6 +312,12 @@
       "path": "coding-skills/guard-threat-model",
       "domain": "guard",
       "role": "canonical"
+    },
+    {
+      "name": "dev-observe",
+      "path": "coding-skills/dev-observe",
+      "domain": "dev",
+      "role": "canonical"
     }
   ]
 }
