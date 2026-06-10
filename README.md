@@ -24,7 +24,7 @@ My Droid skills/scripts.
 | `coding-skills/` | 按需触发的领域能力和工作流能力（系统级，软连接到 cc/codex/droid/opencode/kilo），权威清单见 `coding-skills/catalog.json` |
 | `writing-skills/` | **通用中文写作能力层（account-agnostic）**：12 个 skill（write-scope/source/outline/draft/revise/hook/voice + guard-write-check/facts + write-dissolve + assist-write-corpus + article-growth-diagnosis）+ `_shared/`（writing-constraints 下限 / narrative-methodology 方法论 / style-contract 接缝）。账号特定声音/定位由项目 `account-style.md` 注入；软连接到创作项目，不暴露给编程 agent；清单见 `writing-skills/catalog.json` |
 | `writing-hooks/` | 写作专用 lint hook + `verify_writing.py`，与编程 `scripts/hooks/` 隔离；通用工具，默认休眠（未在项目注册） |
-| `coding-agents/` | Claude Code subagent 定义（软链到 `~/.claude/agents`）：权限收窄 + 模型分档 + context 隔离的执行体；subagent vs skill 分工判据见 `agents/harness-ops.md`，门禁为 `scripts/verify_agents.py` |
+| `coding-agents/` | subagent 定义（双格式：`claude/` 软链到 `~/.claude/agents`；`opencode/` 软链到 `~/.config/opencode/agents` 与 `~/.config/kilo/agents`，Kilo 底座即 OpenCode）：权限收窄 + 模型分档 + context 隔离的执行体；分工判据见 `agents/harness-ops.md`，门禁为 `scripts/verify_agents.py` |
 | `commands/` | 高频 slash commands |
 | `scripts/` | 编程侧 hooks、验证、Droid mod、长任务、扫描器等本地工具 |
 | `.factory/settings.json` | Droid hook 配置 |

@@ -155,8 +155,8 @@ _Avoid_: "agent"（与 `agents/` 规则层目录混淆）、"角色"（暗示角
 
 ### 后续可选 backlog（不在本 spec 内）
 
-- 将 security-fp-judge 适配到 kilo / opencode（用户主用 agent，2026-06-10 更正）。调研已完成：Kilo 重建于 OpenCode server，两者机制同构（`agents/*.md`，`description/mode/model/permission` frontmatter，`tools` 已弃用改 permission 三态收权），一套适配覆盖两者；详见 memory `kilo-opencode-subagent-mechanism`。Droid / Codex 优先级降后。
-- 判例库标注样例的自动回归；第二个住户（web-read 抓取阶段降档）评估。
+- ~~将 security-fp-judge 适配到 kilo / opencode~~ **已完成（2026-06-10 追加批准"开工"）**：`coding-agents/` 重构为 `claude/` + `opencode/` 双格式目录，OC 变体一份文件经双软链覆盖 opencode 与 kilo；`verify_agents.py` 双规则集。运行时实测：两个 CLI 均发现 `security-fp-judge (subagent)`（复数 `agents/` 路径定论）；`permission: bash: deny` 行为级生效（"bash tool is not available"）；`opencode agent list` 的 permission 展示不反映 md agent 合并结果（展示层缺口，勿作 oracle）；OC 侧裁决端到端通过但 schema 漂移明显（gpt-5.5 返回 false_positive/high），SKILL.md 7.3 已加保守映射规则。
+- 判例库标注样例的自动回归；第二个住户（web-read 抓取阶段降档）评估。Droid / Codex 适配优先级最后。
 
 ```yaml
 # spec-contract

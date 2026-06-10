@@ -151,6 +151,7 @@ STRIDE 扫描和模式降权完成后，对仍属 Critical / Important 的 findi
 3. **裁决消费**：judge 返回 `verdict / confidence / matched_precedents / justification`（JSON）。
    - confidence ≥ 8 → 保留原级，Judge 列记 `keep(N)`
    - confidence < 8 → 降级到"信息性 / 加固建议"，保留原文并附 justification——**降级不是删除**，读者可自行复核
+   - judge 输出偏离 schema 但语义明确时做保守映射（如 `false_positive`→demote、`true_positive`→keep）；confidence 无法映射为 1-10 数字则视为不可解析
    - judge 失败 / 超时 / 输出不可解析 → **fail-open**：保留原级，Judge 列记 `未裁决: <原因>`；过滤器故障不得放大漏报
 4. 裁决只影响分级，不修改 finding 的事实内容。
 
