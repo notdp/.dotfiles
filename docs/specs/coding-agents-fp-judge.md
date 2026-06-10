@@ -155,7 +155,8 @@ _Avoid_: "agent"（与 `agents/` 规则层目录混淆）、"角色"（暗示角
 
 ### 后续可选 backlog（不在本 spec 内）
 
-- Droid / Codex subagent 等价机制调研；判例库标注样例的自动回归；第二个住户（web-read 抓取阶段降档）评估。
+- 将 security-fp-judge 适配到 kilo / opencode（用户主用 agent，2026-06-10 更正）。调研已完成：Kilo 重建于 OpenCode server，两者机制同构（`agents/*.md`，`description/mode/model/permission` frontmatter，`tools` 已弃用改 permission 三态收权），一套适配覆盖两者；详见 memory `kilo-opencode-subagent-mechanism`。Droid / Codex 优先级降后。
+- 判例库标注样例的自动回归；第二个住户（web-read 抓取阶段降档）评估。
 
 ```yaml
 # spec-contract

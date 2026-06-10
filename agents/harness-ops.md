@@ -27,7 +27,7 @@
 
 ## 跨 agent 兼容
 
-本 skill 体系设计为可在 droid / Claude Code / Cursor / Aider 等多种 coding agent 中使用。约定：
+本 skill 体系设计为可在 kilo / opencode（当前主用）/ Claude Code / droid / codex 等多种 coding agent 中使用。约定：
 
 - 子任务派发用通用描述（"派发只读子任务"），不绑定特定 subagent 名
 - 工具引用使用通用名（Read / Grep / Glob / WebSearch / Edit），不引用 droid 专属 `Task` 调用语法或 `/missions` 概念
