@@ -171,6 +171,7 @@ git diff <range> --name-only
 ## 8. 规则
 
 - 只报告有证据的风险，不报告理论上的可能性
+- "不报什么"与"找什么"同等重要：输出 findings 前对照 `references/false-positive-precedents.md`（误报判例库：默认信任边界、硬排除、报出门槛），命中判例的不报或降级
 - 每个 finding 必须给：威胁类型 + file:line + 触发路径 + 缓解建议
 - 关注数据流：用户输入 → 处理 → 存储 → 输出的每个环节
 - 命中 Critical 必须给出 Ready for merge? = No
