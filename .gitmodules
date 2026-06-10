@@ -178,3 +178,9 @@
 [submodule "writing-refs/nexu-io/html-anything"]
 	path = writing-refs/nexu-io/html-anything
 	url = https://github.com/nexu-io/html-anything.git
+[submodule "refs/voltagent/awesome-claude-code-subagents"]
+	path = refs/voltagent/awesome-claude-code-subagents
+	url = https://github.com/VoltAgent/awesome-claude-code-subagents
+[submodule "refs/anthropics/claude-code-security-review"]
+	path = refs/anthropics/claude-code-security-review
+	url = https://github.com/anthropics/claude-code-security-review

@@ -21,11 +21,11 @@
 - **Harness 工程 / Agent 工作流框架**：围绕 Agent 交付循环治理、声明式安全护栏、多 Agent 团队编排与结构化证据链。 代表项目：`Chachamaru127/claude-code-harness`
 - **最佳实践 / 知识库**：围绕 Agent / Claude Code 概念地图、LLM 应用工程方法论、目录约定、功能导航与实践经验整理。 代表项目：`humanlayer/12-factor-agents`、`shanraisshan/claude-code-best-practice`
 - **代码质量 / 审查 / 调试**：围绕静态分析、review、质量门禁、调试与诊断。 代表项目：`millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph`
-- **安全 / 网络安全技能库**：围绕安全审查、威胁狩猎、事件响应、取证、云安全、红队/渗透测试、framework mapping 与安全 playbook。 代表项目：`mukul975/Anthropic-Cybersecurity-Skills`
+- **安全 / 网络安全技能库**：围绕安全审查、威胁狩猎、事件响应、取证、云安全、红队/渗透测试、framework mapping 与安全 playbook。 代表项目：`mukul975/Anthropic-Cybersecurity-Skills`、`anthropics/claude-code-security-review`
 - **MCP / 工具链 / 安装分发**：围绕 MCP、CLI、安装器、技能包管理、多 Agent 兼容与基础设施。 代表项目：`vercel-labs/skills`
 - **行为协议 / 提示工程**：围绕提示协议、行为约束、激励/约束机制、触发词和 hook 协同。 代表项目：`HughYau/qiushi-skill`、`multica-ai/andrej-karpathy-skills`、`tanweai/pua`
 - **Agent 配置管理 / 工具链**：围绕跨 Agent 统一配置、安装分发、二进制修改与工具增强。 代表项目：`notdp/.dotfiles`
-- **Agent 角色库 / 多工具 Agent 资产**：围绕 agent prompt catalog、角色分工、多工具格式转换和 handoff 模板。 代表项目：`msitarzewski/agency-agents`
+- **Agent 角色库 / 多工具 Agent 资产**：围绕 agent prompt catalog、角色分工、多工具格式转换和 handoff 模板。 代表项目：`msitarzewski/agency-agents`、`voltagent/awesome-claude-code-subagents`
 
 ## 项目总表
 
@@ -34,6 +34,7 @@
 | [`affaan-m/everything-claude-code`](./refs-details/affaan-m/everything-claude-code.md) | 技能集合与市场 | 超大号跨 harness agent-performance 系统，整合 agents、skills、commands、hooks、rules 和安装器。 |
 | [`addyosmani/agent-skills`](./refs-details/addyosmani/agent-skills.md) | 研发流程 / Agent Skill 工作流 | 面向 AI coding agent 的生产级软件工程 skill 包，把 spec、plan、build、test、review、simplify、ship 串成带验证门禁的生命周期工作流。 |
 | [`addyosmani/web-quality-skills`](./refs-details/addyosmani/web-quality-skills.md) | 代码质量 / 审查 / 调试 | 面向 Web 质量审查与优化的技能仓库，围绕 Lighthouse、Core Web Vitals、可访问性、SEO 和现代最佳实践组织。 |
+| [`anthropics/claude-code-security-review`](./refs-details/anthropics/claude-code-security-review.md) | 安全 / 网络安全技能库 | Anthropic 官方 AI 安全审查 GitHub Action，用 Python 编排层把 Claude Code 的非确定性安全审计包成可在 CI 运行的 pipeline，核心资产是三层误报过滤漏斗和 17 条误报判例。 |
 | [`anthropics/skills`](./refs-details/anthropics/skills.md) | 技能集合与市场 | Anthropic 官方示例 skills 仓库，附带规范、模板，以及文档处理与开发类技能示例。 |
 | [`automazeio/ccpm`](./refs-details/automazeio/ccpm.md) | 研发流程 / 项目管理 | 单技能形态的项目管理与交付编排系统，把 PRD、Epic、Issues、并行 agents 和状态跟踪串成 spec-driven workflow。 |
 | [`awslabs/agent-plugins`](./refs-details/awslabs/agent-plugins.md) | AWS Agent 插件与云开发技能集合 | AWS Labs 的 agent 插件市场仓库，把 AWS 架构、部署、Serverless、Amplify、数据库、SageMaker、迁移现代化等工作流打包为可安装的 skills、MCP servers、hooks 与 references。 |
@@ -76,6 +77,8 @@
 | [`vercel-labs/agent-browser`](./refs-details/vercel-labs/agent-browser.md) | 浏览器自动化与前端调试 | 原生 Rust 驱动的浏览器自动化 CLI，并附带多套面向 AI 代理的技能文档。 |
 | [`vercel-labs/agent-skills`](./refs-details/vercel-labs/agent-skills.md) | 前端 UI / 设计系统 | Vercel 出品的技能集合，覆盖 React/React Native、组合模式、UI 评审与 Vercel 部署。 |
 | [`vercel-labs/skills`](./refs-details/vercel-labs/skills.md) | MCP / 工具链 / 安装分发 | 开放 Agent Skills 生态的 CLI/包管理器，用于发现、安装、列出、删除、更新技能，并维护多代理兼容性。 |
+| [`voltagent/awesome-agent-skills`](./refs-details/voltagent/awesome-agent-skills.md) | 技能集合与市场 | 人工策展的 Agent Skills awesome list，只收录官方与社区已验证 skill 链接，附跨工具安装路径表与 4 条可核验质量门禁，自身不托管任何 skill 实现。 |
+| [`voltagent/awesome-claude-code-subagents`](./refs-details/voltagent/awesome-claude-code-subagents.md) | Agent 角色库 / 多工具 Agent 资产 | 全量托管 154 个 Claude Code subagent 定义的 mono-repo，统一 frontmatter + 三档 model 路由 + plugin marketplace 分发，分发工程扎实但正文存在批量生成痕迹。 |
 | [`Yeachan-Heo/oh-my-claudecode`](./refs-details/Yeachan-Heo/oh-my-claudecode.md) | 多智能体协作与工作流编排 | 完整的 Claude Code 多智能体编排系统，含 CLI、skills、agents、hooks、tmux worker runtime 和验证模块。 |
 
 
