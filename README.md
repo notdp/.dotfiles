@@ -12,7 +12,7 @@ My Droid skills/scripts.
 |------|------|------|
 | 规则层 | `agents/`（`AGENTS.md` 硬约束 + `dev-guideLines.md` 开发准则 + `harness-ops.md` 维护规范） | 定义所有任务都成立的行为边界与事实纪律 |
 | 护栏层 | `scripts/hooks/`（boundary gate / command guard / context capsule / stop check） | 在编辑前、命令执行前、交付前做强制门禁 |
-| 能力层 | `coding-skills/` + `commands/` | 按需触发的工作流能力包，不污染 idle context |
+| 能力层 | `coding-skills/` + `commands/` + `coding-agents/` | 按需触发的工作流能力包与隔离执行体，不污染 idle context |
 
 项目目标是把软件工程工作流拆成可按需触发、可验证、可复用的能力包：理解问题、调研、规划、TDD、调试、重构、验证、审查、安全、交付、UI 设计和经验沉淀。
 
@@ -24,6 +24,7 @@ My Droid skills/scripts.
 | `coding-skills/` | 按需触发的领域能力和工作流能力（系统级，软连接到 cc/codex/droid/opencode/kilo），权威清单见 `coding-skills/catalog.json` |
 | `writing-skills/` | **通用中文写作能力层（account-agnostic）**：12 个 skill（write-scope/source/outline/draft/revise/hook/voice + guard-write-check/facts + write-dissolve + assist-write-corpus + article-growth-diagnosis）+ `_shared/`（writing-constraints 下限 / narrative-methodology 方法论 / style-contract 接缝）。账号特定声音/定位由项目 `account-style.md` 注入；软连接到创作项目，不暴露给编程 agent；清单见 `writing-skills/catalog.json` |
 | `writing-hooks/` | 写作专用 lint hook + `verify_writing.py`，与编程 `scripts/hooks/` 隔离；通用工具，默认休眠（未在项目注册） |
+| `coding-agents/` | Claude Code subagent 定义（软链到 `~/.claude/agents`）：权限收窄 + 模型分档 + context 隔离的执行体；subagent vs skill 分工判据见 `agents/harness-ops.md`，门禁为 `scripts/verify_agents.py` |
 | `commands/` | 高频 slash commands |
 | `scripts/` | 编程侧 hooks、验证、Droid mod、长任务、扫描器等本地工具 |
 | `.factory/settings.json` | Droid hook 配置 |

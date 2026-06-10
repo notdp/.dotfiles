@@ -86,6 +86,11 @@ if [[ -f scripts/verify_skills.py ]]; then
   run_check "verify_skills" "python3 scripts/verify_skills.py"
 fi
 
+# 本仓库特定：subagents 校验
+if [[ -f scripts/verify_agents.py ]]; then
+  run_check "verify_agents" "python3 scripts/verify_agents.py"
+fi
+
 # 输出
 echo "## 验证结果"
 echo ""
