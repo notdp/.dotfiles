@@ -1,7 +1,7 @@
 # Spec: subagent 资产形态 + verify 门禁 + guard-secure FP 裁决 phase
 
 - 日期: 2026-06-10
-- 状态: 待批准
+- 状态: 已批准并实现（2026-06-10，commits 7a271cf / a7017a8 / P3）；遗留：security-fp-judge 的新 session 发现性 + tools 收窄 smoke test（定义在 session 启动时加载，本次实现 session 无法自测，验收用了 SKILL.md 7.2 降级路径）
 - 读者: 仓库 owner（harness 维护者）
 - 来源: `docs/refs-details/voltagent/awesome-claude-code-subagents.md` + `docs/refs-details/anthropics/claude-code-security-review.md` 两份 refs 分析的汇合线
 - 思维框架: 类比推理（借两个已验证外部模式补本仓库缺口）+ 模型简化（先 1 个住户验证机制，不铺 154 个角色）

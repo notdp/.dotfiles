@@ -105,6 +105,8 @@ git diff <range> --name-only
 
 ### D — Denial of Service（拒绝服务）
 
+> 模式降权：`pr` / `staged` / `commit-range` 模式下，本维度 finding 最高只进"信息性 / 加固建议"并标注 `[D 维度 PR 模式降权]`，不阻断合并；`full` / `weekly` / 路径模式全权重。降权发生在分级时、先于第 7 节 FP 裁决（已是最低级的项不消耗裁决）。理由与判例见 `references/false-positive-precedents.md`。
+
 - 无 rate limit（登录 / 重置密码 / 发送邮件 / API）
 - 无输入大小限制（body / file / array length / regex backtracking）
 - 无超时（外部 HTTP 调用 / DB 查询）
@@ -140,24 +142,37 @@ git diff <range> --name-only
 - cookies、localStorage、profile、auth vault、state JSON 是否按 secret 处理，不进入 git、不进入日志、不在报告中复述。
 - 外部站点、登录态、下载文件、表单提交是否有明确授权 scope、允许动作和停止条件。
 
-## 7. 输出
+## 7. FP 裁决（precision 门）
+
+STRIDE 扫描和模式降权完成后，对仍属 Critical / Important 的 finding 逐条做对抗式误报裁决：
+
+1. **范围与上限**：只裁决 Critical / Important（信息性不裁决）。单轮上限 10 条，Critical 优先；超出部分禁止沉默截断——输出中声明"跳过 N 条未裁决"，用户可指定范围重跑补裁。
+2. **派发**：对每条 finding 并行派发只读裁决子任务——Claude Code 下用 `security-fp-judge` subagent；不支持命名 subagent 的平台降级为内联同等约束的子任务（只读、禁 bash、禁写文件、只输出 JSON）。prompt 注入三样：finding 全文、所在文件内容（>2000 行只给 finding 行 ±200 行）、`references/false-positive-precedents.md` 中相关条目。
+3. **裁决消费**：judge 返回 `verdict / confidence / matched_precedents / justification`（JSON）。
+   - confidence ≥ 8 → 保留原级，Judge 列记 `keep(N)`
+   - confidence < 8 → 降级到"信息性 / 加固建议"，保留原文并附 justification——**降级不是删除**，读者可自行复核
+   - judge 失败 / 超时 / 输出不可解析 → **fail-open**：保留原级，Judge 列记 `未裁决: <原因>`；过滤器故障不得放大漏报
+4. 裁决只影响分级，不修改 finding 的事实内容。
+
+## 8. 输出
 
 ```markdown
 ### Scan Context
 - Mode: <pr|weekly|full|staged|commit-range|path>
 - 范围: <文件数 / commit 数>
 - Threat model: <已读取 docs/threat-model.md / 缺失，降级 / 过时 N 天>
+- FP 裁决: <N 条已裁决 / M 条降级 / K 条跳过（超上限）/ 不适用>
 
 ### 发现
 
 #### Critical（必须修后才能合并）
-- [威胁类型] file:line — 问题 — 触发路径 — 缓解建议
+- [威胁类型] file:line — 问题 — 触发路径 — 缓解建议 — Judge: keep(N)
 
 #### Important
 - ...
 
 #### 信息性 / 加固建议
-- ...
+- ...（FP 裁决降级项保留原文，附 `Judge: demote(N): <justification>`；D 维度降权项标注 `[D 维度 PR 模式降权]`）
 
 ### 缓解措施验证
 - [ ] 已有的认证 / 鉴权 / 加密 / 日志 / rate limit 是否覆盖本次改动
@@ -168,7 +183,7 @@ git diff <range> --name-only
 - Ready for merge?: Yes / No / With fixes
 ```
 
-## 8. 规则
+## 9. 规则
 
 - 只报告有证据的风险，不报告理论上的可能性
 - "不报什么"与"找什么"同等重要：输出 findings 前对照 `references/false-positive-precedents.md`（误报判例库：默认信任边界、硬排除、报出门槛），命中判例的不报或降级
