@@ -15,7 +15,7 @@
 - **不要自己改 `fix_plan.md` 勾选**：phase 完成由 orchestrator 跑 `lr2.py complete-phase` 过门禁后翻；你手翻 = 绕过门禁。
 - 收到 review 后写 `phases/<id>/ack.md`：
   - `## Findings`：逐项 `[agree]/[disagree + 理由]`（L5 你自判，orch 采信）
-  - `## Blocker Resolutions`(机器可读，门禁要读)：review 里**每个 `[blocker]`** 写一行 `- [fixed] <怎么修的>` 或 `- [deferred] <原因>`。**blocker 不允许 deferred** —— 真有分歧写 `BACKLOG.md` disputed 项让 orch escalate，别标 deferred 蒙混(门禁会拦,phase 标不了完成)。
+  - `## Blocker Resolutions`(机器可读，门禁要读)：review 里**每个 `[blocker <ID>]`** 写一行 `- [fixed] <ID> <怎么修的>`(**必须带上 review 给的 ID**,如 `- [fixed] B1 后端改为保留 bundle 字段`,门禁按 ID 对账,缺哪条卡哪条)。**blocker 不允许 deferred** —— 真有分歧写 `BACKLOG.md` disputed 项让 orch escalate，别标 deferred 蒙混(门禁会拦,phase 标不了完成)。
 
 ## review 修复优先级(收到 review 后按此处理 agree 的项)
 - **[blocker] 必须解决**——不解决不算 phase 完成,不许进下一步。

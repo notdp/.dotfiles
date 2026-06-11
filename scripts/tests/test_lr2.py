@@ -327,6 +327,13 @@ class TmuxArgTests(unittest.TestCase):
         for r in ("phase_planner", "phase_coder", "phase_reviewer"):
             self.assertIn(r, lr2.WORKER_ROLES)
 
+    def test_pane_registered_matches_any_status_row(self) -> None:
+        # send 护栏: pane 在 SESSIONS 注册过(任意状态)才许发; 用户自己的 pane 不在表里
+        rows = lr2.parse_sessions(SESSIONS_SAMPLE)
+        self.assertTrue(lr2.pane_registered(rows, "%42"))
+        self.assertTrue(lr2.pane_registered(rows, "%43"))  # closed 行也算注册过
+        self.assertFalse(lr2.pane_registered(rows, "%7"))  # 活着但不是 worker → 拒
+
     def test_reconcile_marks_dead_running_row_closed(self) -> None:
         # pane 已不在 tmux 但行仍 running(非 lr2 路径关掉) → 标 closed + 更新 last_seen
         rows = [{"role": "phase_planner", "phase": "02", "pane_id": "%742", "started_at": "t", "last_seen": "t", "status": "running"}]
@@ -430,15 +437,21 @@ class ParseReviewBlockersTests(unittest.TestCase):
     def test_extracts_only_blocker_headings(self) -> None:
         blockers = lr2.parse_review_blockers(REVIEW_SAMPLE)
         self.assertEqual(len(blockers), 2)
-        self.assertIn("Feishu writeback", blockers[0])
+        self.assertIn("Feishu writeback", blockers[0][1])
+        self.assertIsNone(blockers[0][0])  # 无编号的历史格式 → id None
 
     def test_ignores_should_and_nit(self) -> None:
-        joined = " ".join(lr2.parse_review_blockers(REVIEW_SAMPLE))
+        joined = " ".join(desc for _, desc in lr2.parse_review_blockers(REVIEW_SAMPLE))
         self.assertNotIn("Favorite", joined)
         self.assertNotIn("style thing", joined)
 
     def test_no_blockers_returns_empty(self) -> None:
         self.assertEqual(lr2.parse_review_blockers("# clean\nlooks good, no blockers\n"), [])
+
+    def test_extracts_blocker_ids(self) -> None:
+        text = "### [blocker B1] drops field\n### [should] minor\n### [blocker B2] race\n"
+        self.assertEqual(lr2.parse_review_blockers(text),
+                         [("B1", "drops field"), ("B2", "race")])
 
 
 ACK_SAMPLE = """# Phase 02 Review Ack
@@ -466,7 +479,12 @@ class ParseAckResolutionsTests(unittest.TestCase):
 
     def test_missing_section_is_zero(self) -> None:
         r = lr2.parse_ack_resolutions("# ack\n- [agree] something\n")
-        self.assertEqual(r, {"fixed": 0, "deferred": 0})
+        self.assertEqual((r["fixed"], r["deferred"], r["fixed_lines"]), (0, 0, []))
+
+    def test_keeps_fixed_lines_for_id_matching(self) -> None:
+        r = lr2.parse_ack_resolutions(ACK_SAMPLE)
+        self.assertEqual(len(r["fixed_lines"]), 2)
+        self.assertIn("Feishu writeback", r["fixed_lines"][0])
 
 
 class PhaseGateTests(unittest.TestCase):
@@ -509,6 +527,34 @@ class PhaseGateTests(unittest.TestCase):
         g = lr2.phase_gate(self.OK_VERIFY, "", "")
         self.assertFalse(g["ok"])
         self.assertTrue(any("review" in r.lower() for r in g["reasons"]))
+
+    def test_id_reconciliation_passes_when_each_id_fixed(self) -> None:
+        review = "### [blocker B1] drops field\n### [blocker B2] race\n"
+        ack = "## Blocker Resolutions\n- [fixed] B1 kept field\n- [fixed] B2 added lock\n"
+        self.assertTrue(lr2.phase_gate(self.OK_VERIFY, review, ack)["ok"])
+
+    def test_id_reconciliation_names_missing_blocker(self) -> None:
+        # 多写 [fixed] 行凑数也对不上: B2 没被任何 fixed 行提及 → 点名卡门
+        review = "### [blocker B1] drops field\n### [blocker B2] race\n"
+        ack = "## Blocker Resolutions\n- [fixed] B1 kept field\n- [fixed] B1 再修一次\n"
+        g = lr2.phase_gate(self.OK_VERIFY, review, ack)
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("B2" in r for r in g["reasons"]))
+
+    def test_id_reconciliation_dedupes_repeated_mention(self) -> None:
+        # 正文再次引用同一 blocker(同 ID) → 不重复计数, 一行 fixed 即可
+        review = "### [blocker B1] drops field\n回顾: [blocker B1] 同上,见 summary\n"
+        ack = "## Blocker Resolutions\n- [fixed] B1 kept field\n"
+        self.assertTrue(lr2.phase_gate(self.OK_VERIFY, review, ack)["ok"])
+
+    def test_mixed_unnumbered_blockers_fall_back_to_count(self) -> None:
+        # 有未编号 blocker → 回落计数对账(历史 review 兼容)
+        review = "### [blocker B1] a\n### [blocker] b\n"
+        ack = "## Blocker Resolutions\n- [fixed] B1 done\n"
+        g = lr2.phase_gate(self.OK_VERIFY, review, ack)
+        self.assertFalse(g["ok"])  # 2 个 blocker 只有 1 个 fixed
+        ack2 = "## Blocker Resolutions\n- [fixed] B1 done\n- [fixed] b done\n"
+        self.assertTrue(lr2.phase_gate(self.OK_VERIFY, review, ack2)["ok"])
 
 
 class ParseStatusCommitTests(unittest.TestCase):

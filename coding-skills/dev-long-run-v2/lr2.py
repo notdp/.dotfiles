@@ -256,25 +256,28 @@ def verify_summary(exit_code: int, output: str) -> dict:
     return {"ok": exit_code == 0, "exit": exit_code, "output_tail": tail}
 
 
-def parse_review_blockers(review_text: str) -> list[str]:
-    """抽出 review.md 里标 `[blocker]` 的条目描述(标题行 `### [blocker] ...` 或行内皆可)。
-    `[should]`/`[nit]` 不算 blocker, 不阻塞 phase 完成(它们走 fix-now-or-backlog)。"""
-    out: list[str] = []
+_BLOCKER_TAG = re.compile(r"\[blocker(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\]", re.IGNORECASE)
+
+
+def parse_review_blockers(review_text: str) -> list[tuple[str | None, str]]:
+    """抽出 review.md 里 `[blocker <ID>]` / `[blocker]` 条目 → (id, 描述) 列表。
+    reviewer 契约要求顺序编号 `[blocker B1]`(见 phase_reviewer.md): 带 ID 时门禁按 ID
+    对账——同一 ID 重复提及不重复计数、ack 缺哪条报哪条、多写 [fixed] 行凑数也对不上;
+    无 ID(历史 review)回落计数对账。`[should]`/`[nit]` 不算 blocker。"""
+    out: list[tuple[str | None, str]] = []
     for raw in review_text.splitlines():
-        line = raw.strip()
-        low = line.lower()
-        if "[blocker]" in low:
-            desc = line.lstrip("#").strip()
-            idx = desc.lower().find("[blocker]")
-            desc = desc[idx + len("[blocker]"):].strip()
-            out.append(desc)
+        desc = raw.strip().lstrip("#").strip()
+        match = _BLOCKER_TAG.search(desc)
+        if match:
+            out.append((match.group(1), desc[match.end():].strip()))
     return out
 
 
 def parse_ack_resolutions(ack_text: str) -> dict:
-    """统计 ack.md 里 `## Blocker Resolutions` 段内的 `[fixed]` / `[deferred]` 数量。
+    """统计 ack.md 里 `## Blocker Resolutions` 段内的 `[fixed]` / `[deferred]` 数量,
+    并保留 fixed 行原文(fixed_lines, 供按 blocker ID 对账)。
     只认这一段, 防止 Findings 段里的 `[agree] [blocker]` 叙述被误计。"""
-    counts = {"fixed": 0, "deferred": 0}
+    counts: dict = {"fixed": 0, "deferred": 0, "fixed_lines": []}
     in_section = False
     for raw in ack_text.splitlines():
         line = raw.strip()
@@ -286,6 +289,7 @@ def parse_ack_resolutions(ack_text: str) -> dict:
         low = line.lower()
         if "[fixed]" in low:
             counts["fixed"] += 1
+            counts["fixed_lines"].append(line)
         elif "[deferred]" in low:
             counts["deferred"] += 1
     return counts
@@ -305,11 +309,26 @@ def phase_gate(verify: dict | None, review_text: str, ack_text: str) -> dict:
         reasons.append("review 未产出：phases/<id>/review.md 缺失或为空 —— reviewer 环节不可跳过")
     blockers = parse_review_blockers(review_text)
     res = parse_ack_resolutions(ack_text)
-    if blockers and (res["fixed"] < len(blockers) or res["deferred"] > 0):
-        reasons.append(
-            f"blocker 未解决：review 有 {len(blockers)} 个 [blocker]，"
-            f"ack 仅 fixed={res['fixed']} deferred={res['deferred']}（blocker 不允许 deferred）"
-        )
+    if blockers:
+        ids = [bid for bid, _ in blockers]
+        if all(ids):
+            # 按 ID 对账(reviewer 全部编号时): 重复提及去重; 每个 ID 必须出现在某个 [fixed] 行里。
+            unique = list(dict.fromkeys(ids))
+            missing = [bid for bid in unique
+                       if not any(re.search(rf"\b{re.escape(bid)}\b", ln) for ln in res["fixed_lines"])]
+            problems = []
+            if missing:
+                problems.append(f"{', '.join(missing)} 未在 ack `## Blocker Resolutions` 标 [fixed]")
+            if res["deferred"] > 0:
+                problems.append(f"出现 {res['deferred']} 个 [deferred]（blocker 不允许 deferred）")
+            if problems:
+                reasons.append("blocker 未解决：" + "；".join(problems))
+        elif res["fixed"] < len(blockers) or res["deferred"] > 0:
+            # 回落计数对账(存在未编号 blocker 的历史 review)
+            reasons.append(
+                f"blocker 未解决：review 有 {len(blockers)} 个 [blocker]，"
+                f"ack 仅 fixed={res['fixed']} deferred={res['deferred']}（blocker 不允许 deferred）"
+            )
     return {"ok": not reasons, "reasons": reasons}
 
 
@@ -353,6 +372,13 @@ def acceptance_gate(acceptance: dict | None) -> dict:
             "acceptance.json.ok 必须为真"
         ]}
     return {"ok": True, "reasons": []}
+
+
+def pane_registered(rows: list[dict[str, str]], pane_id: str) -> bool:
+    """pane 是否出现在 SESSIONS.md 注册表(任意状态行)。send 的护栏:
+    orchestrator 只该给 lr2 自己 launch 的 worker pane 发消息, 防止编错 pane id
+    把 prompt 灌进用户正在用的 pane(alive 检查挡不住这种——用户 pane 也是活的)。"""
+    return any(r["pane_id"] == pane_id for r in rows)
 
 
 def find_live_role_pane(rows: list[dict[str, str]], role: str, list_panes_output: str) -> str | None:
@@ -819,6 +845,17 @@ def cmd_send(args: argparse.Namespace) -> int:
             f"当前活着的 pane: {live.split() or '无'}\n"
         )
         return 1
+    # 注册表护栏: 带 --workspace 时 pane 必须是本工作区 launch 过的 worker pane,
+    # 防止编错 id 把 prompt 灌进用户自己的 pane(它也 alive, 上面的检查挡不住)。
+    if args.workspace:
+        sessions_path = Path(args.workspace).resolve() / "SESSIONS.md"
+        rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
+        if not pane_registered(rows, args.pane):
+            sys.stderr.write(
+                f"refusing: pane {args.pane} 活着但不在 {sessions_path} 注册表里 —— "
+                f"它可能是用户自己的 pane。只给 `launch` 打印的 worker pane 发消息。\n"
+            )
+            return 1
     send_to_pane(args.pane, args.text)
     return 0
 
@@ -1120,6 +1157,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("send", help="(orchestrator 调用) literal send-keys 到 pane")
     p.add_argument("--pane", required=True)
     p.add_argument("--text", required=True)
+    p.add_argument("--workspace", help="给了就校验 pane 在该工作区 SESSIONS.md 注册过(推荐;防把 prompt 灌进用户 pane)")
     p.set_defaults(func=cmd_send)
 
     p = sub.add_parser("close", help="(orchestrator 调用) 关掉某 role 的 worker pane, 标 closed(幂等)")

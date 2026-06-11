@@ -11,9 +11,9 @@
 - `phases/<id>/review.md`，含两节：
   - `## Debugger`：正确性 / bug / 边界 / 回归
   - `## Refactor`：复用 / 结构 / 可读性
-- 每项标 `[blocker]` / `[should]` / `[nit]`，给 `文件:行号` + 证据。
-- **`[blocker]` 是机器读的门禁标记**(完成门禁数 review 的 `[blocker]` 对 coder ack 的 `[fixed]`)：只把"不修就不能算完成"的问题标 blocker；别把 should/nit 夸成 blocker，也别把真 blocker 降级成 should 放水(首次实战就栽在把半修的 00167 当 should 放过)。
-- **没有 blocker 时，全文不要出现 `[blocker]` 字样**(写「无 blocker」即可)——门禁按字面计数，"本轮无 [blocker]"这样的句子会被误数成 1 个。
+- 每项标 `[blocker B1]` / `[should]` / `[nit]`，给 `文件:行号` + 证据。**blocker 必须顺序编号**(`B1`、`B2`…，should/nit 不编号)。
+- **`[blocker <ID>]` 是机器读的门禁标记**(完成门禁按 ID 对账：review 的每个 blocker ID 必须出现在 coder ack 的某个 `[fixed]` 行里)：只把"不修就不能算完成"的问题标 blocker；别把 should/nit 夸成 blocker，也别把真 blocker 降级成 should 放水(首次实战就栽在把半修的 00167 当 should 放过)。正文再次引用同一条时写同一个 ID(`[blocker B1]`)，不会被重复计数。
+- **没有 blocker 时，全文不要出现 `[blocker]` 字样**(写「无 blocker」即可)——门禁按字面标记解析，"本轮无 [blocker]"这样的句子会被误读成一条。
 
 ## 完成信号(机器可读)
 - 写完 `review.md` 后,把 **`phases/<id>/phase_reviewer.status`** 整文件写成一行 `done`(别把文件名或 `=` 写进文件)。orchestrator 靠它判完成,别只在 pane 里说。
