@@ -1,6 +1,6 @@
 # dev-long-run-v2 上手操作手册(首次使用)
 
-> v0:底层管道已实测,完整多 phase 循环还没在真实任务跑完过——你这次是第一次实战,盯紧点。代码只落在独立 worktree + `lr2/<slug>` 分支(或你选的当前分支),**main 永不被碰**,出事删 worktree+分支即可全退。
+> 代码只落在独立 worktree + `lr2/<slug>` 分支(或你选的当前分支),**main 永不被碰**,出事删 worktree+分支即可全退。
 
 ## 一句话
 
@@ -67,7 +67,7 @@ planner 充实计划 → coder 写代码 → reviewer 审 → coder 改 + **comm
 - **agent 跑偏**:对话里直接纠正,或说"停"。
 - 卡住自己搞不定:把**报错原文 + 当时在做什么 + `state.json`** 发给我。
 
-## v0 要盯的点
+## 要盯的点
 - agent 该**开独立 coder pane** 写代码,不是在对话里自己写。怀疑时说"给我看 `lr2.py sessions`":有 `phase_coder` pane=对;一个 pane 没有=纠正它去 launch。
 - 每个 phase 真停下问你了吗(没停就提醒它要 confirm)。
 - coder 真 commit 到 `lr2/` 或你的分支了吗(让它给你看 `git log`)。

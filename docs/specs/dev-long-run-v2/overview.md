@@ -2,7 +2,7 @@
 
 Status: spec draft (2026-05-29)
 Author: 郎振宁 (with assistant)
-Replaces: nothing yet — `/dev-long-loop` and `/dev-long-task-scaffold` remain available.
+Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v2 已多次实战后删除旧 skill，连带 `long_loop.py`、`droid_observe.py`/`longrun_dashboard.py` 及其测试；下文所有"保留不动/回退到 dev-long-loop"的措辞按本行作历史记录理解）。
 
 ## TL;DR
 

@@ -202,20 +202,8 @@
       "role": "canonical"
     },
     {
-      "name": "dev-long-loop",
-      "path": "coding-skills/dev-long-loop",
-      "domain": "dev",
-      "role": "canonical"
-    },
-    {
       "name": "dev-long-run-v2",
       "path": "coding-skills/dev-long-run-v2",
-      "domain": "dev",
-      "role": "canonical"
-    },
-    {
-      "name": "dev-long-task-scaffold",
-      "path": "coding-skills/dev-long-task-scaffold",
       "domain": "dev",
       "role": "canonical"
     },
