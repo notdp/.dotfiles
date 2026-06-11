@@ -59,23 +59,6 @@ def validate_config(config: dict) -> dict:
     return config
 
 
-# L7: wait_confirm 下的用户命令 → 下一个持久化 state(数据驱动, 见 state.json enum)
-CONFIRM_TRANSITIONS = {
-    "confirm next": "develop",
-    "confirm done": "wrapup",
-    "block": "blocked",
-}
-
-
-def apply_confirm(state: str, command: str) -> str:
-    """L7: 用户在 orch pane 输入的 confirm 命令只在 wait_confirm 合法, 返回下一个 state。"""
-    if state != "wait_confirm":
-        raise ValueError(f"confirm command only valid at wait_confirm, not {state!r}")
-    if command not in CONFIRM_TRANSITIONS:
-        raise ValueError(f"unknown command {command!r}; valid: {', '.join(CONFIRM_TRANSITIONS)}")
-    return CONFIRM_TRANSITIONS[command]
-
-
 def branch_name(slug: str) -> str:
     """L16: 专用开发分支名。"""
     return f"lr2/{slug}"
@@ -309,14 +292,17 @@ def parse_ack_resolutions(ack_text: str) -> dict:
 
 
 def phase_gate(verify: dict | None, review_text: str, ack_text: str) -> dict:
-    """phase 完成的硬门(纯谓词)。两条:
+    """phase 完成的硬门(纯谓词)。三条:
     (a) verify 必须真跑且过(verify 为 None/未 ok → 阻塞) —— 杜绝"测试只写没跑"。
-    (b) review 的每个 [blocker] 必须在 ack 标 [fixed](fixed<blocker数 或 有 deferred → 阻塞)
+    (b) review 必须产出(review.md 缺失/为空 → 阻塞) —— 杜绝 reviewer 环节被静默跳过。
+    (c) review 的每个 [blocker] 必须在 ack 标 [fixed](fixed<blocker数 或 有 deferred → 阻塞)
         —— 杜绝 reviewer 开了 blocker 却被静默放行。
     全过才 ok。reasons 给人看, 调用方据 ok 决定是否拒绝完成。"""
     reasons: list[str] = []
     if not verify or not verify.get("ok"):
         reasons.append("验证未跑或失败：先 `lr2.py verify --phase <id>`，verify.json.ok 必须为真")
+    if not review_text.strip():
+        reasons.append("review 未产出：phases/<id>/review.md 缺失或为空 —— reviewer 环节不可跳过")
     blockers = parse_review_blockers(review_text)
     res = parse_ack_resolutions(ack_text)
     if blockers and (res["fixed"] < len(blockers) or res["deferred"] > 0):
@@ -325,6 +311,28 @@ def phase_gate(verify: dict | None, review_text: str, ack_text: str) -> dict:
             f"ack 仅 fixed={res['fixed']} deferred={res['deferred']}（blocker 不允许 deferred）"
         )
     return {"ok": not reasons, "reasons": reasons}
+
+
+def parse_status_commit(status_text: str) -> str | None:
+    """从 worker status 文件取收口 commit hash(`done commit=<hash>`)。
+    非 done / `done impl`(两段式的中间态) / 无合法 hash → None。
+    L14 机器证据: complete-phase 据此要求 coder 声明的 commit 真实存在, 不收口头声明。"""
+    state, detail = parse_worker_status(status_text)
+    if state != "done":
+        return None
+    match = re.search(r"commit=([0-9a-fA-F]{6,40})\b", detail)
+    return match.group(1) if match else None
+
+
+def unchecked_phases(fix_plan_text: str) -> list[str]:
+    """fix_plan.md 里仍未勾选的 phase id(`- [ ] <id> ...` 的首 token)。
+    complete-run 用它拦"还有 phase 没过门禁就收尾"。"""
+    out: list[str] = []
+    for line in fix_plan_text.splitlines():
+        match = re.match(r"^\s*-\s*\[ \]\s+(\S+)", line)
+        if match:
+            out.append(match.group(1))
+    return out
 
 
 def mark_phase_done(fix_plan_text: str, phase_id: str) -> str:
@@ -410,7 +418,6 @@ def save_state(path: Path, state: dict) -> None:
 # ---------------------------------------------------------------------------
 # 执行层(side effects): tmux / git。CLI 入口下使用。
 # ---------------------------------------------------------------------------
-RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
@@ -482,7 +489,8 @@ def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
 
 
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
-# L24(pane 生命周期收尾): phase 收口该清的临时角色(coder 不在内 — 跨 phase 复用); run 收尾清全部 worker。
+# L24(pane 生命周期收尾): phase 收口该清的临时角色。coder 不在内 — 不是复用(L6 已反转为
+# fresh-per-phase), 而是它由下一 phase 的 fresh launch 负责关; run 收尾清全部 worker。
 PHASE_TRANSIENT_ROLES = ("phase_planner", "phase_reviewer")
 WORKER_ROLES = ("phase_planner", "phase_coder", "phase_reviewer")
 
@@ -536,15 +544,20 @@ def resolve_phase_dir(workspace: Path, phase: str) -> Path:
 
 
 def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> str:
-    """worker pane 的初始 prompt(多行结构化, 经 bracketed paste 注入, 窗口可读)。"""
+    """worker pane 的初始 prompt(多行结构化, 经 bracketed paste 注入, 窗口可读)。
+    phase 角色才注入 [PHASE DIR]; scaffold_reviewer 等非 phase 角色(phase=0)不注入 —
+    否则会把不存在的 phases/0 当成产出目录, 与其角色契约(写工作区根)冲突。"""
     prompt_file = PROMPTS_DIR / f"{role}.md"
-    phase_dir = resolve_phase_dir(workspace, phase)
+    is_phase_role = role in WORKER_ROLES and phase != "0"
+    header = (f"You are the {role} for phase {phase}." if is_phase_role else f"You are the {role}.")
     parts = [
-        f"You are the {role} for phase {phase}. Do your role's job, then STOP when your output files are written.",
+        header + " Do your role's job, then STOP when your output files are written.",
         f"[ROLE CONTRACT] {prompt_file}",
         f"[TASK BRIEF] {brief}" if brief else "",
         f"[MUST READ — workspace SSOT] {workspace}/REQUIREMENT.md ; {workspace}/SPEC_OVERVIEW.md ; {workspace}/fix_plan.md",
-        f"[PHASE DIR — this exact directory holds your spec; read it here and write ALL your phase outputs (status/verify.sh/qa/ack/...) here, do not invent phases/{phase}] {phase_dir}",
+        (f"[PHASE DIR — this exact directory holds your spec; read it here and write ALL your phase outputs "
+         f"(status/verify.sh/qa/ack/...) here, do not invent phases/{phase}] {resolve_phase_dir(workspace, phase)}")
+        if is_phase_role else "",
         "[EVALUATE] whether /think-map or /think-research helps (per your role contract; evaluate, not forced).",
         "[RULES] Workspace files are the SSOT, your memory is not. Stay within your role's allowed outputs; do not touch files outside them.",
     ]
@@ -553,7 +566,8 @@ def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> st
 
 def launch_role(workspace: Path, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> str:
     """在用户当前 tmux window split 出一个 role pane(就在当前 tab,不新建 session/tab),
-    注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。phase_coder 已存活则复用(L6)。"""
+    注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。
+    phase_coder 走 fresh-per-phase(L6 反转): 先关上一个 coder pane 再开新的。"""
     if not os.environ.get("TMUX"):
         raise RuntimeError("不在 tmux 里 — worker pane 必须在用户当前 tmux window 内 split;请先在 tmux 中运行")
     worktree = Path(load_state(workspace / "state.json").get("worktree_path", workspace))
@@ -717,6 +731,19 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     wt = Path(plan["worktree_path"])
     branch = plan["branch"]
     if plan["create"]:
+        # 友好拒绝撞名(同名任务二跑/上次残留), 不让 git 裸 traceback 出去
+        if wt.exists():
+            sys.stderr.write(
+                f"refusing: worktree 路径已存在: {wt}\n"
+                f"  上次残留 → 确认无用后 `git worktree remove {wt}`；要续做该分支改用 --in-place(先切过去)\n")
+            return 1
+        probe = subprocess.run(["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet",
+                                f"refs/heads/{branch}"], capture_output=True)
+        if probe.returncode == 0:
+            sys.stderr.write(
+                f"refusing: 分支 {branch} 已存在 —— 续做请先切到它再用 --in-place；"
+                f"或删旧分支；或 `--name <别名>` 换个 slug\n")
+            return 1
         _git(repo_root, ["worktree", "add", "-b", branch, str(wt)])
     workspace.mkdir(parents=True)
     append_git_exclude(repo_root)
@@ -889,6 +916,16 @@ def cmd_await(args: argparse.Namespace) -> int:
     return 4
 
 
+def cmd_reset_status(args: argparse.Namespace) -> int:
+    """把某 role 的 status 文件重置成 `coding`。orchestrator 给 coder 发 review 前必跑:
+    清掉两段式信号残留的 `done impl`, 否则下一次 await 读到 stale done 立即误判修复完成。"""
+    pdir = resolve_phase_dir(Path(args.workspace).resolve(), args.phase)
+    status_file = pdir / f"{args.role}.status"
+    status_file.write_text("coding\n", encoding="utf-8")
+    sys.stdout.write(f"reset → coding: {status_file}\n")
+    return 0
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).resolve()
     state = load_state(workspace / "state.json")
@@ -901,6 +938,10 @@ def cmd_resume(args: argparse.Namespace) -> int:
     )
     if not wt_ok:
         sys.stdout.write(f"  worktree 丢失 → 重建: git worktree add {wt} {state.get('branch')}\n")
+    fp = workspace / "fix_plan.md"
+    if fp.exists():
+        pending = unchecked_phases(fp.read_text(encoding="utf-8"))
+        sys.stdout.write(f"  未完成 phase: {', '.join(pending) if pending else '无(fix_plan 全勾)'}\n")
     for row in parse_sessions((workspace / "SESSIONS.md").read_text(encoding="utf-8")):
         alive = pane_is_alive(live, row["pane_id"])
         sys.stdout.write(f"  {row['role']:18} {row['pane_id']:6} {'ALIVE' if alive else 'DEAD(重开 fresh 读 HANDOFF / 标 failed)'}\n")
@@ -927,11 +968,38 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if not script.exists():
         sys.stderr.write(f"refusing: {script} 不存在 —— 先写 {label} 的可执行验证脚本(真跑测试/端到端验收)\n")
         return 2
-    result = subprocess.run(["bash", str(script)], cwd=str(cwd), text=True, capture_output=True)
-    summary = verify_summary(result.returncode, (result.stdout or "") + (result.stderr or ""))
+    try:
+        result = subprocess.run(["bash", str(script)], cwd=str(cwd), text=True, capture_output=True,
+                                timeout=args.timeout)
+        summary = verify_summary(result.returncode, (result.stdout or "") + (result.stderr or ""))
+    except subprocess.TimeoutExpired as err:
+        # 挂起脚本(误启常驻服务等)不能无限阻塞 orchestrator: 按失败落证据, exit 124 惯例
+        partial = (err.stdout or b"") if isinstance(err.stdout, (bytes, type(None))) else err.stdout
+        if isinstance(partial, bytes):
+            partial = partial.decode("utf-8", "replace")
+        summary = verify_summary(124, (partial or "") + f"\n[lr2] TIMEOUT: {label} 超过 {args.timeout}s 未结束(挂起按失败处理)")
     out_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(f"{'OK' if summary['ok'] else 'FAIL'} {label} exit={summary['exit']} → {out_path.name}\n")
     return 0 if summary["ok"] else 2
+
+
+def _commit_evidence(workspace: Path, phase: str) -> str | None:
+    """L14 机器证据: coder status 声明的 `done commit=<hash>` 必须真实存在且是 worktree HEAD
+    的祖先(in-place/新建分支两种模式都成立)。返回 BLOCK 原因; 通过返回 None。"""
+    pdir = resolve_phase_dir(workspace, phase)
+    status_file = pdir / "phase_coder.status"
+    text = status_file.read_text(encoding="utf-8") if status_file.exists() else ""
+    commit = parse_status_commit(text)
+    if not commit:
+        return ("缺 commit 证据：phase_coder.status 须为 `done commit=<hash>`"
+                "（L14 收口必须 commit，口头声明不算）")
+    worktree = load_state(workspace / "state.json").get("worktree_path") or str(workspace)
+    probe = subprocess.run(["git", "-C", worktree, "merge-base", "--is-ancestor", commit, "HEAD"],
+                           capture_output=True, text=True)
+    if probe.returncode != 0:
+        return (f"commit 证据无效：{commit} 不存在或不在 worktree 当前分支上"
+                f"（git merge-base --is-ancestor 失败：{probe.stderr.strip() or 'non-zero'}）")
+    return None
 
 
 def _phase_gate_for(workspace: Path, phase: str) -> dict:
@@ -940,7 +1008,11 @@ def _phase_gate_for(workspace: Path, phase: str) -> dict:
     verify = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else None
     review = (pdir / "review.md").read_text(encoding="utf-8") if (pdir / "review.md").exists() else ""
     ack = (pdir / "ack.md").read_text(encoding="utf-8") if (pdir / "ack.md").exists() else ""
-    return phase_gate(verify, review, ack)
+    gate = phase_gate(verify, review, ack)
+    commit_reason = _commit_evidence(workspace, phase)
+    if commit_reason:
+        return {"ok": False, "reasons": gate["reasons"] + [commit_reason]}
+    return gate
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
@@ -970,8 +1042,13 @@ def cmd_complete_phase(args: argparse.Namespace) -> int:
         sys.stderr.write(f"refusing: fix_plan.md 找不到 phase {args.phase} 的 `- [ ]` 行\n")
         return 1
     fp.write_text(new, encoding="utf-8")
+    # 记录进度到 state.json, resume 时不再永远显示 phase=0
+    state = load_state(workspace / "state.json")
+    state["phase"] = args.phase
+    save_state(workspace / "state.json", state)
     _append_log(workspace, f"phase {args.phase} gate passed → marked complete")
-    # L24 teardown 兜底: 门禁已过, 清掉该 phase 残留的 planner/reviewer(coder 跨 phase 复用, 不关)。
+    # L24 teardown 兜底: 门禁已过, 清掉该 phase 残留的 planner/reviewer。coder 不在这里关 —
+    # 它由下一 phase 的 fresh launch 关闭(L6), run 收尾时 complete-run 兜底全关。
     closed = _close_roles(workspace, PHASE_TRANSIENT_ROLES)
     if closed:
         _append_log(workspace, f"phase {args.phase} teardown: closed {' '.join(closed)}")
@@ -980,8 +1057,15 @@ def cmd_complete_phase(args: argparse.Namespace) -> int:
 
 
 def cmd_complete_run(args: argparse.Namespace) -> int:
-    """过 acceptance 门禁(真跑过 acceptance.sh 且过)才置 state=completed。否则拒绝。"""
+    """过 acceptance 门禁(真跑过 acceptance.sh 且过) + fix_plan 全勾, 才置 state=completed。否则拒绝。"""
     workspace = Path(args.workspace).resolve()
+    fp = workspace / "fix_plan.md"
+    pending = unchecked_phases(fp.read_text(encoding="utf-8")) if fp.exists() else []
+    if pending:
+        sys.stderr.write(
+            f"BLOCK: fix_plan 仍有未完成 phase: {', '.join(pending)} —— "
+            f"先逐个过 `complete-phase` 门禁再收尾(acceptance 过了也不能跳 phase)\n")
+        return 2
     aj = workspace / "acceptance.json"
     acceptance = json.loads(aj.read_text(encoding="utf-8")) if aj.exists() else None
     g = acceptance_gate(acceptance)
@@ -1067,7 +1151,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("--phase", default="0")
     p.add_argument("--acceptance", action="store_true", help="跑根 acceptance.sh(端到端验收)而非某 phase verify.sh")
+    p.add_argument("--timeout", type=int, default=900, help="脚本最长运行秒数(默认 900; 挂起按失败记证据)")
     p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("reset-status", help="(orchestrator 调用) 把 role status 重置为 coding(发 review 前清 stale done)")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--phase", required=True)
+    p.add_argument("--role", required=True)
+    p.set_defaults(func=cmd_reset_status)
 
     p = sub.add_parser("gate", help="只读检查某 phase 是否过完成门禁(verify 过 + blocker 全 fixed)")
     p.add_argument("--workspace", required=True)

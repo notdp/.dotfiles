@@ -1,5 +1,6 @@
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -130,26 +131,6 @@ class NamingTests(unittest.TestCase):
         for b in ("main", "master", ""):
             with self.assertRaises(ValueError):
                 lr2.plan_worktree(Path("/home/u/repo"), "auth", in_place=True, current_branch=b)
-
-
-class ConfirmCommandTests(unittest.TestCase):
-    def test_confirm_next_goes_to_develop(self) -> None:
-        self.assertEqual(lr2.apply_confirm("wait_confirm", "confirm next"), "develop")
-
-    def test_confirm_done_goes_to_wrapup(self) -> None:
-        self.assertEqual(lr2.apply_confirm("wait_confirm", "confirm done"), "wrapup")
-
-    def test_block_goes_to_blocked(self) -> None:
-        self.assertEqual(lr2.apply_confirm("wait_confirm", "block"), "blocked")
-
-    def test_command_only_valid_at_wait_confirm(self) -> None:
-        # L7: confirm 命令只在 wait_confirm 状态合法; 其他状态拒绝(fail-closed)
-        with self.assertRaises(ValueError):
-            lr2.apply_confirm("develop", "confirm next")
-
-    def test_unknown_command_rejected(self) -> None:
-        with self.assertRaises(ValueError):
-            lr2.apply_confirm("wait_confirm", "confirm everything")
 
 
 def valid_config() -> dict:
@@ -331,7 +312,7 @@ class TmuxArgTests(unittest.TestCase):
         self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%7\n"), [])  # %43 不在活 pane
 
     def test_panes_to_close_role_set_decides_coder(self) -> None:
-        # coder 不在 PHASE_TRANSIENT_ROLES → phase 收口不关 coder(跨 phase 复用); WORKER_ROLES(run 收尾)才关
+        # coder 不在 PHASE_TRANSIENT_ROLES → phase 收口不关 coder(它由下一 phase 的 fresh launch 关,L6); WORKER_ROLES(run 收尾)才关
         rows = [{"role": "phase_coder", "phase": "01", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"}]
         self.assertEqual(lr2.panes_to_close(rows, lr2.PHASE_TRANSIENT_ROLES, "%42\n"), [])
         self.assertEqual(lr2.panes_to_close(rows, lr2.WORKER_ROLES, "%42\n"), ["%42"])
@@ -523,6 +504,44 @@ class PhaseGateTests(unittest.TestCase):
         g = lr2.phase_gate(self.OK_VERIFY, "looks good\n", "")
         self.assertTrue(g["ok"])
 
+    def test_blocks_when_review_missing(self) -> None:
+        # reviewer 环节不可静默跳过: review.md 缺失/为空 → 即使 verify 过也阻塞
+        g = lr2.phase_gate(self.OK_VERIFY, "", "")
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("review" in r.lower() for r in g["reasons"]))
+
+
+class ParseStatusCommitTests(unittest.TestCase):
+    def test_done_commit_extracts_hash(self) -> None:
+        self.assertEqual(lr2.parse_status_commit("done commit=2e49a706\n"), "2e49a706")
+
+    def test_done_impl_is_not_commit_evidence(self) -> None:
+        # 两段式信号: `done impl` 是"实现完等 review"的中间态, 不算收口证据
+        self.assertIsNone(lr2.parse_status_commit("done impl"))
+
+    def test_coding_and_blocked_are_none(self) -> None:
+        self.assertIsNone(lr2.parse_status_commit("coding"))
+        self.assertIsNone(lr2.parse_status_commit("blocked need creds"))
+
+    def test_non_hex_hash_rejected(self) -> None:
+        self.assertIsNone(lr2.parse_status_commit("done commit=not-a-hash"))
+
+    def test_assignment_form_still_extracts(self) -> None:
+        # prompt 字面回写(`phase_coder.status = done commit=...`)也能取到 hash
+        self.assertEqual(lr2.parse_status_commit("phase_coder.status = done commit=abc123def"), "abc123def")
+
+
+class UncheckedPhasesTests(unittest.TestCase):
+    def test_lists_unchecked_phase_ids(self) -> None:
+        self.assertEqual(lr2.unchecked_phases(FIX_PLAN_SAMPLE), ["01", "02", "03"])
+
+    def test_checked_phases_excluded(self) -> None:
+        text = "# Fix Plan\n\n- [x] 01 a\n- [ ] 02 b\n- [x] 03 c\n"
+        self.assertEqual(lr2.unchecked_phases(text), ["02"])
+
+    def test_all_checked_is_empty(self) -> None:
+        self.assertEqual(lr2.unchecked_phases("- [x] 01 a\n- [x] 02 b\n"), [])
+
 
 FIX_PLAN_SAMPLE = """# Fix Plan
 
@@ -583,6 +602,15 @@ class GateCommandIntegrationTests(unittest.TestCase):
             code = lr2.main(argv)
         return code, buf.getvalue()
 
+    def _git_commit(self, ws: Path) -> str:
+        """把 ws 变成有一个 commit 的 git 仓库, 返回 HEAD hash(commit 证据门禁用)。"""
+        env_cfg = ["-c", "user.email=t@t", "-c", "user.name=t"]
+        subprocess.run(["git", "init", "-q"], cwd=ws, check=True, capture_output=True)
+        subprocess.run(["git", *env_cfg, "commit", "--allow-empty", "-q", "-m", "phase"],
+                       cwd=ws, check=True, capture_output=True)
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=ws, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
     def test_verify_records_passing_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             ws = self._ws(Path(d))
@@ -624,13 +652,52 @@ class GateCommandIntegrationTests(unittest.TestCase):
     def test_complete_phase_marks_done_when_gate_passes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             ws = self._ws(Path(d))
+            head = self._git_commit(ws)
             (ws / "phases" / "02" / "verify.json").write_text(
                 json.dumps({"ok": True, "exit": 0, "output_tail": "ok"}), encoding="utf-8")
             (ws / "phases" / "02" / "review.md").write_text("### [blocker] x\n", encoding="utf-8")
             (ws / "phases" / "02" / "ack.md").write_text("## Blocker Resolutions\n- [fixed] done\n", encoding="utf-8")
+            (ws / "phases" / "02" / "phase_coder.status").write_text(f"done commit={head}\n", encoding="utf-8")
             code, _ = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
             self.assertEqual(code, 0)
             self.assertIn("- [x] 02 b", (ws / "fix_plan.md").read_text())
+            # 进度落进 state.json(resume 不再永远显示 phase=0)
+            self.assertEqual(json.loads((ws / "state.json").read_text())["phase"], "02")
+
+    def test_complete_phase_refuses_without_commit_evidence(self) -> None:
+        # L14 机器证据: verify/review/ack 全过, 但 status 没给真实 commit → 拒绝
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            self._git_commit(ws)
+            (ws / "phases" / "02" / "verify.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "ok"}), encoding="utf-8")
+            (ws / "phases" / "02" / "review.md").write_text("no blockers, clean\n", encoding="utf-8")
+            (ws / "phases" / "02" / "phase_coder.status").write_text("done impl\n", encoding="utf-8")
+            code, _ = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 2)
+            self.assertIn("- [ ] 02 b", (ws / "fix_plan.md").read_text())
+
+    def test_complete_phase_refuses_fabricated_commit(self) -> None:
+        # status 声明的 hash 不在仓库里(编造) → 拒绝
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            self._git_commit(ws)
+            (ws / "phases" / "02" / "verify.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "ok"}), encoding="utf-8")
+            (ws / "phases" / "02" / "review.md").write_text("clean\n", encoding="utf-8")
+            (ws / "phases" / "02" / "phase_coder.status").write_text("done commit=deadbeef00\n", encoding="utf-8")
+            code, _ = self._run(["complete-phase", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 2)
+            self.assertIn("- [ ] 02 b", (ws / "fix_plan.md").read_text())
+
+    def test_reset_status_writes_coding(self) -> None:
+        # orchestrator 发 review 前清 stale `done impl`
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "phase_coder.status").write_text("done impl\n", encoding="utf-8")
+            code, _ = self._run(["reset-status", "--workspace", str(ws), "--phase", "02", "--role", "phase_coder"])
+            self.assertEqual(code, 0)
+            self.assertEqual((ws / "phases" / "02" / "phase_coder.status").read_text(), "coding\n")
 
     def test_complete_run_refuses_without_acceptance(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -639,9 +706,20 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertNotEqual(json.loads((ws / "state.json").read_text())["state"], "completed")
 
+    def test_complete_run_refuses_with_unchecked_phases(self) -> None:
+        # acceptance 过了也不能跳 phase: fix_plan 还有未勾项 → 拒绝
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "acceptance.json").write_text(
+                json.dumps({"ok": True, "exit": 0, "output_tail": "green"}), encoding="utf-8")
+            code, _ = self._run(["complete-run", "--workspace", str(ws)])
+            self.assertEqual(code, 2)
+            self.assertNotEqual(json.loads((ws / "state.json").read_text())["state"], "completed")
+
     def test_complete_run_sets_completed_when_acceptance_ok(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             ws = self._ws(Path(d))
+            (ws / "fix_plan.md").write_text("# Fix Plan\n\n- [x] 01 a\n- [x] 02 b\n", encoding="utf-8")
             (ws / "acceptance.json").write_text(
                 json.dumps({"ok": True, "exit": 0, "output_tail": "green"}), encoding="utf-8")
             code, _ = self._run(["complete-run", "--workspace", str(ws)])

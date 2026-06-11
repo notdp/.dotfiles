@@ -13,7 +13,10 @@
 - phase 拆分合理性：粒度、顺序、依赖
 - 验收可执行性：qa.md 的契约能否被客观判定
 
+## 完成信号(机器可读)
+- 写完 `SCAFFOLD_REVIEW.md` 后,把 **`<workspace>/scaffold_reviewer.status`** 整文件写成一行 `done`(卡住写 `blocked <reason>`;别把文件名或 `=` 写进文件)。orchestrator 靠它判完成,别只在 pane 里说。
+
 ## 约束
-- 只读，不改任何工作区文件、不动代码、不跑命令。
+- 只读，不改 `SCAFFOLD_REVIEW.md`/status 之外的任何工作区文件、不动代码、不跑命令。
 - 每条 finding 给出对应文件 + 理由。
-- 写完 `SCAFFOLD_REVIEW.md` 即结束本轮，pane 可被关闭。
+- 状态写 done 后即结束本轮，pane 可被关闭。

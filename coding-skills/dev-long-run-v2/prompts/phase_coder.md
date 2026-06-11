@@ -25,11 +25,13 @@
 - **[disagree] 的项**:不修,在 `ack.md` 写清理由;若你与 reviewer 在某 blocker 上分歧,写 `BACKLOG.md` 的 `disputed` 项并让 orch escalate 给用户(L5:orch 不强制覆盖你)。
 
 ## 完成信号(机器可读, orchestrator 靠它判完成 —— 不要靠 pane 里打字)
-- 你的状态写进 **`phases/<id>/phase_coder.status`**(单行,首词是状态):
+- 你的状态写进 **`phases/<id>/phase_coder.status`**(单行,首词是状态)。**done 是两段式**:
   - 实现/修复中 → `coding`
-  - 收口 commit 完成 → `done commit=<hash>`(orchestrator await 到它才推进)
+  - **初稿实现完、HANDOFF 已更新、等 review** → `done impl`(orchestrator 看到它才去开 reviewer;**此时还不要 commit**,reviewer 要看未 commit 的 `git diff`)
+  - 收口 commit 完成 → `done commit=<hash>`(最终完成信号,orchestrator await 到它才进门禁)
   - 被卡(全 blocker reject / 需用户裁决)→ `blocked <reason>`
   - context 太脏需重开 → `compact`
+- **收到 review 后第一件事:把 status 整文件写回 `coding`**(orchestrator 发 review 前也会 reset,双保险)——否则残留的 `done impl` 会被误读成"已修完"。
 - **最后一步永远是更新这个文件**;别只在 pane 里说"已完成",orchestrator 看不到。
 
 ## 每 phase 收口(L14)

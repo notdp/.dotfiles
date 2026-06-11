@@ -16,7 +16,7 @@
 2. 产出上述文件，给每个 phase 建 `phases/<NN>_<slug>/spec.md`。
 3. 调 launcher 开 scaffold reviewer：`lr2.py launch --workspace <ws> --role scaffold_reviewer --mode split-down`，拿到 pane_id。
 4. 用 `lr2.py send --pane <reviewer_pane> --text "..."` 让 reviewer 读工作区并写 `SCAFFOLD_REVIEW.md`。
-5. 轮询 `SCAFFOLD_REVIEW.md` 出现后，读它自改工作区（一轮收口，不震荡）。
+5. `lr2.py await --status <ws>/scaffold_reviewer.status --pane <reviewer_pane>` 等 DONE(别轮询 `SCAFFOLD_REVIEW.md` 存在性,刚出现可能只写了一半)，然后读它自改工作区（一轮收口，不震荡）。
 6. 完成后在 `logs.md` append 一行，**在对话里**把 phase 计划讲给用户、问是否开始开发；用户同意后你直接进 develop 循环(见 ORCHESTRATOR.md),不要让用户去敲命令。
 
 ## 约束
