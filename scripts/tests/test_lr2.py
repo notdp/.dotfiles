@@ -627,6 +627,66 @@ class AcceptanceGateTests(unittest.TestCase):
         self.assertFalse(g["ok"])
 
 
+class StuckDetectionTests(unittest.TestCase):
+    """L26 卡死检测纯函数: 指纹稳定性 + 计数转换(同指纹累加/换指纹重置/通过清零)。"""
+
+    def test_passing_verify_has_no_fingerprint(self) -> None:
+        self.assertIsNone(lr2.verify_fingerprint({"ok": True, "exit": 0, "output_tail": "ok"}))
+        self.assertIsNone(lr2.verify_fingerprint(None))
+
+    def test_same_failure_same_fingerprint_despite_volatile_numbers(self) -> None:
+        # 行号/耗时/计数变化不应改变指纹(同一个失败)
+        a = {"ok": False, "exit": 1, "output_tail": "FAIL test_login at line 42 (0.13s)"}
+        b = {"ok": False, "exit": 1, "output_tail": "FAIL test_login at line 99 (1.87s)"}
+        self.assertEqual(lr2.verify_fingerprint(a), lr2.verify_fingerprint(b))
+
+    def test_different_failure_different_fingerprint(self) -> None:
+        a = {"ok": False, "exit": 1, "output_tail": "FAIL test_login assertion failed"}
+        b = {"ok": False, "exit": 1, "output_tail": "FAIL test_logout assertion failed"}
+        self.assertNotEqual(lr2.verify_fingerprint(a), lr2.verify_fingerprint(b))
+
+    def test_update_same_fingerprint_accumulates(self) -> None:
+        s1 = lr2.update_stuck({}, "abc123")
+        self.assertEqual(s1["consecutive_fail"], 1)
+        s2 = lr2.update_stuck(s1, "abc123")
+        self.assertEqual(s2["consecutive_fail"], 2)
+
+    def test_update_changed_fingerprint_resets_to_one(self) -> None:
+        # 错误在演化 = 还在推进, 不算原地打转
+        s = lr2.update_stuck({"consecutive_fail": 3, "fingerprint": "old"}, "new")
+        self.assertEqual(s["consecutive_fail"], 1)
+        self.assertEqual(s["fingerprint"], "new")
+
+    def test_update_pass_clears_counter(self) -> None:
+        s = lr2.update_stuck({"consecutive_fail": 5, "fingerprint": "x"}, None)
+        self.assertEqual(s["consecutive_fail"], 0)
+        self.assertIsNone(s["fingerprint"])
+
+
+class SummarizeMetricsTests(unittest.TestCase):
+    def test_aggregates_run_and_per_phase(self) -> None:
+        records = [
+            {"event": "verify", "phase": "01", "ok": False, "fail_streak": 1},
+            {"event": "verify", "phase": "01", "ok": True, "fail_streak": 0},
+            {"event": "complete_phase", "phase": "01"},
+            {"event": "verify", "phase": "02", "ok": False, "fail_streak": 1},
+            {"event": "complete_run"},
+        ]
+        s = lr2.summarize_metrics(records)
+        self.assertEqual(s["verify_attempts"], 3)
+        self.assertEqual(s["verify_passes"], 1)
+        self.assertEqual(s["verify_fails"], 2)
+        self.assertEqual(s["phases_completed"], 1)
+        self.assertTrue(s["run_completed"])
+        self.assertTrue(s["per_phase"]["01"]["completed"])
+        self.assertFalse(s["per_phase"]["02"]["completed"])
+
+    def test_empty_stream(self) -> None:
+        s = lr2.summarize_metrics([])
+        self.assertEqual(s["verify_attempts"], 0)
+        self.assertFalse(s["run_completed"])
+
+
 class GateCommandIntegrationTests(unittest.TestCase):
     """side-effecting 命令用临时 workspace 集成测(verify 真跑脚本、complete-phase 真翻 fix_plan)。"""
 
@@ -771,6 +831,51 @@ class GateCommandIntegrationTests(unittest.TestCase):
             code, _ = self._run(["complete-run", "--workspace", str(ws)])
             self.assertEqual(code, 0)
             self.assertEqual(json.loads((ws / "state.json").read_text())["state"], "completed")
+
+    def test_verify_persists_stuck_and_emits_metric(self) -> None:
+        # L26: 同一失败连跑两次 → stuck.json 计数到 2 + STUCK 警告 + metrics.jsonl 各记一条
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.sh").write_text("echo 'FAIL test_x assertion'\nexit 1\n", encoding="utf-8")
+            self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            code, out = self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 2)
+            stuck = json.loads((ws / "phases" / "02" / "stuck.json").read_text())
+            self.assertEqual(stuck["consecutive_fail"], 2)
+            self.assertIn("STUCK", out)
+            metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
+            self.assertEqual(len([m for m in metrics if m["event"] == "verify"]), 2)
+            self.assertEqual(metrics[-1]["fail_streak"], 2)
+
+    def test_verify_pass_clears_stuck(self) -> None:
+        # 先失败累计, 再通过 → 计数清零, 不再报 STUCK
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.sh").write_text("echo 'FAIL x'\nexit 1\n", encoding="utf-8")
+            self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            (ws / "phases" / "02" / "verify.sh").write_text("echo ok\nexit 0\n", encoding="utf-8")
+            code, out = self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            self.assertEqual(code, 0)
+            self.assertNotIn("STUCK", out)
+            stuck = json.loads((ws / "phases" / "02" / "stuck.json").read_text())
+            self.assertEqual(stuck["consecutive_fail"], 0)
+
+    def test_stats_summarizes_after_verify(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "phases" / "02" / "verify.sh").write_text("echo ok\nexit 0\n", encoding="utf-8")
+            self._run(["verify", "--workspace", str(ws), "--phase", "02"])
+            code, out = self._run(["stats", "--workspace", str(ws)])
+            self.assertEqual(code, 0)
+            self.assertIn("phase 02", out)
+            self.assertIn("1/1 pass", out)
+
+    def test_stats_without_metrics_is_not_error(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            code, out = self._run(["stats", "--workspace", str(ws)])
+            self.assertEqual(code, 0)
+            self.assertIn("尚无", out)
 
 
 if __name__ == "__main__":

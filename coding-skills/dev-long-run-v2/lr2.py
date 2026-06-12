@@ -8,6 +8,7 @@ state.json 扩字段、worktree/分支命名。spec: docs/specs/dev-long-run-v2/
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -372,6 +373,88 @@ def acceptance_gate(acceptance: dict | None) -> dict:
             "acceptance.json.ok 必须为真"
         ]}
     return {"ok": True, "reasons": []}
+
+
+# ---------------------------------------------------------------------------
+# 卡死检测(L26): 把"连续 N 次验证失败"从 orchestrator 记忆里的计数变成磁盘可计算信号。
+# 背景: SKILL 停止条件写了"连续 2 次验证失败"但谁来数? 是对话 agent 凭记忆数——跨 compact /
+# resume 必丢(全局红线"记忆不可信")。借 Ralph circuit_breaker 思路: 跨轮持久化失败计数 + 错误
+# 指纹比对, 同一指纹反复出现才累加, 指纹变了说明错误在演化(还在推进)→ 重置, 不误判卡死。
+# ---------------------------------------------------------------------------
+STUCK_THRESHOLD = 2  # 连续同指纹失败达此数即判 stuck(对齐 SKILL "连续 2 次验证失败")
+
+_FAIL_LINE_RE = re.compile(
+    r"(FAIL|FAILED|Error|error:|Traceback|assert|Exception|panic|\bnot ok\b|✗|✕)", re.IGNORECASE
+)
+
+
+def _normalize_noise(text: str) -> str:
+    """把易变噪声(行号/耗时/计数/temp 路径/内存地址)归一, 让"同一个失败"在多次跑之间指纹稳定。
+    注: 数字全折成 N 是刻意激进——若两次失败只差一个数字(行号/计数), 大概率仍是同一个卡点。"""
+    text = re.sub(r"0x[0-9a-fA-F]+", "0xADDR", text)
+    text = re.sub(r"/tmp/[^\s:]+", "/tmp/PATH", text)
+    text = re.sub(r"\d+", "N", text)
+    return text
+
+
+def verify_fingerprint(verify: dict | None) -> str | None:
+    """从一次 verify 执行结果取"失败指纹"。verify 通过(或缺失)→ None(无失败可指纹)。
+    取 output_tail 里命中失败模式的行(没有则回落末 20 行) + exit code, 归一噪声后 sha1 截断。
+    纯函数: 同样的失败输出 → 同样的指纹, 供 update_stuck 跨轮比对。"""
+    if not verify or verify.get("ok"):
+        return None
+    tail = str(verify.get("output_tail", ""))
+    lines = [ln.strip() for ln in tail.splitlines() if ln.strip()]
+    salient = [ln for ln in lines if _FAIL_LINE_RE.search(ln)]
+    basis = [f"exit={verify.get('exit')}"] + (salient or lines[-20:])
+    norm = _normalize_noise("\n".join(basis))
+    return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:12]
+
+
+def update_stuck(prev: dict | None, fingerprint: str | None) -> dict:
+    """纯转换: 据本轮 verify 指纹更新失败计数器。
+    - 通过(fingerprint None) → 清零。
+    - 同上轮指纹 → consecutive_fail+1(原地打转)。
+    - 换了指纹 → 重置为 1(错误在演化=还在推进, 不算卡死; 直接抄 Ralph)。"""
+    prev = prev or {}
+    prev_fp = prev.get("fingerprint")
+    prev_n = int(prev.get("consecutive_fail", 0) or 0)
+    if fingerprint is None:
+        return {"consecutive_fail": 0, "fingerprint": None}
+    if fingerprint == prev_fp:
+        return {"consecutive_fail": prev_n + 1, "fingerprint": fingerprint}
+    return {"consecutive_fail": 1, "fingerprint": fingerprint}
+
+
+def summarize_metrics(records: list[dict]) -> dict:
+    """纯聚合 metrics.jsonl 的事件流 → run 级 + per-phase 汇总。stats 命令用它出人话报告。"""
+    summary: dict = {
+        "verify_attempts": 0, "verify_passes": 0, "verify_fails": 0,
+        "phases_completed": 0, "run_completed": False, "per_phase": {},
+    }
+    for rec in records:
+        event = rec.get("event")
+        phase = str(rec.get("phase", "")) if rec.get("phase") is not None else ""
+        if event == "verify":
+            summary["verify_attempts"] += 1
+            ph = summary["per_phase"].setdefault(phase, {"verify_attempts": 0, "passes": 0, "fails": 0,
+                                                         "fail_streak": 0, "completed": False})
+            ph["verify_attempts"] += 1
+            if rec.get("ok"):
+                summary["verify_passes"] += 1
+                ph["passes"] += 1
+            else:
+                summary["verify_fails"] += 1
+                ph["fails"] += 1
+            ph["fail_streak"] = int(rec.get("fail_streak", ph["fail_streak"]) or 0)
+        elif event == "complete_phase":
+            summary["phases_completed"] += 1
+            ph = summary["per_phase"].setdefault(phase, {"verify_attempts": 0, "passes": 0, "fails": 0,
+                                                         "fail_streak": 0, "completed": False})
+            ph["completed"] = True
+        elif event == "complete_run":
+            summary["run_completed"] = True
+    return summary
 
 
 def pane_registered(rows: list[dict[str, str]], pane_id: str) -> bool:
@@ -982,6 +1065,17 @@ def cmd_resume(args: argparse.Namespace) -> int:
     for row in parse_sessions((workspace / "SESSIONS.md").read_text(encoding="utf-8")):
         alive = pane_is_alive(live, row["pane_id"])
         sys.stdout.write(f"  {row['role']:18} {row['pane_id']:6} {'ALIVE' if alive else 'DEAD(重开 fresh 读 HANDOFF / 标 failed)'}\n")
+    # L26: 卡死计数从磁盘恢复(不靠记忆)——崩溃重启后仍能看到"哪个 phase 在同一失败上反复栽"。
+    phases_dir = workspace / "phases"
+    if phases_dir.is_dir():
+        for sj in sorted(phases_dir.glob("*/stuck.json")):
+            data = json.loads(sj.read_text(encoding="utf-8"))
+            n = int(data.get("consecutive_fail", 0) or 0)
+            if n >= STUCK_THRESHOLD:
+                sys.stdout.write(
+                    f"  STUCK: {sj.parent.name} 连续 {n} 次相同失败(指纹 {data.get('fingerprint')}) "
+                    f"—— 续做前先 /think-unstuck, 别盲目重试\n"
+                )
     return 0
 
 
@@ -989,6 +1083,15 @@ def _append_log(workspace: Path, msg: str) -> None:
     p = workspace / "logs.md"
     prev = p.read_text(encoding="utf-8") if p.exists() else "# Logs\n"
     p.write_text(prev + f"- {_now()}: {msg}\n", encoding="utf-8")
+
+
+def append_metric(workspace: Path, record: dict) -> None:
+    """向 <ws>/metrics.jsonl 追加一行结构化事件(机器可读运行流水, append-only)。
+    自动补 ts; 喂 `lr2.py stats` 出汇总, 也是 stuck 计数的派生来源。纯增量、零回改, 不阻断任何门禁。"""
+    line = json.dumps({"ts": _now(), **record}, ensure_ascii=False)
+    p = workspace / "metrics.jsonl"
+    with p.open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -1017,6 +1120,23 @@ def cmd_verify(args: argparse.Namespace) -> int:
         summary = verify_summary(124, (partial or "") + f"\n[lr2] TIMEOUT: {label} 超过 {args.timeout}s 未结束(挂起按失败处理)")
     out_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(f"{'OK' if summary['ok'] else 'FAIL'} {label} exit={summary['exit']} → {out_path.name}\n")
+    if args.acceptance:
+        # acceptance 是端到端验收(非 phase 内 rework 回合), 只记一条 metric, 不参与 stuck 计数。
+        append_metric(workspace, {"event": "acceptance", "ok": summary["ok"], "exit": summary["exit"]})
+    else:
+        # L26 卡死检测: 持久化失败计数 + 错误指纹(磁盘 SSOT, 不靠 orchestrator 记忆)。
+        stuck_path = pdir / "stuck.json"
+        prev = json.loads(stuck_path.read_text(encoding="utf-8")) if stuck_path.exists() else {}
+        new = update_stuck(prev, verify_fingerprint(summary))
+        stuck_path.write_text(json.dumps(new, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        append_metric(workspace, {"event": "verify", "phase": args.phase, "ok": summary["ok"],
+                                  "exit": summary["exit"], "fail_streak": new["consecutive_fail"],
+                                  "fingerprint": new["fingerprint"]})
+        if new["consecutive_fail"] >= STUCK_THRESHOLD:
+            sys.stdout.write(
+                f"STUCK: phase {args.phase} 连续 {new['consecutive_fail']} 次相同失败"
+                f"(指纹 {new['fingerprint']}) —— 原地打转, 别再盲改, 调 /think-unstuck 结构化排查或问用户\n"
+            )
     return 0 if summary["ok"] else 2
 
 
@@ -1084,12 +1204,38 @@ def cmd_complete_phase(args: argparse.Namespace) -> int:
     state["phase"] = args.phase
     save_state(workspace / "state.json", state)
     _append_log(workspace, f"phase {args.phase} gate passed → marked complete")
+    append_metric(workspace, {"event": "complete_phase", "phase": args.phase})
     # L24 teardown 兜底: 门禁已过, 清掉该 phase 残留的 planner/reviewer。coder 不在这里关 —
     # 它由下一 phase 的 fresh launch 关闭(L6), run 收尾时 complete-run 兜底全关。
     closed = _close_roles(workspace, PHASE_TRANSIENT_ROLES)
     if closed:
         _append_log(workspace, f"phase {args.phase} teardown: closed {' '.join(closed)}")
     sys.stdout.write(f"phase {args.phase} 完成(门禁已过, fix_plan 已勾)\n")
+    return 0
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    """只读: 读 metrics.jsonl 出 run 级 + per-phase 汇总。orchestrator 用它给用户报进度,
+    不靠记忆复述(呼应红线: 无证据不算数)。无 metrics 文件 → 提示尚无事件, 退出 0(非错误)。"""
+    workspace = Path(args.workspace).resolve()
+    mp = workspace / "metrics.jsonl"
+    if not mp.exists():
+        sys.stdout.write("(尚无 metrics.jsonl —— 还没跑过 verify/complete-phase)\n")
+        return 0
+    records = [json.loads(ln) for ln in mp.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    s = summarize_metrics(records)
+    sys.stdout.write(
+        f"run: phases_completed={s['phases_completed']} run_completed={s['run_completed']} "
+        f"verify={s['verify_passes']}/{s['verify_attempts']} pass (fails={s['verify_fails']})\n"
+    )
+    for phase in sorted(s["per_phase"]):
+        ph = s["per_phase"][phase]
+        flag = "✓" if ph["completed"] else " "
+        stuck = f" STUCK×{ph['fail_streak']}" if ph["fail_streak"] >= STUCK_THRESHOLD else ""
+        sys.stdout.write(
+            f"  [{flag}] phase {phase}: verify {ph['passes']}/{ph['verify_attempts']} pass, "
+            f"fails={ph['fails']}, streak={ph['fail_streak']}{stuck}\n"
+        )
     return 0
 
 
@@ -1114,6 +1260,7 @@ def cmd_complete_run(args: argparse.Namespace) -> int:
     state["state"] = "completed"
     save_state(workspace / "state.json", state)
     _append_log(workspace, "run completed: acceptance gate passed")
+    append_metric(workspace, {"event": "complete_run"})
     # L24 teardown: run 结束清掉所有 worker(含跨 phase 的 coder); --keep-panes 保留现场调试。
     if args.keep_panes:
         _append_log(workspace, "teardown skipped (--keep-panes)")
@@ -1207,6 +1354,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("--phase", required=True)
     p.set_defaults(func=cmd_complete_phase)
+
+    p = sub.add_parser("stats", help="只读: 读 metrics.jsonl 出 run/per-phase 进度 + 卡死汇总")
+    p.add_argument("--workspace", required=True)
+    p.set_defaults(func=cmd_stats)
 
     p = sub.add_parser("complete-run", help="过 acceptance 门禁才置 state=completed")
     p.add_argument("--workspace", required=True)

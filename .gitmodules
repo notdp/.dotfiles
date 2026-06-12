@@ -184,3 +184,6 @@
 [submodule "refs/anthropics/claude-code-security-review"]
 	path = refs/anthropics/claude-code-security-review
 	url = https://github.com/anthropics/claude-code-security-review
+[submodule "refs/frankbria/ralph-claude-code"]
+	path = refs/frankbria/ralph-claude-code
+	url = https://github.com/frankbria/ralph-claude-code.git

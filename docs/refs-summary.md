@@ -12,7 +12,7 @@
 - **浏览器自动化与前端调试**：围绕浏览器控制、前端诊断、性能分析、页面抓取与 UI 调试。 代表项目：`ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser`
 - **技能集合与市场**：以 skills 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
 - **LLM 应用模板 / Agent 示例库**：围绕可运行 LLM app、RAG、MCP、语音、多智能体、微调和 Agent Skills 示例。 代表项目：`Shubhamsaboo/awesome-llm-apps`
-- **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`
+- **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`、`frankbria/ralph-claude-code`（单 agent 自主长循环 harness）
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
 - **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
 - **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
@@ -43,6 +43,7 @@
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 浏览器自动化与前端调试 | 通过 MCP 控制真实 Chrome，提供自动化、调试、性能分析和配套 skills。 |
 | [`Dimillian/Skills`](./refs-details/Dimillian/Skills.md) | 技能集合与市场 | 偏精选型的 skills 集合，覆盖 Apple 平台开发、GitHub 操作、review swarm、React 性能和重构。 |
 | [`EveryInc/compound-engineering-plugin`](./refs-details/EveryInc/compound-engineering-plugin.md) | 研发流程 / 经验复利工作流 | Every 的多平台 AI 工程工作流插件（37+ skills、50+ agents），把计划→执行→审查→沉淀做成复利闭环，核心是 `docs/solutions/` 这个带受控 frontmatter、可被未来 agent grep 检索并默认前置消费的机构记忆库。 |
+| [`frankbria/ralph-claude-code`](./refs-details/frankbria/ralph-claude-code.md) | 多智能体协作与工作流编排 | Geoffrey Huntley "Ralph" 技巧的工程化 bash 实现，把 Claude Code 包成无人值守自主开发循环（完成信号双门控 + 熔断器 + 速率限制 + Docker/E2B 沙箱），与我们人在环监督的 dev-long-run-v2 哲学相反，值得吸收的是它把卡死/完成/进展落成磁盘可计算信号的机械可靠性。 |
 | [`garrytan/gstack`](./refs-details/garrytan/gstack.md) | 研发流程 / 多智能体工程工作流 | 面向 Claude Code 及多种 AI 编码代理的工程工作流套件，把产品规划、架构评审、浏览器 QA、代码审查、安全审计、发布部署和跨会话记忆组织成可安装 skill 与本地浏览器运行时。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 技能集合与市场 | GitHub 官方运营的 Copilot 资源集合，统一管理 agents / instructions / skills / hooks / agentic workflows / plugins，并配套 marketplace、网站与 CLI 安装。 |
 | [`glittercowboy/taches-cc-resources`](./refs-details/glittercowboy/taches-cc-resources.md) | 技能集合与市场 | 面向 Claude Code 的资源仓库，主打技能开发、规划分层、MCP 服务生成、调试方法论与 Ralph 自治循环。 |
