@@ -187,3 +187,6 @@
 [submodule "refs/frankbria/ralph-claude-code"]
 	path = refs/frankbria/ralph-claude-code
 	url = https://github.com/frankbria/ralph-claude-code.git
+[submodule "refs/anthropics/claude-plugins-official"]
+	path = refs/anthropics/claude-plugins-official
+	url = https://github.com/anthropics/claude-plugins-official

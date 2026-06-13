@@ -40,6 +40,20 @@ class SkillMaintenanceCollectTests(unittest.TestCase):
         after = {path.relative_to(REPO_ROOT).as_posix() for path in REPO_ROOT.glob("docs/skill-maintenance-runs/**/*") if path.exists()}
         self.assertEqual(after, before)
 
+    def test_inventory_exposes_cross_agent_asset_map(self) -> None:
+        payload = skill_maintenance_collect.inventory(REPO_ROOT)
+
+        assets = payload["assets"]
+        self.assertGreaterEqual(assets["skills"]["count"], 1)
+        self.assertIn("coding-skills/guard-review/SKILL.md", assets["skills"]["paths"])
+        self.assertGreaterEqual(assets["coding_agents"]["count"], 1)
+        self.assertIn("claude", assets["coding_agents"]["by_runtime"])
+        self.assertIn("opencode", assets["coding_agents"]["by_runtime"])
+        self.assertGreaterEqual(assets["hooks"]["count"], 1)
+        self.assertGreaterEqual(assets["refs_details"]["count"], 1)
+        self.assertGreaterEqual(assets["distribution_links"]["count"], 1)
+        self.assertIn("claude", assets["distribution_links"]["targets"])
+
     def test_session_sampling_reads_real_io_but_excludes_raw_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -203,7 +217,7 @@ class SkillMaintenanceCollectTests(unittest.TestCase):
             (scripts_dir / "verify_skills.py").write_text(
                 "#!/usr/bin/env python3\n"
                 "print('validated 10 skill routing cases')\n"
-                "print('validated agent assets: agents=2 commands=5 plugin_manifests=0')\n",
+                "print('validated agent assets: agents=2 commands=5 plugin_manifests=0 hooks=3 ref_details=4 distribution_links=14')\n",
                 encoding="utf-8",
             )
             subprocess.run(["git", "init", str(repo)], check=True, text=True, capture_output=True)
@@ -213,6 +227,9 @@ class SkillMaintenanceCollectTests(unittest.TestCase):
         ids = {finding["id"] for finding in findings}
         self.assertIn("skill-routing-cases-validated", ids)
         self.assertIn("agent-assets-validated", ids)
+        asset_finding = next(finding for finding in findings if finding["id"] == "agent-assets-validated")
+        self.assertIn("hooks=3", asset_finding["evidence"])
+        self.assertIn("distribution_links=14", asset_finding["evidence"])
 
     def test_refs_fetch_timeout_is_reported_without_stopping_collection(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

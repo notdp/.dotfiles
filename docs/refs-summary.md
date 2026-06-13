@@ -10,7 +10,7 @@
 ## 分类说明
 
 - **浏览器自动化与前端调试**：围绕浏览器控制、前端诊断、性能分析、页面抓取与 UI 调试。 代表项目：`ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser`
-- **技能集合与市场**：以 skills 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
+- **技能集合与市场**：以 skills / plugins 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/claude-plugins-official`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
 - **LLM 应用模板 / Agent 示例库**：围绕可运行 LLM app、RAG、MCP、语音、多智能体、微调和 Agent Skills 示例。 代表项目：`Shubhamsaboo/awesome-llm-apps`
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`、`frankbria/ralph-claude-code`（单 agent 自主长循环 harness）
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
@@ -35,6 +35,7 @@
 | [`addyosmani/agent-skills`](./refs-details/addyosmani/agent-skills.md) | 研发流程 / Agent Skill 工作流 | 面向 AI coding agent 的生产级软件工程 skill 包，把 spec、plan、build、test、review、simplify、ship 串成带验证门禁的生命周期工作流。 |
 | [`addyosmani/web-quality-skills`](./refs-details/addyosmani/web-quality-skills.md) | 代码质量 / 审查 / 调试 | 面向 Web 质量审查与优化的技能仓库，围绕 Lighthouse、Core Web Vitals、可访问性、SEO 和现代最佳实践组织。 |
 | [`anthropics/claude-code-security-review`](./refs-details/anthropics/claude-code-security-review.md) | 安全 / 网络安全技能库 | Anthropic 官方 AI 安全审查 GitHub Action，用 Python 编排层把 Claude Code 的非确定性安全审计包成可在 CI 运行的 pipeline，核心资产是三层误报过滤漏斗和 17 条误报判例。 |
+| [`anthropics/claude-plugins-official`](./refs-details/anthropics/claude-plugins-official.md) | 技能集合与市场 / Claude Code 插件市场 | Anthropic 官方维护的 Claude Code plugins marketplace，提供 plugin manifest、marketplace registry、commands / agents / skills / MCP 的组合分发样本，适合吸收资产 registry、专科 review、preflight gate、Business Rule Card、Hookify 与 session report 模式。 |
 | [`anthropics/skills`](./refs-details/anthropics/skills.md) | 技能集合与市场 | Anthropic 官方示例 skills 仓库，附带规范、模板，以及文档处理与开发类技能示例。 |
 | [`automazeio/ccpm`](./refs-details/automazeio/ccpm.md) | 研发流程 / 项目管理 | 单技能形态的项目管理与交付编排系统，把 PRD、Epic、Issues、并行 agents 和状态跟踪串成 spec-driven workflow。 |
 | [`awslabs/agent-plugins`](./refs-details/awslabs/agent-plugins.md) | AWS Agent 插件与云开发技能集合 | AWS Labs 的 agent 插件市场仓库，把 AWS 架构、部署、Serverless、Amplify、数据库、SageMaker、迁移现代化等工作流打包为可安装的 skills、MCP servers、hooks 与 references。 |
@@ -162,3 +163,4 @@
 - `K-Dense-AI/scientific-agent-skills` 属于科研 / 数据分析 / 领域技能的大型样本，适合参考 taxonomy、`SKILL.md` + `scripts/` + `references/` 的重型 skill 结构和安全扫描门禁；不适合整包安装到默认 skills。
 - `millionco/react-doctor`、`addyosmani/web-quality-skills`、`tirth8205/code-review-graph` 都属于代码质量/审查范畴：前者偏 React 代码体检，第二个偏 Lighthouse / CWV / a11y / SEO 的 Web 质量审查，后者偏本地结构图谱、blast radius 与 token-efficient review context。
 - `tanweai/pua` 和 `HughYau/qiushi-skill` 都属于行为协议/提示工程类，前者偏高压激励/行为约束，后者偏哲学方法论/分析框架，二者互补。
+- `anthropics/claude-plugins-official` 是 Claude Code plugins 官方市场目录：适合参考 marketplace manifest、plugin structure、外部插件 SHA pin、PR review 专科 agents、modernization preflight、Business Rule Card、Hookify 和 session report；不适合直接安装或默认启用其中插件，尤其是含 MCP / external service / channel access 的 external plugins。

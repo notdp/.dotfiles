@@ -156,6 +156,9 @@ class AssetValidationSummary:
     agents: int = 0
     commands: int = 0
     plugin_manifests: int = 0
+    hooks: int = 0
+    ref_details: int = 0
+    distribution_links: int = 0
 
 
 def fail(message: str) -> None:
@@ -804,6 +807,8 @@ def validate_agent_assets(context: ValidationContext) -> AssetValidationSummary:
     agent_files = sorted((context.repo_root / ".kilo" / "agent").glob("*.md")) if (context.repo_root / ".kilo" / "agent").exists() else []
     command_files = sorted((context.repo_root / "commands").glob("*.md")) if (context.repo_root / "commands").exists() else []
     manifests = iter_repo_plugin_manifests(context)
+    hook_files = sorted((context.repo_root / "scripts" / "hooks").glob("*.py")) if (context.repo_root / "scripts" / "hooks").exists() else []
+    ref_detail_files = sorted((context.repo_root / "docs" / "refs-details").glob("*/*.md")) if (context.repo_root / "docs" / "refs-details").exists() else []
     for agent_file in agent_files:
         validate_agent_asset(agent_file)
     for command_file in command_files:
@@ -814,7 +819,25 @@ def validate_agent_assets(context: ValidationContext) -> AssetValidationSummary:
         agents=len(agent_files),
         commands=len(command_files),
         plugin_manifests=len(manifests),
+        hooks=len(hook_files),
+        ref_details=len(ref_detail_files),
+        distribution_links=count_distribution_links(context),
     )
+
+
+def count_distribution_links(context: ValidationContext) -> int:
+    """Count cross-agent asset targets exposed by install_hooks.py's policy.
+
+    This is an inventory signal, not an install status check. It counts only
+    link slots whose source asset exists in this repo so temporary test repos
+    can exercise the behavior without touching the user's HOME.
+    """
+    source_slots = [
+        (context.repo_root / "commands", 5),
+        (context.repo_root / "coding-skills", 5),
+        (context.repo_root / "agents" / "AGENTS.md", 4),
+    ]
+    return sum(slot_count for source, slot_count in source_slots if source.exists())
 
 
 def validate_catalog_coverage(context: ValidationContext, entries: list[SkillEntry]) -> None:
@@ -864,7 +887,9 @@ def main() -> int:
         print(
             "validated agent assets: "
             f"agents={asset_summary.agents} commands={asset_summary.commands} "
-            f"plugin_manifests={asset_summary.plugin_manifests}"
+            f"plugin_manifests={asset_summary.plugin_manifests} "
+            f"hooks={asset_summary.hooks} ref_details={asset_summary.ref_details} "
+            f"distribution_links={asset_summary.distribution_links}"
         )
     except ValidationError as error:
         print(str(error), file=sys.stderr)

@@ -46,6 +46,7 @@ def inventory(repo: Path) -> dict[str, Any]:
     root_commands = sorted((repo / "commands").glob("*.md")) if (repo / "commands").exists() else []
     hook_scripts = sorted((repo / "scripts" / "hooks").glob("*.py")) if (repo / "scripts" / "hooks").exists() else []
     hook_tests = sorted((repo / "scripts" / "tests").glob("test_hook_*.py")) if (repo / "scripts" / "tests").exists() else []
+    assets = asset_inventory(repo, skill_files, root_commands, hook_scripts)
     return {
         "skill_count": len(skill_files),
         "skills": [str(path.relative_to(repo)) for path in skill_files],
@@ -54,6 +55,68 @@ def inventory(repo: Path) -> dict[str, Any]:
         "hook_scripts": [str(path.relative_to(repo)) for path in hook_scripts],
         "hook_tests": [str(path.relative_to(repo)) for path in hook_tests],
         "micro_refs": str((repo / "docs" / "refs-micro-index.md").relative_to(repo)) if (repo / "docs" / "refs-micro-index.md").exists() else None,
+        "assets": assets,
+    }
+
+
+def rel_paths(repo: Path, paths: list[Path]) -> list[str]:
+    return [str(path.relative_to(repo)) for path in paths]
+
+
+def coding_agent_inventory(repo: Path) -> dict[str, Any]:
+    root = repo / "coding-agents"
+    by_runtime: dict[str, int] = {}
+    paths: list[Path] = []
+    if root.exists():
+        for runtime_dir in sorted(path for path in root.iterdir() if path.is_dir()):
+            runtime_files = sorted(runtime_dir.glob("*.md"))
+            by_runtime[runtime_dir.name] = len(runtime_files)
+            paths.extend(runtime_files)
+    return {"count": len(paths), "by_runtime": by_runtime, "paths": rel_paths(repo, paths)}
+
+
+def distribution_link_inventory(repo: Path) -> dict[str, Any]:
+    """Return install target slots implied by scripts/install_hooks.py.
+
+    This mirrors the current cross-agent asset policy without importing the
+    installer, so collection stays side-effect free and independent of HOME.
+    """
+    target_slots = {
+        "claude": [(repo / "commands", "commands"), (repo / "coding-skills", "skills")],
+        "codex": [(repo / "agents" / "AGENTS.md", "AGENTS.md"), (repo / "commands", "prompts"), (repo / "coding-skills", "skills")],
+        "factory": [(repo / "agents" / "AGENTS.md", "AGENTS.md"), (repo / "commands", "commands"), (repo / "coding-skills", "skills")],
+        "opencode": [(repo / "agents" / "AGENTS.md", "AGENTS.md"), (repo / "commands", "commands"), (repo / "coding-skills", "skills")],
+        "kilo": [(repo / "agents" / "AGENTS.md", "AGENTS.md"), (repo / "commands", "commands"), (repo / "coding-skills", "skills")],
+    }
+    targets: dict[str, list[str]] = {}
+    for runtime, slots in target_slots.items():
+        available = [label for source, label in slots if source.exists()]
+        if available:
+            targets[runtime] = available
+    return {"count": sum(len(slots) for slots in targets.values()), "targets": targets}
+
+
+def asset_inventory(repo: Path, skill_files: list[Path], root_commands: list[Path], hook_scripts: list[Path]) -> dict[str, Any]:
+    kilo_agents = sorted((repo / ".kilo" / "agent").glob("*.md")) if (repo / ".kilo" / "agent").exists() else []
+    ref_details = sorted((repo / "docs" / "refs-details").glob("*/*.md")) if (repo / "docs" / "refs-details").exists() else []
+    plugin_manifests = [
+        path
+        for path in (
+            repo / ".codex-plugin" / "plugin.json",
+            repo / ".claude-plugin" / "plugin.json",
+            repo / ".agents" / "plugins" / "marketplace.json",
+        )
+        if path.exists()
+    ]
+    return {
+        "skills": {"count": len(skill_files), "paths": rel_paths(repo, skill_files)},
+        "commands": {"count": len(root_commands), "paths": rel_paths(repo, root_commands)},
+        "coding_agents": coding_agent_inventory(repo),
+        "project_agents": {"count": len(kilo_agents), "paths": rel_paths(repo, kilo_agents)},
+        "hooks": {"count": len(hook_scripts), "paths": rel_paths(repo, hook_scripts)},
+        "refs_details": {"count": len(ref_details), "paths": rel_paths(repo, ref_details)},
+        "plugin_manifests": {"count": len(plugin_manifests), "paths": rel_paths(repo, plugin_manifests)},
+        "distribution_links": distribution_link_inventory(repo),
     }
 
 

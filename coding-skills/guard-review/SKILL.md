@@ -41,6 +41,25 @@ python3 "<dotfiles_root>/scripts/collect_diff.py" a1b2..HEAD   # commit 范围
 
 ### 审查维度
 
+先做 **Aspect Routing**，再展开细查。不要把所有 diff 都默认升级成全量专项 review；每个 aspect 必须有触发证据或明确 skip reason。
+
+| Aspect | 触发信号 | 路由 / 重点 | Skip reason 示例 |
+|---|---|---|---|
+| `code` | 默认适用；有代码、脚本、配置行为变化 | 正确性、边界、需求、回归；沿用本 skill 默认维度 | 纯 docs / refs 分析，且不改变 runtime 行为 |
+| `tests` | 新增行为、bug fix、测试文件变化、验证缺口、用户声称已完成 | 测试覆盖关键路径、行为而非实现；必要时回到 `/dev-tdd` | 纯文档或只读 refs 登记，无行为变化 |
+| `errors` | catch / fallback / retry / timeout / logging / 外部调用 / 状态变更 / silent failure 相关 diff | 错误是否可发现、是否带上下文、是否有 heartbeat / summary；细则见 `/dev-observe` | diff 不触及错误路径、外部调用或状态变更 |
+| `types` | schema、domain model、API envelope、状态机、权限模型、数据结构或类型定义新增/修改 | invariant 是否显式、构造/变更点是否 enforce、非法状态是否可被创建；复杂结构可转 `/think-quality` | 无新增/修改类型或数据 contract |
+| `comments` | 新增/修改注释、README、docs、示例、inline explanation | 注释是否和代码事实一致、是否会 comment rot、是否暗示未实现行为 | 没有说明性文本变更 |
+| `simplify` | blocker 修完后、review 基本通过但 diff 可读性/重复/局部性仍有改进空间 | 路由到 `/dev-simplify`；只做轻量 cleanup，不改变目标边界 | 存在 Critical / Important blocker，或 cleanup 会混入行为变化 |
+
+Aspect 选择规则：
+
+- `code` 是默认基线，但 docs-only / refs-only 变更可以 skip，避免伪 review。
+- `errors` 命中时，必须检查 silent failure，而不是只看 happy path。
+- `types` 命中时，按 invariant 语言审查：encapsulation、expression、usefulness、enforcement；不要为了“更强类型”破坏项目 convention 或 YAGNI。
+- `simplify` 永远排在 correctness/security/test blocker 之后；它不能抢先改代码，也不能把 review 变成重构建议会。
+- 对每个未运行的 aspect 写一句 skip reason，让读者知道是基于 diff 裁剪，而不是遗漏。
+
 - [ ] 正确性：逻辑、边界、错误处理
 - [ ] 可观测性：错误路径是否静默吞错、错误是否带定位上下文、外部调用/状态变更/关键分支是否可观测、新增观测点是否分级合理（不过度埋点）；细则见 `/dev-observe`
 - [ ] 架构：关注点分离、耦合度、依赖方向
@@ -83,6 +102,16 @@ python3 "<dotfiles_root>/scripts/collect_diff.py" a1b2..HEAD   # commit 范围
 - 范围: `...`
 - 文件: N
 - +Added / -Removed
+
+### Aspect Coverage
+| Aspect | Status | Evidence / Skip reason |
+|---|---|---|
+| code | run / skipped | <改动含代码文件 / 纯 docs-only> |
+| tests | run / skipped | <行为变化 / 无行为变化> |
+| errors | run / skipped | <catch/fallback/retry/logging 命中 / 未触及错误路径> |
+| types | run / skipped | <schema/domain/API envelope 命中 / 无类型或数据 contract 变化> |
+| comments | run / skipped | <docs/comment 变化 / 无说明性文本变更> |
+| simplify | run / skipped | <blocker 已清 / blocker 未清或不适用> |
 
 ### Hard Stops
 - [ ] Destructive auto-execution
