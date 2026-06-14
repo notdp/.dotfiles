@@ -15,6 +15,8 @@ GOLDEN_PROMPT_SAMPLES = (
     (f"重写 file://{REPO_ROOT}/docs/repository-hooks-design-2026-05-15.html", ["Boundary-Decision Capsule"]),
     ("context_capsule.py 是不是针对不同场景注入增强 prompt，要不要交给便宜模型判定器", ["Boundary-Decision Capsule"]),
     ("长会话 compact 后 agent 能看到上次目标、改动文件、最近验证和 todo 摘要吗", []),
+    ("帮我加个缓存", ["Scope Alignment Capsule"]),
+    ("优化这个模块，给我一个重构方案", ["Scope Alignment Capsule", "Planning Task Capsule"]),
 )
 
 

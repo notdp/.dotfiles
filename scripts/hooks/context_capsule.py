@@ -42,6 +42,13 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"(ui|css|react|vue|svelte|tsx|jsx|页面|视觉|截图|figma|overflow|mobile|desktop)", re.I),
     ),
     (
+        "scope-task.md",
+        re.compile(
+            r"(新增|增加|加一个|加个|添加|实现|做一个|做个|改成|换成|重构|优化|implement|refactor|optimi[sz]e|feature)",
+            re.I,
+        ),
+    ),
+    (
         "planning-task.md",
         re.compile(r"(方案|计划|架构|设计|怎么做|approach|architecture|plan|options|phase|spec)", re.I),
     ),
