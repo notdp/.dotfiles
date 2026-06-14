@@ -69,6 +69,15 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
 )
+CAPSULE_SHORT: dict[str, str] = {
+    "scope-task.md": "scope",
+    "planning-task.md": "planning",
+    "debug-task.md": "debug",
+    "security-gitops.md": "security",
+    "ui-task.md": "ui",
+    "boundary-decision.md": "boundary",
+    "operational-task.md": "operational",
+}
 MAX_PROMPT_CONTEXT_CHARS = 2200
 MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做正则 fallback 匹配, 避免尾部粘贴内容撞词(FP 71% 来源)
 
@@ -205,19 +214,13 @@ def resolve_capsule_names(prompt: str) -> list[str]:
     return [name for name, _ in CAPSULE_RULES if name in selected]
 
 
-def json_context(event_name: str, context: str) -> str:
-    if not context:
-        return json.dumps({"suppressOutput": True})
-    return json.dumps(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": event_name,
-                "additionalContext": context,
-            },
-            "suppressOutput": True,
-        },
-        ensure_ascii=False,
-    )
+def json_context(event_name: str, context: str, system_message: str | None = None) -> str:
+    payload: dict = {"suppressOutput": True}
+    if context:
+        payload["hookSpecificOutput"] = {"hookEventName": event_name, "additionalContext": context}
+    if system_message:
+        payload["systemMessage"] = system_message  # CC/Droid 终端通知形式显示, 不进 transcript
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def load_hook_input() -> dict:
@@ -240,12 +243,15 @@ def current_time_note() -> str:
 
 def prompt_context(hook_input: dict) -> str:
     prompt = str(hook_input.get("prompt") or "")
-    capsules = [capsule for name in resolve_capsule_names(prompt) for capsule in [read_capsule(name)] if capsule]
+    names = resolve_capsule_names(prompt)
+    capsules = [capsule for name in names for capsule in [read_capsule(name)] if capsule]
     # 时间行独立 prepend, 不占 capsule 的 MAX_PROMPT_CONTEXT_CHARS 截断预算(它短且必要)。
     context = current_time_note()
     if capsules:
         context += "\n\n---\n\n" + join_capsules(capsules)
-    return json_context("UserPromptSubmit", context)
+    # 可观测: 有 capsule 时给用户一行摘要(systemMessage 在 CC/Droid 终端显示, 不进 transcript、不打扰模型)。
+    system_message = "↳ capsules: " + ", ".join(CAPSULE_SHORT.get(n, n) for n in names) if names else None
+    return json_context("UserPromptSubmit", context, system_message)
 
 
 def join_capsules(capsules: list[str]) -> str:

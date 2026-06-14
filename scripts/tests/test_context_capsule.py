@@ -177,6 +177,21 @@ class ContextCapsuleTests(unittest.TestCase):
         self.assertIn("[system] Current time:", context)
         self.assertRegex(context, r"Current time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}")
 
+    def test_system_message_lists_capsules(self) -> None:
+        # 有 capsule 时给用户一行可观测摘要(systemMessage)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), "帮我加个缓存")  # 正则 fallback → scope
+        payload = json.loads(result.stdout)
+        self.assertIn("systemMessage", payload)
+        self.assertIn("scope", payload["systemMessage"])
+
+    def test_no_system_message_without_capsule(self) -> None:
+        # 无 capsule 时不弹通知(避免每条噪音)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), "随便闲聊几句没什么具体的")
+        payload = json.loads(result.stdout)
+        self.assertNotIn("systemMessage", payload)
+
     def test_long_prompt_tail_keywords_ignored(self) -> None:
         # 开头无触发词, 撞词全在首段(MATCH_HEAD_CHARS)之后 → 只匹首段, 不应注入
         prompt = "帮我确认一下当前这个东西" + ("。" * 250) + " schema metric 数据源 prod 部署 backfill"
