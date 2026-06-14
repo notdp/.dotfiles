@@ -28,6 +28,7 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "security-gitops.md",
         re.compile(
             r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm|"
+            r"发布|上线|下线|回滚|env|gitignore|凭据|密钥|"
             r"external target|exploit|c2|phishing|credential access|lateral movement|brute[- ]?force|auth bypass)",
             re.I,
         ),
@@ -37,13 +38,13 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "debug-task.md",
         re.compile(
             r"(bug|error|fail|failed|flaky|traceback|exception|报错|失败|异常|复现|incident|"
-            r"原因分析|根因|排查|定位|不符合预期)",
+            r"原因分析|根因|排查|定位|不符合预期|不一致|不对|为何|为什么|搞丢|丢失|没生效|不生效)",
             re.I,
         ),
     ),
     (
         "ui-task.md",
-        re.compile(r"(ui|css|react|vue|svelte|tsx|jsx|页面|视觉|截图|figma|overflow|mobile|desktop)", re.I),
+        re.compile(r"(ui|css|react|vue|svelte|tsx|jsx|页面|视觉|截图|figma|overflow|mobile|desktop|布局|对齐|间距|留白|空白|样式|配色|按钮|弹窗)", re.I),
     ),
     (
         "scope-task.md",
@@ -61,12 +62,13 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             r"(封装|wrap|wrapper|包装|包一层|接入|对接|集成|adapter|integration|service\s+wrap|"
             r"schema|response_model|metric|metrics|埋点|指标|data source|数据源|canonical|snapshot|"
-            r"sampling|limit|prod|生产|context|hook|CLAUDE\.md|AGENTS\.md)",
+            r"sampling|limit|context|hook|CLAUDE\.md|AGENTS\.md)",
             re.I,
         ),
     ),
 )
 MAX_PROMPT_CONTEXT_CHARS = 2200
+MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做 capsule 匹配, 避免尾部粘贴内容/日志/上下文撞词(FP 71% 来源)
 
 
 def config_root() -> Path:
@@ -93,7 +95,9 @@ def capsule_heading(capsule: str) -> str:
 
 
 def prompt_for_matching(prompt: str) -> str:
-    return CODE_FENCE_RE.sub("", prompt)
+    stripped = CODE_FENCE_RE.sub("", prompt)
+    # 长 prompt(任务描述/粘贴日志/背景上下文)尾部是 FP 撞词重灾区——只用首段匹配。
+    return stripped[:MATCH_HEAD_CHARS] if len(stripped) > MATCH_HEAD_CHARS else stripped
 
 
 def matching_capsules(prompt: str) -> list[tuple[str, re.Pattern[str], str]]:

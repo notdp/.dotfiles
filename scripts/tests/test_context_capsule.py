@@ -19,6 +19,9 @@ GOLDEN_PROMPT_SAMPLES = (
     ("优化这个模块，给我一个重构方案", ["Scope Alignment Capsule", "Planning Task Capsule"]),
     # 回归: "原有设计"是名词诊断, 不该误匹配 planning; "原因分析"应匹配 debug
     ("这是符合原有设计的吗，如果不符合，是代码问题还是配置问题，给出原因分析", ["Debug Task Capsule"]),
+    # 第二轮: 中文诊断/部署词 recall 回归
+    ("这里发现一个数据不一致，授予角色应该只统计 enable 的数量", ["Debug Task Capsule"]),
+    ("我解决了一个问题，重新发布一下 lzn-sandbox preview", ["Security / GitOps Capsule"]),
 )
 
 
@@ -159,6 +162,14 @@ class ContextCapsuleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.run_capsule(Path(tmp), "thanks")
 
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_long_prompt_tail_keywords_ignored(self) -> None:
+        # 开头无触发词, 撞词全在首段(MATCH_HEAD_CHARS)之后 → 只匹首段, 不应注入
+        prompt = "帮我确认一下当前这个东西" + ("。" * 250) + " schema metric 数据源 prod 部署 backfill"
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), prompt)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
