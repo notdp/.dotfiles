@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 
@@ -68,7 +69,35 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 MAX_PROMPT_CONTEXT_CHARS = 2200
-MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做 capsule 匹配, 避免尾部粘贴内容/日志/上下文撞词(FP 71% 来源)
+MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做正则 fallback 匹配, 避免尾部粘贴内容撞词(FP 71% 来源)
+
+# deepseek 主路由: 三平台 300 样本实测 F1 54% vs 正则 27%, 跨平台稳(正则 kilo 崩到 30%)。
+# 失败(无 key/超时/异常/CAPSULE_NO_LLM)一律 fallback 正则, hook 永不阻塞。
+DEEPSEEK_MODEL = "deepseek-v4-flash"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_TIMEOUT = 6  # 秒; hook timeout 10s, 留余量给 fallback
+DEEPSEEK_KEYFILE = "~/.config/deepseek/apikey"
+DEEPSEEK_SYSTEM = (
+    "你是 capsule 路由分类器。判断用户 prompt 理想情况下应注入哪些 context capsule"
+    "(给 AI 编程助手的纪律提醒)。\n\n"
+    "7 个 capsule(只在与主要意图真正相关时选, 宁缺勿滥):\n"
+    "1. \"Scope Alignment Capsule\" — 要新增/修改/优化/重构功能但问题未锚定(没说清要解决什么问题); "
+    "需求已具体到文件级或纯机械操作则不选。\n"
+    "2. \"Planning Task Capsule\" — 明确要方案/计划/架构/阶段拆分/技术选型。\n"
+    "3. \"Debug Task Capsule\" — 故障/异常/bug/行为不符预期/排查/定位/原因分析。\n"
+    "4. \"Security / GitOps Capsule\" — 生产/部署/远程机器/数据库/secret凭据/权限/推送发布上线下线/供应链/外部安全测试。\n"
+    "5. \"UI Task Capsule\" — 前端/CSS/页面/组件/视觉/截图/布局。\n"
+    "6. \"Boundary-Decision Capsule\" — 改动产生边界决策: service/wrapper/adapter/schema/API契约/"
+    "metric埋点/数据源/采样/上限/hook/CLAUDE.md/AGENTS.md。\n"
+    "7. \"Operational Task Capsule\" — 长耗时批处理/数据同步/回填/迁移脚本/dry-run/apply/可中断长任务。\n\n"
+    "原则: 按主要意图判断, 不是碰到关键词就算(如\"符合原有设计吗\"是诊断不是 planning); "
+    "只选真正相关的; 多数日常 prompt 是空或单个; 选 4+ 个几乎一定过度。\n\n"
+    "只输出一个 JSON 对象 {\"capsules\": [\"名称\", ...]}:\n"
+    "- capsules 是字符串数组, 每个元素必须是上面 7 个 capsule 的精确名称之一\n"
+    "- 禁止任何其他字段, 元素必须是字符串不能是对象\n"
+    "- 都不相关则 {\"capsules\": []}\n"
+    "示例: {\"capsules\": [\"Debug Task Capsule\"]}"
+)
 
 
 def config_root() -> Path:
@@ -111,6 +140,70 @@ def matching_capsules(prompt: str) -> list[tuple[str, re.Pattern[str], str]]:
     ]
 
 
+def deepseek_api_key() -> str | None:
+    key = os.environ.get("DEEPSEEK_API_KEY")
+    if key and key.strip():
+        return key.strip()
+    try:
+        return Path(DEEPSEEK_KEYFILE).expanduser().read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def heading_to_name() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for name, _ in CAPSULE_RULES:
+        heading = capsule_heading(read_capsule(name))
+        if heading:
+            mapping[heading] = name
+    return mapping
+
+
+def classify_with_deepseek(prompt: str) -> set[str] | None:
+    """deepseek 主分类, 返回 capsule 文件名集合; 任何失败返回 None(caller fallback 正则)。"""
+    if os.environ.get("CAPSULE_NO_LLM") or not prompt.strip():
+        return None
+    key = deepseek_api_key()
+    if not key:
+        return None
+    body = json.dumps(
+        {
+            "model": DEEPSEEK_MODEL,
+            "messages": [
+                {"role": "system", "content": DEEPSEEK_SYSTEM},
+                {"role": "user", "content": prompt[:2000]},
+            ],
+            "temperature": 0,
+            "max_tokens": 200,
+            "thinking": {"type": "disabled"},
+            "response_format": {"type": "json_object"},
+        }
+    ).encode("utf-8")
+    try:
+        request = urllib.request.Request(
+            DEEPSEEK_URL,
+            data=body,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=DEEPSEEK_TIMEOUT) as response:
+            payload = json.loads(response.read())
+        content = payload["choices"][0]["message"]["content"]
+        headings = json.loads(content).get("capsules", [])
+    except Exception:
+        return None
+    name_map = heading_to_name()
+    return {name_map[h] for h in headings if isinstance(h, str) and h in name_map}
+
+
+def resolve_capsule_names(prompt: str) -> list[str]:
+    """决定注入哪些 capsule: deepseek 主, 失败 fallback 正则。返回按 CAPSULE_RULES 顺序的文件名。"""
+    selected = classify_with_deepseek(prompt)
+    if selected is None:
+        searchable = prompt_for_matching(prompt)
+        selected = {name for name, pattern in CAPSULE_RULES if pattern.search(searchable)}
+    return [name for name, _ in CAPSULE_RULES if name in selected]
+
+
 def json_context(event_name: str, context: str) -> str:
     if not context:
         return json.dumps({"suppressOutput": True})
@@ -140,10 +233,9 @@ def session_context(event_name: str) -> str:
 
 def prompt_context(hook_input: dict) -> str:
     prompt = str(hook_input.get("prompt") or "")
-    matches = matching_capsules(prompt)
-    if not matches:
+    capsules = [capsule for name in resolve_capsule_names(prompt) for capsule in [read_capsule(name)] if capsule]
+    if not capsules:
         return json.dumps({"suppressOutput": True})
-    capsules = [capsule for _, _, capsule in matches]
     context = join_capsules(capsules)
     return json_context("UserPromptSubmit", context)
 

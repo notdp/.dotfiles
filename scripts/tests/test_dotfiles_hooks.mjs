@@ -6,6 +6,10 @@
 import assert from "node:assert";
 import { DotfilesHooksPlugin } from "../opencode/dotfiles_hooks.mjs";
 
+// 本测试验证注入管道(chat.message 把 capsule 塞进 parts), 禁用 deepseek 走确定性正则;
+// deepseek 路由质量由 python 侧 DeepseekRoutingTests 覆盖。spawnSync 继承此 env。
+process.env.CAPSULE_NO_LLM = "1";
+
 const MARKER = "<!-- dotfiles-context-capsule -->";
 const hooks = await DotfilesHooksPlugin({ directory: process.cwd() });
 const chatMessage = hooks["chat.message"];

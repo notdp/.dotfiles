@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hooks" / "context_capsule.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "hooks"))
+import context_capsule as cc  # noqa: E402
 WRAPPER_SCRIPT = REPO_ROOT / ".factory" / "hooks" / "context_capsule.py"
 GOLDEN_PROMPT_SAMPLES = (
     ("分组提交代码", []),
@@ -27,7 +30,8 @@ GOLDEN_PROMPT_SAMPLES = (
 
 class ContextCapsuleTests(unittest.TestCase):
     def run_capsule(self, repo: Path, prompt: str) -> subprocess.CompletedProcess[str]:
-        env = {**os.environ, "FACTORY_PROJECT_DIR": str(repo)}
+        # 禁用 deepseek, golden 验证正则 fallback 路径(deepseek 路径见 DeepseekRoutingTests)
+        env = {**os.environ, "FACTORY_PROJECT_DIR": str(repo), "CAPSULE_NO_LLM": "1"}
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": prompt}
         return subprocess.run(
             ["python3", str(SCRIPT), "--event", "prompt"],
@@ -222,6 +226,54 @@ const doSave = useCallback(async (fields: CommitFieldConfig[], options?: { silen
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Boundary decision scan found", context)
+
+
+class DeepseekRoutingTests(unittest.TestCase):
+    def test_resolve_uses_deepseek_when_available(self) -> None:
+        original = cc.classify_with_deepseek
+        cc.classify_with_deepseek = lambda prompt: {"debug-task.md", "ui-task.md"}
+        try:
+            # 按 CAPSULE_RULES 顺序: debug 在 ui 前
+            self.assertEqual(cc.resolve_capsule_names("anything"), ["debug-task.md", "ui-task.md"])
+        finally:
+            cc.classify_with_deepseek = original
+
+    def test_resolve_falls_back_to_regex_when_deepseek_fails(self) -> None:
+        original = cc.classify_with_deepseek
+        cc.classify_with_deepseek = lambda prompt: None
+        try:
+            # deepseek 返回 None → 正则 fallback: "帮我加个缓存" 命中 scope
+            self.assertEqual(cc.resolve_capsule_names("帮我加个缓存"), ["scope-task.md"])
+        finally:
+            cc.classify_with_deepseek = original
+
+    def test_resolve_order_follows_capsule_rules(self) -> None:
+        original = cc.classify_with_deepseek
+        cc.classify_with_deepseek = lambda prompt: {"scope-task.md", "security-gitops.md"}
+        try:
+            # deepseek 返回乱序 set, resolve 按 CAPSULE_RULES 顺序: security 在 scope 前
+            self.assertEqual(cc.resolve_capsule_names("x"), ["security-gitops.md", "scope-task.md"])
+        finally:
+            cc.classify_with_deepseek = original
+
+    def test_classify_disabled_by_env_returns_none(self) -> None:
+        os.environ["CAPSULE_NO_LLM"] = "1"
+        try:
+            self.assertIsNone(cc.classify_with_deepseek("帮我加个缓存"))
+        finally:
+            os.environ.pop("CAPSULE_NO_LLM", None)
+
+    def test_classify_no_key_returns_none(self) -> None:
+        # 无 env key + 指向不存在的 keyfile → None(触发 fallback)
+        orig_env = os.environ.pop("DEEPSEEK_API_KEY", None)
+        orig_keyfile = cc.DEEPSEEK_KEYFILE
+        cc.DEEPSEEK_KEYFILE = "/nonexistent/deepseek/apikey"
+        try:
+            self.assertIsNone(cc.classify_with_deepseek("帮我加个缓存"))
+        finally:
+            cc.DEEPSEEK_KEYFILE = orig_keyfile
+            if orig_env is not None:
+                os.environ["DEEPSEEK_API_KEY"] = orig_env
 
 
 if __name__ == "__main__":
