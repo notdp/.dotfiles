@@ -11,12 +11,14 @@ SCRIPT = REPO_ROOT / "scripts" / "hooks" / "context_capsule.py"
 WRAPPER_SCRIPT = REPO_ROOT / ".factory" / "hooks" / "context_capsule.py"
 GOLDEN_PROMPT_SAMPLES = (
     ("分组提交代码", []),
-    ("我觉得我还是得摸清一下当前仓库的 hooks 都是怎么设计的，给我通过 html 清晰的展示出来", ["Planning Task Capsule", "Boundary-Decision Capsule"]),
+    ("我觉得我还是得摸清一下当前仓库的 hooks 都是怎么设计的，给我通过 html 清晰的展示出来", ["Boundary-Decision Capsule"]),
     (f"重写 file://{REPO_ROOT}/docs/repository-hooks-design-2026-05-15.html", ["Boundary-Decision Capsule"]),
     ("context_capsule.py 是不是针对不同场景注入增强 prompt，要不要交给便宜模型判定器", ["Boundary-Decision Capsule"]),
     ("长会话 compact 后 agent 能看到上次目标、改动文件、最近验证和 todo 摘要吗", []),
     ("帮我加个缓存", ["Scope Alignment Capsule"]),
     ("优化这个模块，给我一个重构方案", ["Scope Alignment Capsule", "Planning Task Capsule"]),
+    # 回归: "原有设计"是名词诊断, 不该误匹配 planning; "原因分析"应匹配 debug
+    ("这是符合原有设计的吗，如果不符合，是代码问题还是配置问题，给出原因分析", ["Debug Task Capsule"]),
 )
 
 

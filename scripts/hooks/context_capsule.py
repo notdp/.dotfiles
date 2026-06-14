@@ -35,7 +35,11 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("operational-task.md", re.compile(rf"(?:{OPERATIONAL_PROMPT_RE.pattern})|(?:{CRITICAL_OPERATION_PROMPT_RE.pattern})", re.I)),
     (
         "debug-task.md",
-        re.compile(r"(bug|error|fail|failed|flaky|traceback|exception|报错|失败|异常|复现|incident)", re.I),
+        re.compile(
+            r"(bug|error|fail|failed|flaky|traceback|exception|报错|失败|异常|复现|incident|"
+            r"原因分析|根因|排查|定位|不符合预期)",
+            re.I,
+        ),
     ),
     (
         "ui-task.md",
@@ -50,7 +54,7 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "planning-task.md",
-        re.compile(r"(方案|计划|架构|设计|怎么做|approach|architecture|plan|options|phase|spec)", re.I),
+        re.compile(r"(方案|计划|架构|怎么做|approach|architecture|plan|options|phase|spec)", re.I),
     ),
     (
         "boundary-decision.md",
