@@ -78,7 +78,7 @@ class ContextCapsuleTests(unittest.TestCase):
         context = payload["hookSpecificOutput"]["additionalContext"]
         headings = [line.removeprefix("# ") for line in context.splitlines() if line.startswith("# ")]
         self.assertEqual(headings, expected_headings)
-        self.assertLessEqual(len(context), 2200)
+        self.assertLessEqual(len(context), cc.MAX_PROMPT_CONTEXT_CHARS + 100)  # +100 容纳时间行前缀
 
     def test_prompt_can_match_multiple_capsules_with_risk_ordering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -90,7 +90,7 @@ class ContextCapsuleTests(unittest.TestCase):
         self.assertIn("Operational Task Capsule", context)
         self.assertIn("Debug Task Capsule", context)
         self.assertLess(context.index("Security / GitOps Capsule"), context.index("Operational Task Capsule"))
-        self.assertLessEqual(len(context), 2200)
+        self.assertLessEqual(len(context), cc.MAX_PROMPT_CONTEXT_CHARS + 100)  # +100 容纳时间行前缀
 
     def test_golden_prompt_samples_inject_expected_capsules(self) -> None:
         for prompt, expected_headings in GOLDEN_PROMPT_SAMPLES:
@@ -168,6 +168,14 @@ class ContextCapsuleTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_current_time_injected_every_prompt(self) -> None:
+        # 每条 prompt 都注入当前时间(ISO 8601 + 时区), 即使无 capsule
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), "随便说点完全无关的闲聊内容")
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("[system] Current time:", context)
+        self.assertRegex(context, r"Current time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}")
 
     def test_long_prompt_tail_keywords_ignored(self) -> None:
         # 开头无触发词, 撞词全在首段(MATCH_HEAD_CHARS)之后 → 只匹首段, 不应注入

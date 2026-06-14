@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 
@@ -231,12 +232,19 @@ def session_context(event_name: str) -> str:
     return json.dumps({"suppressOutput": True})
 
 
+def current_time_note() -> str:
+    # 每条 prompt 注入当前时间, 给 agent 时间感知(LLM 无内置时钟;
+    # session 级注入会在长会话/compact 后过期, 故每条都带最新时间)。
+    return f"[system] Current time: {datetime.now().astimezone().isoformat(timespec='seconds')}"
+
+
 def prompt_context(hook_input: dict) -> str:
     prompt = str(hook_input.get("prompt") or "")
     capsules = [capsule for name in resolve_capsule_names(prompt) for capsule in [read_capsule(name)] if capsule]
-    if not capsules:
-        return json.dumps({"suppressOutput": True})
-    context = join_capsules(capsules)
+    # 时间行独立 prepend, 不占 capsule 的 MAX_PROMPT_CONTEXT_CHARS 截断预算(它短且必要)。
+    context = current_time_note()
+    if capsules:
+        context += "\n\n---\n\n" + join_capsules(capsules)
     return json_context("UserPromptSubmit", context)
 
 

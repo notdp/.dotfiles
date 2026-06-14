@@ -30,13 +30,14 @@ function userPart(text) {
   console.log("case1 ok: scope capsule appended to text, no new part");
 }
 
-// case 2: 无关 prompt → text 原样不动
+// case 2: 无关 prompt → 仍注入当前时间(每条都带), 但不含任何 capsule
 {
   const output = { parts: [userPart("谢谢")] };
-  const before = output.parts[0].text;
   await chatMessage({ sessionID: "t2" }, output);
-  assert.strictEqual(output.parts[0].text, before, "unrelated prompt must be untouched");
-  console.log("case2 ok: no injection for unrelated prompt");
+  const text = output.parts[0].text;
+  assert.ok(text.includes("Current time"), "time injected on every message");
+  assert.ok(!text.includes("Capsule"), "but no capsule heading for unrelated prompt");
+  console.log("case2 ok: only time injected for unrelated prompt (no capsule)");
 }
 
 // case 3: 已含 marker → 不重复注入(防自激循环)
