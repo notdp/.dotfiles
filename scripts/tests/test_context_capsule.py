@@ -143,7 +143,8 @@ class ContextCapsuleTests(unittest.TestCase):
                 self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
 
     def test_chinese_push_business_does_not_inject_security(self) -> None:
-        for prompt in ["实现消息推送功能", "通知推送模块优化", "实现消息推送到用户"]:
+        for prompt in ["实现消息推送功能", "通知推送模块优化", "实现消息推送到用户",
+                        "实现消息推送到 app", "通知推送到 slack", "实现消息推送到 iOS"]:
             with self.subTest(prompt=prompt):
                 caps = [h for h, _ in self.capsules_for(prompt)]
                 self.assertNotIn("Security / GitOps Capsule", caps, f"'{prompt}' should not trigger security capsule")
