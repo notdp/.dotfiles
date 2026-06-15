@@ -97,6 +97,10 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     name = args.name or req_path.stem
     slug = lr.slugify(name)
 
+    if args.new and args.in_place:
+        sys.stderr.write("--new 和 --in-place 互斥，只能选一个\n")
+        return 2
+
     if not args.new and not args.in_place:
         branch = subprocess.run(
             ["git", "-C", str(repo_root), "branch", "--show-current"],
@@ -311,14 +315,15 @@ def cmd_await(args: argparse.Namespace) -> int:
         if screen != prev_screen:
             prev_screen = screen
             last_change = time.time()
-        elif time.time() - last_change > idle_timeout:
+        elif lr.pane_looks_idle(screen) and time.time() - last_change > idle_timeout:
             tail = screen[-500:] if screen else ""
             sys.stderr.write(f"IDLE: {role} pane {pane} 静默超过 {idle_timeout}s\npane tail:\n{tail}\n")
             return 6
 
         time.sleep(5)
 
-    tail = lr.capture_pane(pane)[-500:] if lr.capture_pane(pane) else ""
+    screen = lr.capture_pane(pane)
+    tail = screen[-500:] if screen else ""
     sys.stderr.write(f"TIMEOUT: {role} 超过 {timeout}s\npane tail:\n{tail}\n")
     return 4
 
@@ -386,23 +391,26 @@ def cmd_verify(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 def _parse_ack_resolutions(ack_text: str, review_texts: dict[str, str]) -> tuple[list[str], list[str]]:
     """从 ack.md 解析 blocker 裁决，对照 review 中的 blocker ID。
+    复用 lr.parse_ack_resolutions（限定 ## Blocker Resolutions section）。
     返回 (unresolved_ids, errors)。"""
-    blocker_ids: set[str] = set()
+    blocker_ids: list[str] = []
     for label, text in review_texts.items():
         for m in re.finditer(r"\[blocker\s+(B\d+)\]", text, re.IGNORECASE):
-            blocker_ids.add(f"{label}:{m.group(1)}")
+            bid = f"{label}:{m.group(1)}"
+            if bid not in blocker_ids:
+                blocker_ids.append(bid)
 
-    resolved: set[str] = set()
+    res = lr.parse_ack_resolutions(ack_text)
     errors: list[str] = []
-    for m in re.finditer(r"\[(?:fixed|rejected)\]\s*(\S+)", ack_text):
-        tag = m.group(1)
-        resolved.add(tag)
-        if tag.startswith("[rejected]") or m.group(0).startswith("[rejected]"):
-            rest = ack_text[m.end():m.end() + 200].strip()
-            if not rest or rest.startswith("\n"):
-                errors.append(f"{tag}: [rejected] 缺理由")
 
-    unresolved = sorted(blocker_ids - resolved)
+    _rejected_no_reason = re.compile(r"^\s*-\s*\[rejected\]\s*[A-Za-z0-9:_-]*\s*$", re.IGNORECASE)
+    for ln in res.get("rejected_lines", []):
+        if _rejected_no_reason.match(ln):
+            errors.append(f"[rejected] 缺理由: {ln.strip()!r}")
+
+    resolved_lines = res["fixed_lines"] + res.get("rejected_lines", [])
+    unresolved = [bid for bid in blocker_ids
+                  if not any(re.search(rf"\b{re.escape(bid)}\b", ln) for ln in resolved_lines)]
     return unresolved, errors
 
 
@@ -450,7 +458,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
     status_path = workspace / "coder.status"
     if status_path.exists():
         raw = status_path.read_text(encoding="utf-8").strip().split("\n")[0].strip()
-        m = re.search(r"commit=(\S+)", raw)
+        m = re.search(r"commit=([0-9a-fA-F]{6,40})\b", raw)
         commit_hash = m.group(1) if m else None
         if not commit_hash:
             blocks.append("coder.status 缺 commit=<hash>")

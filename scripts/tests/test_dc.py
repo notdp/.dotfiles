@@ -91,13 +91,13 @@ class ScaffoldTests(unittest.TestCase):
 class AckResolutionTests(unittest.TestCase):
     def test_all_resolved(self):
         review = {"A": "found [blocker B1] and [blocker B2] issues"}
-        ack = "- [fixed] A:B1 done\n- [rejected] A:B2 not a real issue because xyz"
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 done\n- [rejected] A:B2 not a real issue because xyz"
         unresolved, errors = dc._parse_ack_resolutions(ack, review)
         self.assertEqual(unresolved, [])
 
     def test_missing_resolution(self):
         review = {"A": "[blocker B1] serious", "B": "[blocker B1] also bad"}
-        ack = "- [fixed] A:B1 ok"
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 ok"
         unresolved, _ = dc._parse_ack_resolutions(ack, review)
         self.assertIn("B:B1", unresolved)
 
@@ -107,6 +107,25 @@ class AckResolutionTests(unittest.TestCase):
         unresolved, errors = dc._parse_ack_resolutions(ack, review)
         self.assertEqual(unresolved, [])
         self.assertEqual(errors, [])
+
+    def test_rejected_without_reason_flagged(self):
+        review = {"A": "[blocker B1] serious bug"}
+        ack = "## Blocker Resolutions\n- [rejected] A:B1\n"
+        _, errors = dc._parse_ack_resolutions(ack, review)
+        self.assertTrue(any("[rejected] 缺理由" in e for e in errors))
+
+    def test_rejected_with_reason_ok(self):
+        review = {"A": "[blocker B1] serious bug"}
+        ack = "## Blocker Resolutions\n- [rejected] A:B1 not a real issue because xyz\n"
+        unresolved, errors = dc._parse_ack_resolutions(ack, review)
+        self.assertEqual(unresolved, [])
+        self.assertEqual(errors, [])
+
+    def test_only_searches_blocker_resolutions_section(self):
+        review = {"A": "[blocker B1] bug"}
+        ack = "## Findings\n- [fixed] A:B1 agree\n\n## Blocker Resolutions\n"
+        unresolved, _ = dc._parse_ack_resolutions(ack, review)
+        self.assertIn("A:B1", unresolved)
 
 
 class CompleteGateTests(unittest.TestCase):
