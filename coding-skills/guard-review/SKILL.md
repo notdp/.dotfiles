@@ -64,7 +64,7 @@ Aspect 选择规则：
 - [ ] 可观测性：错误路径是否静默吞错、错误是否带定位上下文、外部调用/状态变更/关键分支是否可观测、新增观测点是否分级合理（不过度埋点）；细则见 `/dev-observe`
 - [ ] 架构：关注点分离、耦合度、依赖方向
 - [ ] 安全：输入验证、敏感数据、注入风险
-- [ ] 测试：覆盖关键路径、测试行为而非实现
+- [ ] 测试：覆盖关键路径、测试行为而非实现；**测试重写红旗**——diff 同时修改了实现和测试，且测试变更仅将 assertion expected 值改为匹配新行为（未新增 case、未验证边界）→ Important 起步，要求确认新 assertion 是否正确
 - [ ] 需求：变更是否满足目标
 - [ ] MySQL/InnoDB 专项（仅当 DDL / migration / 索引 / 查询性能 diff 命中）：是否已按 `/guard-mysql-review` 输出 Must / Should / Exception / Convention conflict / Anti-pattern 裁决
 - [ ] UI 专项（仅当前端/UI/CSS diff 命中）：
@@ -94,6 +94,8 @@ Aspect 选择规则：
 - **Injection 风险**：SQL / shell command / HTML / 路径拼接未做转义或参数化
 - **依赖未锁定**：新增依赖未同步出现在 lock 文件（`package-lock.json` / `pnpm-lock.yaml` / `poetry.lock` / `Cargo.lock` / `go.sum` 等）
 - **悄悄删除测试 / release artifact**：删除既有测试、CI 配置、release 产物或 changelog，且 PR 描述无对应说明
+- **CI config weakening**：diff 修改了 CI 配置（`.github/workflows/*`、`jest.config*`、`.eslintrc*`、`tsconfig*`、`biome.json`、`.prettierrc*` 等）中的阈值、skip、ignore 规则，使检查变宽松
+- **Coverage threshold lowered**：diff 降低了 coverage 阈值或增加了 `coveragePathIgnorePatterns` / `istanbul ignore` 等排除规则
 
 ### 输出格式
 
@@ -147,6 +149,13 @@ Aspect 选择规则：
 
 ### Structural assessment
 - Boundary / Locality / Convention / Explicitness / Testability / Diff Purity 中，哪些维度在退化，哪些在改善
+
+### Human Attention（如果只看 5 处）
+1. path:line — 一句话原因
+2. path:line — ...
+3. path:line — ...
+4. path:line — ...
+5. path:line — ...
 
 ### Assessment
 Ready to merge? Yes / No / With fixes
