@@ -1,4 +1,4 @@
-# dev-long-run-v2 — multi-agent orchestrated long-task workflow
+# dev-long-run — multi-agent orchestrated long-task workflow
 
 Status: spec draft (2026-05-29)
 Author: 郎振宁 (with assistant)
@@ -34,20 +34,20 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 | L13 | cliproxy 模型：所有 cliproxy gpt 模型已统一支持 `--variant low/medium/high/xhigh/max`（见 prerequisites）。后端只接受 4 档 `low/medium/high/xhigh`，`max` 是 install_hooks 侧 clamp 到 `xhigh` 的别名（实测：字面 `max` 后端返回 400），无独立第 5 档 |
 | L14 | 每 phase ack 收口后、`wait_confirm` 前，phase coder 必须把该 phase 改动 commit 到 worktree 的专用分支（L16；git 仓库即 phase 边界 SSOT；未 commit 不算 phase 完成；不 push） |
 | L15 | 收尾（wrapup）阶段除产出 `CLEANUP_PROPOSAL.md` 外，loop orch 还要整体扫一遍 `BACKLOG.md`，标出"可快速收敛"项供用户决定是否顺手清掉（仍是建议，不自动做） |
-| L16 | 默认在独立 git worktree + 专用分支上开发;**也支持 `--in-place`:在当前 worktree+当前分支接着做(延续已有工作时用,scaffold 前 agent 显示当前分支让用户选)**。两种模式都**绝不在 `main`/`master` 上开发或 commit**(in-place 在 main 上直接拒绝)。`lr2.py scaffold` 创建 worktree（如 `../<repo>-lr2-<slug>`）+ 分支（如 `lr2/<slug>`）；phase coder 的 cwd = worktree；所有 L14 phase commit 落在该分支；合并/PR 由用户在 phase 间或收尾自行决定（不自动 push/merge） |
+| L16 | 默认在独立 git worktree + 专用分支上开发;**也支持 `--in-place`:在当前 worktree+当前分支接着做(延续已有工作时用,scaffold 前 agent 显示当前分支让用户选)**。两种模式都**绝不在 `main`/`master` 上开发或 commit**(in-place 在 main 上直接拒绝)。`lr.py scaffold` 创建 worktree（如 `../<repo>-lr-<slug>`）+ 分支（如 `lr/<slug>`）；phase coder 的 cwd = worktree；所有 L14 phase commit 落在该分支；合并/PR 由用户在 phase 间或收尾自行决定（不自动 push/merge） |
 | L17 | （实测知识，2026-05-29）effort 档位事实：**claude `--effort`** 5 档 `low/medium/high/xhigh/max`（max 真档）；**cliproxy gpt** 仅 4 档，install_hooks 已把 `max` clamp 成 `xhigh`。注：被 L19 取代——TUI 不注入 variant，本条仅作背景知识保留，不再有 launcher 转换逻辑 |
 | L18 | 控制工作区放 main checkout 的 `.long-loop/<date>_<slug>/`，用 `.git/info/exclude` 本地忽略（不改 tracked `.gitignore`），与 worktree 生命周期解耦（详见 Workspace 目录结构） |
 | L19 | 思考等级：**config 已彻底移除 `variant` 字段**(它从不被 launch 消费、又和实际不符=误导)。effort 由 model 显式承载:kilo worker 看模型默认(gpt-5.5-xhigh→xhigh),claude reviewer 用 CLI 默认(Opus 4.8 @ high)。**下文 YAML 示例里的 `variant:` 行按本条忽略(已从模板删除)。** 原措辞:所有 TUI 长驻 pane **用各自 CLI/模型的默认 effort，不按 role 注入 variant**（用户决策 2026-05-29）。YAML 的 `variant` 字段降级为意图标注（仅做 enum 校验，不驱动 launch）；消解 TBD-5（kilo TUI 无 `--variant` flag 不再是问题）。默认值：claude Opus 默认 high；kilo 模型用 install_hooks 的 per-model 默认（gpt-5.5=medium / gpt-5.5-fast=low）|
-| L22 | worker 完成信号(2026-05-29,因 orchestrator 手写 sleep(60)×180 grep prose 把已完成的 run 卡死而加):worker 写机器可读 `phases/<id>/<role>.status`(首词 `coding`/`done`/`blocked`/`compact`);orchestrator 用 `lr2.py await --status <file> --pane <pane>` 轮询(token + **每轮查 pane 死活 + idle 兜底** + 有界超时),按退出码 `0 DONE`/`2 BLOCKED`/`3 DEAD`/`4 TIMEOUT`/`5 COMPACT`/`6 IDLE` 处理。**禁止 grep prose 字符串或抓屏判完成。** 2026-06-05 扩:TUI worker"完成"=回就绪输入框而 pane 不死,纯靠 status 文件易"干完没写信号"假死 → ① `parse_worker_status` 容忍 `<…status> = / : <state>` 赋值写法(prompt 字面回写也能解析);② `await` 加 idle 检测(pane 停在就绪框且画面连续 idle_timeout 秒不变 → 退出码 6 IDLE);③ 默认 timeout 1800→600,IDLE/TIMEOUT 附 pane tail 供诊断。 2026-06-11 扩(协议缺口修复):coder done 是**两段式**——实现完、HANDOFF 更新、未 commit、等 review 时写 `done impl`;ack 收口 commit 后写 `done commit=<hash>`(此前"实现完成"无机器信号,orchestrator 第一次 await coder 必然落到 IDLE 假死路径)。配套 `lr2.py reset-status`:orchestrator 给 coder 发 review 前把 status 重置为 `coding`,清掉 stale `done impl`,防第二次 await 误判;coder prompt 同时要求收到 review 先自写 `coding`(双保险)。scaffold_reviewer 同样改用 status 文件(`<ws>/scaffold_reviewer.status`)判完成,不再轮询 `SCAFFOLD_REVIEW.md` 文件存在性。 |
-| L23 | 完成门禁(2026-05-29,因首次实战 00167-00173 出现"验证只写没跑 + reviewer blocker 被静默放行 + acceptance verifier 只写文档没执行 → 半成品标 completed"而加):**phase 完成 / run 收尾只能经 `lr2.py complete-phase` / `complete-run` 过门禁的状态转换实现,orchestrator 绝不许手翻 `fix_plan.md [x]`、不许手置 `state=completed`**。门禁三条机器可检查信号:(a) **真跑验证**——coder 写 `phases/<id>/verify.sh`(自动化验证,接口/单测/集成尽量自动化,成本过高才豁免并写明原因),`lr2.py verify` 在 worktree 真跑、写 `verify.json`,完成门禁只认 `verify.json.ok=真`(纯函数 `verify_summary`);(b) **blocker 必解**——`phase_gate(verify, review, ack)` 数 review.md 的 `[blocker]`(`parse_review_blockers`)对 ack.md `## Blocker Resolutions` 段的 `[fixed]`(`parse_ack_resolutions`),少于 blocker 数或出现 `[deferred]` 即阻塞(blocker 不许 deferred);(c) **acceptance 必跑**——收尾写根 `acceptance.sh`,`lr2.py verify --acceptance` 真跑写 `acceptance.json`,`acceptance_gate` 要求其 ok 才准 `complete-run` 置 completed。另:qa.md 验收点分 `## 自动化验证`(进 verify.sh/acceptance.sh)与 `## 人工验证`(无法自动化时按 目的/操作/观察 三段写,orchestrator 收尾/phase 完成前贴给用户亲口确认)。`fix_plan` 翻勾用纯函数 `mark_phase_done`。 2026-06-11 扩(堵三个绕过面):④ `review.md` 必须存在非空(否则跳过 reviewer 整个环节门禁也放行);⑤ **commit 证据**——`phase_coder.status` 声明的 `commit=<hash>`(纯函数 `parse_status_commit`)必须真实存在且为 worktree HEAD 祖先(`git merge-base --is-ancestor`,L14 不收口头声明);⑥ `complete-run` 另要求 fix_plan 无未勾 phase(纯函数 `unchecked_phases`)。playbook 同步把人工验证挪到 complete-phase **之前**(翻勾必须是最后一步,无翻回工具)。 2026-06-12 扩:⑦ blocker **按 ID 对账**——reviewer 顺序编号 `[blocker B1]`,coder ack 行 `- [fixed] B1 …` 带 ID 回写,`phase_gate` 对 ID 集合(同一 ID 重复提及去重、缺哪条报哪条、多写 [fixed] 凑数对不上);全部无 ID 的历史 review 回落计数对账。另:`lr2.py send` 增 `--workspace` 注册表护栏(pane 必须在 SESSIONS.md 注册过,防 orchestrator 编错 pane id 把 prompt 灌进用户 pane;alive 检查挡不住这种)。 |
-| L24 | worker pane teardown(2026-06-06,因 reviewer 工作结束后 pane 不关、残留满屏而加):pane 生命周期由角色性质决定——planner/reviewer 是 phase 内瞬态(`PHASE_TRANSIENT_ROLES`),coder 跨 phase 复用(L6)。三层关闭:① orchestrator 每步 await 后显式 `lr2.py close --role <role>`(纯函数 `panes_to_close` 选 running+alive+role 命中,`_close_roles` 批量 kill+标 closed,无 TMUX/无 pane → best-effort `[]` 不阻断);② `complete-phase` 门禁过后兜底关 `PHASE_TRANSIENT_ROLES`(显式 close 漏了也清);③ `complete-run` acceptance 过后关 `WORKER_ROLES`(含 coder),`--keep-panes` 保留现场调试。teardown 幂等、不阻断门禁(故障导向:关 pane 失败不该让已过门禁的 run 卡住)。 |
-| L25 | pane 命名(2026-06-06,因默认水浒传随机名不利调试而改):`pane_title(role, phase)` 从 `lr2:{slug}:{role}:{phase}` 改为 **`phase {n} {身份}`**(身份去 `phase_` 前缀=planner/coder/reviewer;不含任务名 slug——同 window 下任务相同、带上太长)。关键:用户看到的水浒传名来自 `scripts/notify-tmux-title.sh` hook 写的 pane 选项 `@notify_tmux_title_pane_name`(`pane-border-format` 显示的是它,**不是** `select-pane -T` 标题),且 hook 只在该选项为空时才分配随机名 → `launch_role` 在 `-T` 之外**同时 `set-option -pt @notify_tmux_title_pane_name <title>`**, hook 便不再覆盖,border 直接显示 phase 名。 |
+| L22 | worker 完成信号(2026-05-29,因 orchestrator 手写 sleep(60)×180 grep prose 把已完成的 run 卡死而加):worker 写机器可读 `phases/<id>/<role>.status`(首词 `coding`/`done`/`blocked`/`compact`);orchestrator 用 `lr.py await --status <file> --pane <pane>` 轮询(token + **每轮查 pane 死活 + idle 兜底** + 有界超时),按退出码 `0 DONE`/`2 BLOCKED`/`3 DEAD`/`4 TIMEOUT`/`5 COMPACT`/`6 IDLE` 处理。**禁止 grep prose 字符串或抓屏判完成。** 2026-06-05 扩:TUI worker"完成"=回就绪输入框而 pane 不死,纯靠 status 文件易"干完没写信号"假死 → ① `parse_worker_status` 容忍 `<…status> = / : <state>` 赋值写法(prompt 字面回写也能解析);② `await` 加 idle 检测(pane 停在就绪框且画面连续 idle_timeout 秒不变 → 退出码 6 IDLE);③ 默认 timeout 1800→600,IDLE/TIMEOUT 附 pane tail 供诊断。 2026-06-11 扩(协议缺口修复):coder done 是**两段式**——实现完、HANDOFF 更新、未 commit、等 review 时写 `done impl`;ack 收口 commit 后写 `done commit=<hash>`(此前"实现完成"无机器信号,orchestrator 第一次 await coder 必然落到 IDLE 假死路径)。配套 `lr.py reset-status`:orchestrator 给 coder 发 review 前把 status 重置为 `coding`,清掉 stale `done impl`,防第二次 await 误判;coder prompt 同时要求收到 review 先自写 `coding`(双保险)。scaffold_reviewer 同样改用 status 文件(`<ws>/scaffold_reviewer.status`)判完成,不再轮询 `SCAFFOLD_REVIEW.md` 文件存在性。 |
+| L23 | 完成门禁(2026-05-29,因首次实战 00167-00173 出现"验证只写没跑 + reviewer blocker 被静默放行 + acceptance verifier 只写文档没执行 → 半成品标 completed"而加):**phase 完成 / run 收尾只能经 `lr.py complete-phase` / `complete-run` 过门禁的状态转换实现,orchestrator 绝不许手翻 `fix_plan.md [x]`、不许手置 `state=completed`**。门禁三条机器可检查信号:(a) **真跑验证**——coder 写 `phases/<id>/verify.sh`(自动化验证,接口/单测/集成尽量自动化,成本过高才豁免并写明原因),`lr.py verify` 在 worktree 真跑、写 `verify.json`,完成门禁只认 `verify.json.ok=真`(纯函数 `verify_summary`);(b) **blocker 必解**——`phase_gate(verify, review, ack)` 数 review.md 的 `[blocker]`(`parse_review_blockers`)对 ack.md `## Blocker Resolutions` 段的 `[fixed]`(`parse_ack_resolutions`),少于 blocker 数或出现 `[deferred]` 即阻塞(blocker 不许 deferred);(c) **acceptance 必跑**——收尾写根 `acceptance.sh`,`lr.py verify --acceptance` 真跑写 `acceptance.json`,`acceptance_gate` 要求其 ok 才准 `complete-run` 置 completed。另:qa.md 验收点分 `## 自动化验证`(进 verify.sh/acceptance.sh)与 `## 人工验证`(无法自动化时按 目的/操作/观察 三段写,orchestrator 收尾/phase 完成前贴给用户亲口确认)。`fix_plan` 翻勾用纯函数 `mark_phase_done`。 2026-06-11 扩(堵三个绕过面):④ `review.md` 必须存在非空(否则跳过 reviewer 整个环节门禁也放行);⑤ **commit 证据**——`phase_coder.status` 声明的 `commit=<hash>`(纯函数 `parse_status_commit`)必须真实存在且为 worktree HEAD 祖先(`git merge-base --is-ancestor`,L14 不收口头声明);⑥ `complete-run` 另要求 fix_plan 无未勾 phase(纯函数 `unchecked_phases`)。playbook 同步把人工验证挪到 complete-phase **之前**(翻勾必须是最后一步,无翻回工具)。 2026-06-12 扩:⑦ blocker **按 ID 对账**——reviewer 顺序编号 `[blocker B1]`,coder ack 行 `- [fixed] B1 …` 带 ID 回写,`phase_gate` 对 ID 集合(同一 ID 重复提及去重、缺哪条报哪条、多写 [fixed] 凑数对不上);全部无 ID 的历史 review 回落计数对账。另:`lr.py send` 增 `--workspace` 注册表护栏(pane 必须在 SESSIONS.md 注册过,防 orchestrator 编错 pane id 把 prompt 灌进用户 pane;alive 检查挡不住这种)。 |
+| L24 | worker pane teardown(2026-06-06,因 reviewer 工作结束后 pane 不关、残留满屏而加):pane 生命周期由角色性质决定——planner/reviewer 是 phase 内瞬态(`PHASE_TRANSIENT_ROLES`),coder 跨 phase 复用(L6)。三层关闭:① orchestrator 每步 await 后显式 `lr.py close --role <role>`(纯函数 `panes_to_close` 选 running+alive+role 命中,`_close_roles` 批量 kill+标 closed,无 TMUX/无 pane → best-effort `[]` 不阻断);② `complete-phase` 门禁过后兜底关 `PHASE_TRANSIENT_ROLES`(显式 close 漏了也清);③ `complete-run` acceptance 过后关 `WORKER_ROLES`(含 coder),`--keep-panes` 保留现场调试。teardown 幂等、不阻断门禁(故障导向:关 pane 失败不该让已过门禁的 run 卡住)。 |
+| L25 | pane 命名(2026-06-06,因默认水浒传随机名不利调试而改):`pane_title(role, phase)` 从 `lr:{slug}:{role}:{phase}` 改为 **`phase {n} {身份}`**(身份去 `phase_` 前缀=planner/coder/reviewer;不含任务名 slug——同 window 下任务相同、带上太长)。关键:用户看到的水浒传名来自 `scripts/notify-tmux-title.sh` hook 写的 pane 选项 `@notify_tmux_title_pane_name`(`pane-border-format` 显示的是它,**不是** `select-pane -T` 标题),且 hook 只在该选项为空时才分配随机名 → `launch_role` 在 `-T` 之外**同时 `set-option -pt @notify_tmux_title_pane_name <title>`**, hook 便不再覆盖,border 直接显示 phase 名。 |
 | L21 | worker 思考等级(2026-05-29,部分推翻 L19):kilo TUI 无 `--variant` flag、in-session 命令(`variant_list`/`ctrl+t`)无法 blind 自动落到指定档,故**用"默认即高档的模型别名"**实现——install_hooks 加 `cliproxy/gpt-5.5-xhigh`(id→gpt-5.5,options 默认 xhigh);config 模板 phase_coder/phase_planner 指向它,`kilo -m` 启动即 xhigh。variant 字段仍仅意图标注 |
-| L20 | UX 决策(2026-05-29)：**用户全程只跟一个 coding agent 自然语言对话**,该 agent 扮演两个 orchestrator 角色,用 `lr2.py` 做机械活(建 worktree/工作区、开 worker pane、send-keys、存活检查)。用户从不敲 `lr2.py`、不敲精确命令、不进 tmux pane。下方"场景化推演"里的 `scaffold orch pane` / `loop orch pane` / `在 orch pane 输入` 等措辞,按 L1/L20 重新理解为**对话 agent 自身的行为**(那些 pane 不存在);场景正文未逐行重写,以本条为准 |
+| L20 | UX 决策(2026-05-29)：**用户全程只跟一个 coding agent 自然语言对话**,该 agent 扮演两个 orchestrator 角色,用 `lr.py` 做机械活(建 worktree/工作区、开 worker pane、send-keys、存活检查)。用户从不敲 `lr.py`、不敲精确命令、不进 tmux pane。下方"场景化推演"里的 `scaffold orch pane` / `loop orch pane` / `在 orch pane 输入` 等措辞,按 L1/L20 重新理解为**对话 agent 自身的行为**(那些 pane 不存在);场景正文未逐行重写,以本条为准 |
 | L27 | 质量前移——Coverage Matrix(2026-06-15):scaffold orchestrator 必须在 SPEC_OVERVIEW.md 末尾产出 `## Coverage Matrix`(REQUIREMENT 每条目标→覆盖 phase 映射表);scaffold reviewer 第一优先级校验矩阵完整性 + phantom coverage(声称覆盖但 phase spec 未体现)。 |
 | L28 | 质量前移——verify_plan.md(2026-06-15):phase planner 新增 `verify_plan.md`(结构化表格:QA ID / source / type=auto\|manual / 检验方式 / pass\|fail 判定),与 qa.md 共享 QA ID;planner 完成信号从 3 文件改为 4 文件。 |
-| L29 | 质量前移——verify.sh 提前 + Verification Coverage(2026-06-15):coder 必须在 `done impl` 前写好 verify.sh 并本地跑过(reviewer 要审 verify.sh);phase reviewer 三节顺序=Verification Coverage(最高优先级)→Debugger→Refactor;Verification Coverage 对照 verify_plan auto 项审 verify.sh 覆盖度,缺覆盖标 blocker。这是 prompt-level gate,不是 lr2.py 机器 gate。Verification Coverage blocker 指向 verify_plan 自身时,coder 可修改 verify_plan.md(唯一允许 coder 改 planner 产物的场景)。 |
-| L26 | 卡死检测 + 运行流水(2026-06-12,吸收 `refs/frankbria/ralph-claude-code` 的 circuit_breaker / metrics.jsonl 思路;裁决见 `docs/software-engineering-research/dev-long-run-v2-improvements-from-ralph.md`):背景——SKILL 停止条件"连续 2 次验证失败"原靠 orchestrator 记忆数,跨 compact/resume 必丢(违"记忆不可信")。落地两件**机械可靠性**(刻意不搬 Ralph 的自主退出启发式/沙箱/限流——我们有人在环 + L23 硬门禁,比启发式强):**(a) 失败计数持久化**——`lr2.py verify`(仅 phase verify,非 acceptance)失败时,纯函数 `verify_fingerprint`(归一行号/耗时/temp 路径/内存地址等噪声后对失败行 sha1 截断)取指纹,`update_stuck` 跨轮转换(同指纹累加、换指纹重置为 1=错误在演化仍算推进、通过清零),写 `phases/<id>/stuck.json`;`consecutive_fail ≥ STUCK_THRESHOLD(2)` 时 verify 输出 `STUCK:` 行提示调 `/think-unstuck`;`resume`/`stats` 重新暴露该计数(崩溃重启不丢)。**(b) 结构化运行流水**——`append_metric` 向 `<ws>/metrics.jsonl`(append-only,在 `.long-loop/` 下已被 L18 git-exclude)追加 verify/complete_phase/complete_run 事件;`summarize_metrics`(纯)聚合,`lr2.py stats`(只读)出 run/per-phase 进度 + 卡死汇总,供 orchestrator 给用户报进度(不靠记忆复述)。退出码/门禁契约不变(verify 仍 `0 ok`/`2 fail`),STUCK 是叠加的 stdout 信号不是新退出码。边界:`metrics.jsonl`/`stuck.json` 是新增可观测产物,只增不改既有 SSOT,不参与 L23 门禁判定。 |
+| L29 | 质量前移——verify.sh 提前 + Verification Coverage(2026-06-15):coder 必须在 `done impl` 前写好 verify.sh 并本地跑过(reviewer 要审 verify.sh);phase reviewer 三节顺序=Verification Coverage(最高优先级)→Debugger→Refactor;Verification Coverage 对照 verify_plan auto 项审 verify.sh 覆盖度,缺覆盖标 blocker。这是 prompt-level gate,不是 lr.py 机器 gate。Verification Coverage blocker 指向 verify_plan 自身时,coder 可修改 verify_plan.md(唯一允许 coder 改 planner 产物的场景)。 |
+| L26 | 卡死检测 + 运行流水(2026-06-12,吸收 `refs/frankbria/ralph-claude-code` 的 circuit_breaker / metrics.jsonl 思路;裁决见 `docs/software-engineering-research/dev-long-run-improvements-from-ralph.md`):背景——SKILL 停止条件"连续 2 次验证失败"原靠 orchestrator 记忆数,跨 compact/resume 必丢(违"记忆不可信")。落地两件**机械可靠性**(刻意不搬 Ralph 的自主退出启发式/沙箱/限流——我们有人在环 + L23 硬门禁,比启发式强):**(a) 失败计数持久化**——`lr.py verify`(仅 phase verify,非 acceptance)失败时,纯函数 `verify_fingerprint`(归一行号/耗时/temp 路径/内存地址等噪声后对失败行 sha1 截断)取指纹,`update_stuck` 跨轮转换(同指纹累加、换指纹重置为 1=错误在演化仍算推进、通过清零),写 `phases/<id>/stuck.json`;`consecutive_fail ≥ STUCK_THRESHOLD(2)` 时 verify 输出 `STUCK:` 行提示调 `/think-unstuck`;`resume`/`stats` 重新暴露该计数(崩溃重启不丢)。**(b) 结构化运行流水**——`append_metric` 向 `<ws>/metrics.jsonl`(append-only,在 `.long-loop/` 下已被 L18 git-exclude)追加 verify/complete_phase/complete_run 事件;`summarize_metrics`(纯)聚合,`lr.py stats`(只读)出 run/per-phase 进度 + 卡死汇总,供 orchestrator 给用户报进度(不靠记忆复述)。退出码/门禁契约不变(verify 仍 `0 ok`/`2 fail`),STUCK 是叠加的 stdout 信号不是新退出码。边界:`metrics.jsonl`/`stuck.json` 是新增可观测产物,只增不改既有 SSOT,不参与 L23 门禁判定。 |
 
 ## 待决策
 
@@ -55,7 +55,7 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 |---|---|---|
 | ~~TBD-1~~ 已定 | spec 是否额外生成 HTML companion artifact | 不生成；待超过单文件再触发 `/readable-html-artifact` |
 | ~~TBD-2~~ 已定 | workspace 根目录路径 | 复用 `.long-loop/<date>_<slug>/`，避免双套并存 |
-| ~~TBD-3~~ 已定 | `lr2.py` 形态 | sibling 独立文件（`skills/dev-long-run-v2/lr2.py`），不污染 `long_loop.py` 旧路径 |
+| ~~TBD-3~~ 已定 | `lr.py` 形态 | sibling 独立文件（`skills/dev-long-run/lr.py`），不污染 `long_loop.py` 旧路径 |
 | ~~TBD-4 (S3)~~ 已解 | claude_cli `variant`→claude CLI 参数映射 | 实测解决，见 L17（variant→effort 按 backend 分流） |
 
 | ~~TBD-5~~ 已定 | kilo TUI 长驻 pane 如何接收 per-role variant | 用户决策(2026-05-29)：**不管思考等级，TUI 一律用默认**。见 L19，TBD-5 消解 |
@@ -118,8 +118,8 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 |---|---|
 | Actor | 用户在已有项目根，3 phase（数据脱敏 / 日志审计 / 接口鉴权） |
 | Step | (1) 用户与某 agent 讨论需求 → 产出 `~/scratch/REQUIREMENT.md` |
-| | (2) 用户跑 `/dev-long-run-v2 scaffold --requirement ~/scratch/REQUIREMENT.md` |
-| | (3) `lr2.py scaffold` 建 worktree `../<repo>-lr2-compliance` + 分支 `lr2/20260529-compliance`（L16）→ mv `REQUIREMENT.md` 进 `.long-loop/20260529-compliance/` → state.json 记 worktree_path + branch |
+| | (2) 用户跑 `/dev-long-run scaffold --requirement ~/scratch/REQUIREMENT.md` |
+| | (3) `lr.py scaffold` 建 worktree `../<repo>-lr-compliance` + 分支 `lr/20260529-compliance`（L16）→ mv `REQUIREMENT.md` 进 `.long-loop/20260529-compliance/` → state.json 记 worktree_path + branch |
 | | (4) scaffold orch(= 对话 agent)调 `/think-map /think-research` → 产 `SPEC_OVERVIEW.md`(含 Coverage Matrix, L27) `fix_plan.md` `qa.md` `phases/*/spec.md` |
 | | (5) scaffold orch 并发开双路 reviewer pane(L-dual: scaffold_reviewer_a + scaffold_reviewer_b)→ 各自写 `SCAFFOLD_REVIEW_A/B.md` → 关 reviewer pane |
 | | (6) scaffold orch 读两份 review 自吃意见改工作区(一轮收口) |
@@ -131,7 +131,7 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 | | (12) loop orch 在对话里告诉用户「Phase 01 完成(门禁已过),继续/收尾/停?」 |
 | | (13) 用户自然语言回「继续 / 收尾 / 停」 |
 | | (14) phase 02 重复步骤 8-13；**每 phase 开始关掉上一个 coder pane,开 fresh coder 读 HANDOFF 续(L6 改)** |
-| | (15) 收尾：写 `acceptance.sh` → `lr2.py verify --acceptance` 真跑 → 人工验收 → `lr2.py complete-run` → 扫 `BACKLOG.md` → 写 `CLEANUP_PROPOSAL.md` → 关闭所有 pane |
+| | (15) 收尾：写 `acceptance.sh` → `lr.py verify --acceptance` 真跑 → 人工验收 → `lr.py complete-run` → 扫 `BACKLOG.md` → 写 `CLEANUP_PROPOSAL.md` → 关闭所有 pane |
 | Touchpoints | tmux server / 文件系统 workspace / git worktree + 分支 / kilo CLI / claude CLI |
 | Failure paths | coder pane 死掉、reviewer blocker 全 reject、用户长时间不 confirm、context 爆 |
 | Exposes | pane 存活检查、冲突 escalation、wait_confirm 可中断、coder pane compact 触发 |
@@ -141,7 +141,7 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 | 维度 | 内容 |
 |---|---|
 | Actor | phase 02 中 loop orch pane 被误关 |
-| Step | (1) 用户跑 `/dev-long-run-v2 resume --workspace <path>` |
+| Step | (1) 用户跑 `/dev-long-run resume --workspace <path>` |
 | | (2) 新 loop orch 启动 → 读 `state.json`（含 worktree_path + branch，L16）→ `git -C <worktree> worktree list` 校验 worktree 在、分支对 → 读 `HANDOFF.md` + `phases/02/qa.md` + worktree 内 git status |
 | | (3) 通过 `SESSIONS.md` 拿 phase coder pane_id → `tmux list-panes -F '#{pane_id}'` 验证 |
 | | (4) 存活 → loop orch 直接 send-keys 续上 |
@@ -191,7 +191,7 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 
 ## YAML schema
 
-`config.yaml` 由 `lr2.py scaffold` 用模板生成，用户可手工编辑。
+`config.yaml` 由 `lr.py scaffold` 用模板生成，用户可手工编辑。
 
 ```yaml
 version: 2
@@ -248,18 +248,18 @@ policy:
 tmux:
   default_split: split-right         # phase coder 主 pane
   reviewer_split: split-down         # reviewer 临时 pane
-  pane_title_prefix: lr2
+  pane_title_prefix: lr
 ```
 
 ## 角色 Prompt 骨架
 
-每角色独立 prompt 文件，放 `skills/dev-long-run-v2/prompts/<role>.md`。
+每角色独立 prompt 文件，放 `skills/dev-long-run/prompts/<role>.md`。
 
 | 角色 | 必读输入 | 必写产出 | 关键约束 |
 |---|---|---|---|
 | scaffold orchestrator | `REQUIREMENT.md`、repo 代码 | `SPEC_OVERVIEW.md`(含 Coverage Matrix, L27)、`fix_plan.md`、`phases/*/spec.md`、`qa.md` | 评估调 `/think-map /think-research`；不写代码；读双路 `SCAFFOLD_REVIEW_A/B.md` 做自修订 |
 | scaffold reviewer(双路 _a/_b) | `REQUIREMENT.md`、`SPEC_OVERVIEW.md`、`fix_plan.md`、`qa.md`、`phases/*/spec.md` | `SCAFFOLD_REVIEW_A.md` / `SCAFFOLD_REVIEW_B.md` | 只读；第一优先级 Coverage Matrix 完整性 + phantom coverage；分 blocker/should/nit |
-| loop orchestrator | `SPEC_OVERVIEW.md`、`fix_plan.md`、`HANDOFF.md`、`logs.md`、`SESSIONS.md`、git status | `logs.md` append、`SESSIONS.md` 更新、状态转移决策 | 不写代码；不跑测试；检测 worker 完成靠 `lr2.py await`(status 文件 + pane 存活)；verify_plan conflict 时回退 planner 修订 |
+| loop orchestrator | `SPEC_OVERVIEW.md`、`fix_plan.md`、`HANDOFF.md`、`logs.md`、`SESSIONS.md`、git status | `logs.md` append、`SESSIONS.md` 更新、状态转移决策 | 不写代码；不跑测试；检测 worker 完成靠 `lr.py await`(status 文件 + pane 存活)；verify_plan conflict 时回退 planner 修订 |
 | phase planner | `SPEC_OVERVIEW.md`、`phases/<id>/spec.md`、repo 代码 | `phases/<id>/research.md`、`plan.md`、`qa.md`(带 QA ID)、`verify_plan.md`(L28) | 评估是否需要 `/think-map /think-research`；不写代码；完成信号需四文件全写完 |
 | phase coder | `phases/<id>/{spec,plan,qa,research,verify_plan}.md`、`HANDOFF.md`、`review_a/b.md`（如已存在） | 代码、`verify.sh`(L29: done impl 前写好并跑过)、**phase 收口 commit（L14）**、`HANDOFF.md`、`qa.md` evidence、`ack.md`（仲裁双路 review） | done impl 前写 verify.sh；不自动跨 phase；Verification Coverage blocker 指向 verify_plan 自身时可修改 verify_plan.md(唯一允许改 planner 产物的场景) |
 | phase reviewer(双路 _a/_b) | `phases/<id>/{spec,plan,qa,verify_plan}.md`、`verify.sh`、git diff、`HANDOFF.md` | `review_a.md` / `review_b.md`（三节: Verification Coverage → Debugger → Refactor） | 只读；Verification Coverage 最高优先级(L29)；每项标 `[blocker B1/should/nit]` |
@@ -268,13 +268,13 @@ tmux:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ScaffoldGen: /dev-long-run-v2 scaffold
+    [*] --> ScaffoldGen: /dev-long-run scaffold
     ScaffoldGen --> ScaffoldReview: orch produced SPEC_OVERVIEW(+Coverage Matrix) + fix_plan + qa
     ScaffoldReview --> ScaffoldRevise: dual SCAFFOLD_REVIEW_A/B.md written
     ScaffoldRevise --> ScaffoldDone: orch applied revisions
     ScaffoldDone --> [*]
 
-    [*] --> LoopInit: /dev-long-run-v2 develop
+    [*] --> LoopInit: /dev-long-run develop
     LoopInit --> PhasePlan: select next phase from fix_plan
     PhasePlan --> PhaseCode: planner wrote research/plan/qa/verify_plan (4 files)
     PhaseCode --> PhaseReview: coder done impl + verify.sh written & passed (no commit)
@@ -291,9 +291,9 @@ stateDiagram-v2
 
 ## tmux pane / session 持久化协议
 
-**Pane title 格式**：`lr2:<workspace-slug>:<role>:<phase-id>`
+**Pane title 格式**：`lr:<workspace-slug>:<role>:<phase-id>`
 
-例：`lr2:20260529-compliance:coder:01`、`lr2:20260529-compliance:reviewer:02`
+例：`lr:20260529-compliance:coder:01`、`lr:20260529-compliance:reviewer:02`
 
 **SESSIONS.md 是 markdown 表，机器和人都能读**：
 
@@ -328,7 +328,7 @@ stateDiagram-v2
 
 | `long_loop.py` 现有能力 | v2 处置 |
 |---|---|
-| `plan` 子命令 | **复用**。`lr2.py scaffold` 调它；新增 `--config <yaml>` 注入 v2 配置；额外生成 SCAFFOLD_REVIEW/SESSIONS/BACKLOG/CLEANUP_PROPOSAL 占位文件 |
+| `plan` 子命令 | **复用**。`lr.py scaffold` 调它；新增 `--config <yaml>` 注入 v2 配置；额外生成 SCAFFOLD_REVIEW/SESSIONS/BACKLOG/CLEANUP_PROPOSAL 占位文件 |
 | `launch-worker --agent {droid,claude,custom}` | **扩展**。新增 `kilo` enum；新增 `--role` 参数（让 launch 知道注入哪份 prompt）；新增 per-backend 启动握手：claude 启动后先消费 trust 对话框再发 prompt（spike 实证，见风险表），kilo 无此步；claude pane 用交互 zsh 以拿到 `.zshrc` 的 `CLAUDE_CODE_OAUTH_TOKEN` |
 | `observe / status / tail` | **复用**。`observe` 新增展示 SESSIONS.md |
 | `run`（legacy 单轮 LLM 调度） | **弃用**。v2 调度脑在 loop orch（LLM）里，不经 python |
@@ -336,10 +336,10 @@ stateDiagram-v2
 | `ORCHESTRATOR.md` / `WORKER_PROMPT.md` 模板 | **覆盖**。v2 模板替换 v1 内容 |
 
 **新增独立资产**（不动 `dev-long-loop`，括号内为实现实际形态）：
-- `skills/dev-long-run-v2/SKILL.md` + `USAGE.md`（上手手册，配 `USAGE.html` companion）
-- `skills/dev-long-run-v2/prompts/{scaffold_orchestrator,scaffold_reviewer,loop_orchestrator,phase_planner,phase_coder,phase_reviewer}.md`（文件名 = config role key）
-- `skills/dev-long-run-v2/lr2.py`（实现偏离：**自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**；TUI 长驻模型与 long_loop 的 per-round launch 不同，自包含避免改 2278 行共享文件）
-- `commands/dev-long-run-v2.md`（实现偏离：**单文件 + 子命令 arg**，非嵌套目录；匹配仓库 droid-mod 模式 + 跨 agent 可移植）
+- `skills/dev-long-run/SKILL.md` + `USAGE.md`（上手手册，配 `USAGE.html` companion）
+- `skills/dev-long-run/prompts/{scaffold_orchestrator,scaffold_reviewer,loop_orchestrator,phase_planner,phase_coder,phase_reviewer}.md`（文件名 = config role key）
+- `skills/dev-long-run/lr.py`（实现偏离：**自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**；TUI 长驻模型与 long_loop 的 per-round launch 不同，自包含避免改 2278 行共享文件）
+- `commands/dev-long-run.md`（实现偏离：**单文件 + 子命令 arg**，非嵌套目录；匹配仓库 droid-mod 模式 + 跨 agent 可移植）
 
 `dev-long-loop` 和 `dev-long-task-scaffold` 保留不动，避免破坏现有用户。
 
@@ -347,7 +347,7 @@ stateDiagram-v2
 
 | 故障 | 检测 | 恢复 |
 |---|---|---|
-| loop orch pane 误关 | 用户手动发现 | `/dev-long-run-v2 resume --workspace <path>` |
+| loop orch pane 误关 | 用户手动发现 | `/dev-long-run resume --workspace <path>` |
 | phase coder pane 死掉 | resume 时 `tmux list-panes` 不见 | 报告丢失 → 用户选"重开 fresh + 读 HANDOFF 续" 或 "标 phase failed" |
 | reviewer 全 blocker 被 coder reject | coder ack.md 全 reject | loop orch 不仲裁；写 BACKLOG.md `disputed` 项；escalate 给用户。带理由 `[rejected]` 门禁视为已裁决不阻塞 |
 | coder blocked verify_plan conflict | coder status = `blocked verify_plan conflict: ...` | loop orch reset planner/coder status → relaunch planner 修订 verify_plan.md(带 brief 说明冲突)→ planner done 后 reset coder status → send 继续 |
@@ -362,8 +362,8 @@ stateDiagram-v2
 ## 验证 / 验收策略
 
 ### Inner-loop verifier（实现期）
-- `lr2.py scaffold --goal <g> --requirement <path> --repo-root <repo> --new/--in-place` 生成完整 workspace（含 Coverage Matrix stub），模板齐全
-- `lr2.py launch --role phase_planner --workspace <ws> --phase NN` 在 tmux split 出正确 pane title
+- `lr.py scaffold --goal <g> --requirement <path> --repo-root <repo> --new/--in-place` 生成完整 workspace（含 Coverage Matrix stub），模板齐全
+- `lr.py launch --role phase_planner --workspace <ws> --phase NN` 在 tmux split 出正确 pane title
 - `SESSIONS.md` 的 pane_id 与 `tmux list-panes` 一致
 - 状态机所有合法迁移有对应入口；非法迁移被拒绝
 - 配置 schema 校验：缺字段、错 enum、未知 backend 都被拒
@@ -380,11 +380,11 @@ stateDiagram-v2
 
 ### 剩余风险
 - kilo backend `--variant` 档位生效已对照验证（见 Prerequisites 表，low→xhigh reasoning token 32→253 单调递增）。此项不再是风险。
-- kilo TUI 长驻 + send-keys 两轮注入 + 跨轮 context 保留已验证（2026-05-29 spike，`/tmp/lr2_spike/spike2.log`）。最高风险 Premise 对 kilo 路径已解除。
-- claude TUI 经交互 zsh pane + token + send-keys 注入已验证（2026-05-29 spike，`/tmp/lr2_spike/spike_claude.log`，ZEBRACLAUDE 真回复）。reviewer 路径架构风险解除。
+- kilo TUI 长驻 + send-keys 两轮注入 + 跨轮 context 保留已验证（2026-05-29 spike，`/tmp/lr_spike/spike2.log`）。最高风险 Premise 对 kilo 路径已解除。
+- claude TUI 经交互 zsh pane + token + send-keys 注入已验证（2026-05-29 spike，`/tmp/lr_spike/spike_claude.log`，ZEBRACLAUDE 真回复）。reviewer 路径架构风险解除。
 - claude 启动 trust 对话框需 launcher 预消费（见风险表），否则首个 prompt 被吞 —— 工程细节，非架构风险
 - multi-pane send-keys 在不同终端配置下可能行为不一致 [未验证]
-- ~~kilo TUI 无 `--variant` flag~~ 已消解：用户决策 TUI 用默认思考等级（L19），不投递 variant，故无需 launch flag。`lr2.effort_for` 已移除（不再管理思考等级）
+- ~~kilo TUI 无 `--variant` flag~~ 已消解：用户决策 TUI 用默认思考等级（L19），不投递 variant，故无需 launch flag。`lr.effort_for` 已移除（不再管理思考等级）
 - loop orch 不得靠 capture-pane 抓屏判断 coder 完成（spike 证明抓屏判定不可靠），必须靠 HANDOFF/done-marker 文件
 - 单轮 review 可能漏深层 bug，靠 acceptance verifier 兜底
 - **[S4 已否决]** send-keys 注入 prompt 文本的命令注入面（REQUIREMENT/review 内容经 zsh 交互模式解释）：用户决策不在本期处理。残余风险 [未验证]：若 prompt 文本含反引号/`$()`/`;` 等，经 send-keys 进交互 shell 可能被执行；缓解依赖"workspace 文件由本人产出、不引入不可信外部输入"这一前提。实现 send-keys 时若条件允许，建议优先用 `tmux send-keys -l`（literal）降低暴露，但不作为本期硬门禁。
@@ -417,20 +417,20 @@ stateDiagram-v2
 | 旧 `dev-long-loop` 用户被误改 | 低 | 完全不动旧 skill，全新独立 skill 和 command |
 | claude CLI alias 中的 token 泄露 | 中 | YAML 里只允许引用 `$VAR`，不允许写 token 字面值；落盘前校验 |
 
-**回退点**：v2 出问题时，`/dev-long-loop` 始终可用；删除 `skills/dev-long-run-v2/` 和 `commands/dev-long-run-v2.md` 即可完全回退。因开发在独立 worktree + 分支（L16），`main` 始终干净；丢弃整个尝试 = 删 worktree + 删分支，main 无残留。
+**回退点**：v2 出问题时，`/dev-long-loop` 始终可用；删除 `skills/dev-long-run/` 和 `commands/dev-long-run.md` 即可完全回退。因开发在独立 worktree + 分支（L16），`main` 始终干净；丢弃整个尝试 = 删 worktree + 删分支，main 无残留。
 
 ## 实施步骤（高层）
 
 1. **Spike 验证（实现前必做，按风险从高到低排，高风险项先做）**
-   - **[高风险，go/no-go] ✅ 已验证（2026-05-29，kilo）** kilo TUI 在 tmux pane 长驻 + 两次 `send-keys` 注入 prompt 均被执行（P1→PONG 8.8s，P2→ZEBRA 注入同一 pane，context 27.1K 跨轮保留）。证据：`/tmp/lr2_spike/spike2.log` capture-pane。整套 phase coder 跨 phase 复用架构的命门 → 成立。
+   - **[高风险，go/no-go] ✅ 已验证（2026-05-29，kilo）** kilo TUI 在 tmux pane 长驻 + 两次 `send-keys` 注入 prompt 均被执行（P1→PONG 8.8s，P2→ZEBRA 注入同一 pane，context 27.1K 跨轮保留）。证据：`/tmp/lr_spike/spike2.log` capture-pane。整套 phase coder 跨 phase 复用架构的命门 → 成立。
    - **[衍生约束]** spike 自动抓屏判定出现过假阳性+假阴性，证明**靠 capture-pane 判断 "coder 是否完成" 不可靠**。loop orch 检测 coder 完成必须靠 coder 写 HANDOFF/done-marker 文件 + 轮询文件 mtime，**不得靠 pane 文本抓屏**。
-   - **[高风险，go/no-go] ✅ 已验证（2026-05-29，claude）** claude TUI 经交互 zsh pane（source `.zshrc` 拿到 `CLAUDE_CODE_OAUTH_TOKEN`，TOKEN_PRESENT）启动 + 长驻 + send-keys 注入执行（P2→ZEBRACLAUDE 真回复 ~6s）。证据：`/tmp/lr2_spike/spike_claude.log`。
+   - **[高风险，go/no-go] ✅ 已验证（2026-05-29，claude）** claude TUI 经交互 zsh pane（source `.zshrc` 拿到 `CLAUDE_CODE_OAUTH_TOKEN`，TOKEN_PRESENT）启动 + 长驻 + send-keys 注入执行（P2→ZEBRACLAUDE 真回复 ~6s）。证据：`/tmp/lr_spike/spike_claude.log`。
    - **[claude 启动握手，launcher 必须处理]** claude 首次进新目录弹 **trust-folder 对话框**（"Is this a project you trust?"），`--dangerously-skip-permissions` **不跳过**；首个 send-keys 会被对话框吞掉（spike 的 P1 即因此失败）。launcher 启动 claude 后必须先消费 trust 对话框（预发 Enter 选"Yes, I trust"，或预先把 worktree 加入 claude 信任列表），再发真 prompt。kilo 无此对话框 → launcher 需 per-backend 启动握手。
    - **[低风险，已验证] ✅** kilo run 跑 cliproxy 模型 + `--variant` 档位生效（2026-05-29，见 Prerequisites 对照表，reasoning token 单调递增）。
    - 三条 Premise 对 kilo 与 claude 两路径均已解除；剩余只是 launcher 的 per-backend 启动握手工程细节，非架构风险。
-2. **新建 skill + command**：`skills/dev-long-run-v2/SKILL.md` 和单文件 `commands/dev-long-run-v2.md`(子命令作 arg)
+2. **新建 skill + command**：`skills/dev-long-run/SKILL.md` 和单文件 `commands/dev-long-run.md`(子命令作 arg)
 3. **扩展 `long_loop.py`**：加 `kilo` agent enum + `--role` 参数，不动核心逻辑
-4. **写 `lr2.py`**：subcommand（scaffold / develop / resume + orchestrator 用的 launch / send / sessions / pane-alive）；**实现为自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**（见旧资产边界注）+ worktree/分支创建与校验（L16，coder pane cwd 指向 worktree）
+4. **写 `lr.py`**：subcommand（scaffold / develop / resume + orchestrator 用的 launch / send / sessions / pane-alive）；**实现为自包含 tmux/git 编排，未复用 `long_loop.py launch-worker`**（见旧资产边界注）+ worktree/分支创建与校验（L16，coder pane cwd 指向 worktree）
 5. **写 6 份 prompt 文件**：按角色矩阵和约束表
 6. **TDD 关键路径**：SESSIONS.md 读写、pane 存活检查、状态机迁移、resume 路径
 7. **跑场景 1 端到端**（真实 repo + 真实任务），acceptance 验收
@@ -442,4 +442,4 @@ stateDiagram-v2
 
 - 参考：`skills/dev-long-loop/SKILL.md`、`skills/dev-long-task-scaffold/SKILL.md`
 - Prerequisites：`scripts/install_hooks.py`（已改）+ `scripts/tests/test_install_hooks.py`（已加 variants 测试）
-- Skill 路由：实施后在 `agents/AGENTS.md` 加 `/dev-long-run-v2` 入口；与 `/dev-long-loop` 并存，按场景路由（小/中任务用 dev-long-loop，复杂多 phase 协作用 dev-long-run-v2）
+- Skill 路由：实施后在 `agents/AGENTS.md` 加 `/dev-long-run` 入口；与 `/dev-long-loop` 并存，按场景路由（小/中任务用 dev-long-loop，复杂多 phase 协作用 dev-long-run）

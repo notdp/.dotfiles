@@ -1,6 +1,6 @@
-# dev-long-run-v2 上手操作手册(首次使用)
+# dev-long-run 上手操作手册(首次使用)
 
-> 代码只落在独立 worktree + `lr2/<slug>` 分支(或你选的当前分支),**main 永不被碰**,出事删 worktree+分支即可全退。
+> 代码只落在独立 worktree + `lr/<slug>` 分支(或你选的当前分支),**main 永不被碰**,出事删 worktree+分支即可全退。
 
 ## 一句话
 
@@ -23,7 +23,7 @@ agent 会问几个问题,然后**替你写好 `REQUIREMENT.md`** 给你过目。
 ## ① 搭骨架(选分支 + 评审)
 
 确认需求后,agent 先问你 **worktree 模式**(它会显示当前分支):
-- **新建**:新建隔离 worktree + `lr2/<slug>` 分支。
+- **新建**:新建隔离 worktree + `lr/<slug>` 分支。
 - **接着做**:在当前分支接着干(延续已有工作时选)。
 
 选完它建工作区、拆出 phase 计划,**再开一个 reviewer pane 审一轮**(你当前 tab 里会看到这个 pane),审完自己改,然后把 phase 计划讲给你:
@@ -68,9 +68,9 @@ planner 充实计划 → coder 写代码 → reviewer 审 → coder 改 + **comm
 - 卡住自己搞不定:把**报错原文 + 当时在做什么 + `state.json`** 发给我。
 
 ## 要盯的点
-- agent 该**开独立 coder pane** 写代码,不是在对话里自己写。怀疑时说"给我看 `lr2.py sessions`":有 `phase_coder` pane=对;一个 pane 没有=纠正它去 launch。
+- agent 该**开独立 coder pane** 写代码,不是在对话里自己写。怀疑时说"给我看 `lr.py sessions`":有 `phase_coder` pane=对;一个 pane 没有=纠正它去 launch。
 - 每个 phase 真停下问你了吗(没停就提醒它要 confirm)。
-- coder 真 commit 到 `lr2/` 或你的分支了吗(让它给你看 `git log`)。
+- coder 真 commit 到 `lr/` 或你的分支了吗(让它给你看 `git log`)。
 - reviewer 真写出 `phases/<id>/review.md` 了吗。
 
 哪条不对,就是反馈点,发我。

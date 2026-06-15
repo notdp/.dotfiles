@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""dev-long-run-v2 控制核心(纯逻辑部分)。
+"""dev-long-run 控制核心(纯逻辑部分)。
 
 薄 wrapper，多 pane 调度脑在 loop orchestrator(LLM)里，本文件只放可单测的纯逻辑：
 config schema 校验、variant→effort 按 backend 分流(L17)、SESSIONS.md 表读写、
-state.json 扩字段、worktree/分支命名。spec: docs/specs/dev-long-run-v2/overview.md
+state.json 扩字段、worktree/分支命名。spec: docs/specs/dev-long-run/overview.md
 """
 from __future__ import annotations
 
@@ -78,13 +78,13 @@ def validate_config(config: dict) -> dict:
 
 def branch_name(slug: str) -> str:
     """L16: 专用开发分支名。"""
-    return f"lr2/{slug}"
+    return f"lr/{slug}"
 
 
 def worktree_path(repo_root: Path, slug: str) -> Path:
-    """L16: worktree 放 repo 同级目录 <repo>-lr2-<slug>。"""
+    """L16: worktree 放 repo 同级目录 <repo>-lr-<slug>。"""
     repo_root = Path(repo_root)
-    return repo_root.parent / f"{repo_root.name}-lr2-{slug}"
+    return repo_root.parent / f"{repo_root.name}-lr-{slug}"
 
 
 def plan_worktree(repo_root: Path, slug: str, in_place: bool, current_branch: str) -> dict:
@@ -330,7 +330,7 @@ def phase_gate(verify: dict | None, review_text, ack_text: str) -> dict:
     (c) review 的每个 [blocker] 必须在 ack 标 [fixed] 或 [rejected](缺裁决 → 阻塞)。"""
     reasons: list[str] = []
     if not verify or not verify.get("ok"):
-        reasons.append("验证未跑或失败：先 `lr2.py verify --phase <id>`，verify.json.ok 必须为真")
+        reasons.append("验证未跑或失败：先 `lr.py verify --phase <id>`，verify.json.ok 必须为真")
 
     # 归一化 review_text 为 dict
     if isinstance(review_text, str):
@@ -421,7 +421,7 @@ def acceptance_gate(acceptance: dict | None) -> dict:
     acceptance 为 None(没跑)/未 ok → 阻塞。杜绝"acceptance verifier 只写在文档没执行"。"""
     if not acceptance or not acceptance.get("ok"):
         return {"ok": False, "reasons": [
-            "acceptance 未跑或失败：完成前必须 `lr2.py verify --acceptance` 跑通端到端验收，"
+            "acceptance 未跑或失败：完成前必须 `lr.py verify --acceptance` 跑通端到端验收，"
             "acceptance.json.ok 必须为真"
         ]}
     return {"ok": True, "reasons": []}
@@ -511,7 +511,7 @@ def summarize_metrics(records: list[dict]) -> dict:
 
 def pane_registered(rows: list[dict[str, str]], pane_id: str) -> bool:
     """pane 是否出现在 SESSIONS.md 注册表(任意状态行)。send 的护栏:
-    orchestrator 只该给 lr2 自己 launch 的 worker pane 发消息, 防止编错 pane id
+    orchestrator 只该给 lr 自己 launch 的 worker pane 发消息, 防止编错 pane id
     把 prompt 灌进用户正在用的 pane(alive 检查挡不住这种——用户 pane 也是活的)。"""
     return any(r["pane_id"] == pane_id for r in rows)
 
@@ -535,7 +535,7 @@ def panes_to_close(rows: list[dict[str, str]], roles, list_panes_output: str) ->
 
 def reconcile_dead_sessions(rows: list[dict[str, str]], list_panes_output: str, now: str) -> tuple[list[dict[str, str]], list[str]]:
     """SSOT 自愈(纯逻辑): SESSIONS 里 status==running 但 pane 已不在 tmux 的行 → 标 closed。
-    这类行来自非 lr2 路径的关闭(worker 进程自退 / 用户手关 pane) —— teardown 的 _close_roles
+    这类行来自非 lr 路径的关闭(worker 进程自退 / 用户手关 pane) —— teardown 的 _close_roles
     只更新它亲手 kill 的行, 不会碰这些, 否则它们永远 stale 在 running, 误导任何信 status 的消费方。
     now 由调用方传(不在纯函数里取时间, 便于测试)。返回 (新 rows, 被 reconcile 的 pane_id 列表)。"""
     reconciled: list[str] = []
@@ -601,7 +601,7 @@ def _git(repo_root: Path, args: list[str]) -> str:
 
 
 def pane_title(role: str, phase: str) -> str:
-    # `phase {n} {身份}`(用户决策 2026-06-06): 比 lr2:slug:role:phase 更易调试; 不含任务名(太长)。
+    # `phase {n} {身份}`(用户决策 2026-06-06): 比 lr:slug:role:phase 更易调试; 不含任务名(太长)。
     # 身份去掉 phase_ 前缀 → planner/coder/reviewer；双路 reviewer 保留后缀 → reviewer_a/reviewer_b。
     identity = role[len("phase_"):] if role.startswith("phase_") else role
     return f"phase {phase} {identity}"
@@ -614,7 +614,7 @@ def capture_pane(pane: str) -> str:
 def send_to_pane(pane: str, text: str, enter: bool = True) -> None:
     """把(可多行)文本 bracketed-paste 进 pane 输入框, 再单次 Enter 提交为一条消息。
     多行 prompt 在窗口里按原排版可读(不再是 send-keys 单行一坨)。"""
-    buf = "lr2dispatch"
+    buf = "lrdispatch"
     subprocess.run(["tmux", "load-buffer", "-b", buf, "-"], input=text, text=True, capture_output=True)
     _tmux(paste_buffer_args(pane, buf))
     time.sleep(0.5)
@@ -839,7 +839,7 @@ def default_config_yaml(slug: str) -> str:
 
     return f"""version: 2
 
-# dev-long-run-v2 角色配置(双路 reviewer)。
+# dev-long-run 角色配置(双路 reviewer)。
 # 双路 reviewer: _a + _b 并发审查, 两份 review 原样交 coder 仲裁。
 # orchestrator 检测: {'CC → a=kilo b=cc' if is_cc else 'kilo/other → a=cc b=kilo'}
 roles:
@@ -887,7 +887,7 @@ policy:
 tmux:
   default_split: split-right
   reviewer_split: split-down
-  pane_title_prefix: lr2:{slug}
+  pane_title_prefix: lr:{slug}
 """
 
 
@@ -933,7 +933,7 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
             ("both --new and --in-place given; pick one\n" if conflict else
              "worktree 模式未指定 — 请先把下面信息给用户、让用户选,再带 --new 或 --in-place 重跑:\n")
             + f"  当前分支: {current_branch or 'detached HEAD'}\n"
-            f"  --new      : 新建隔离 worktree(../<repo>-lr2-{slug}) + 分支 lr2/{slug}\n"
+            f"  --new      : 新建隔离 worktree(../<repo>-lr-{slug}) + 分支 lr/{slug}\n"
             f"  --in-place : 在当前分支 '{current_branch}' 接着做(main/master 会被拒)\n"
         )
         return 2
@@ -1016,7 +1016,7 @@ def cmd_develop(args: argparse.Namespace) -> int:
         f"  2. coder → impl + verify.sh (before done impl, no commit yet)\n"
         f"  3. dual reviewer → Verification Coverage + Debugger + Refactor\n"
         f"  4. send review to coder → ack+fix → commit (L14)\n"
-        f"  5. lr2.py verify + complete-phase, then ask user: next/done/block\n"
+        f"  5. lr.py verify + complete-phase, then ask user: next/done/block\n"
         f"  See {workspace}/ORCHESTRATOR.md\n"
     )
     return 0
@@ -1104,14 +1104,14 @@ def cmd_await(args: argparse.Namespace) -> int:
     就绪框却没写 status)。idle/timeout 附 pane tail 便于诊断。不 grep prose 判完成。
 
     status 路径二选一: 直接 `--status <path>`(裸路径); 或 `--workspace+--phase+--role`,
-    由 lr2 `resolve_phase_dir` 解析真实 phase 目录再拼 `<role>.status` —— 后者推荐, 避免
+    由 lr `resolve_phase_dir` 解析真实 phase 目录再拼 `<role>.status` —— 后者推荐, 避免
     orchestrator 用数字 id 拼出 `phases/03` 而 worker 实际写在 `phases/03_<slug>` 的错位。"""
     if args.status:
         status_path = Path(args.status)
     elif args.workspace and args.phase and args.role:
         status_path = resolve_phase_dir(Path(args.workspace).resolve(), args.phase) / f"{args.role}.status"
     else:
-        sys.stderr.write("await: 需要 --status, 或 --workspace+--phase+--role(由 lr2 解析 phase 目录构造 status 路径)\n")
+        sys.stderr.write("await: 需要 --status, 或 --workspace+--phase+--role(由 lr 解析 phase 目录构造 status 路径)\n")
         return 2
     deadline = time.monotonic() + args.timeout
     prev_screen = ""
@@ -1204,7 +1204,7 @@ def _append_log(workspace: Path, msg: str) -> None:
 
 def append_metric(workspace: Path, record: dict) -> None:
     """向 <ws>/metrics.jsonl 追加一行结构化事件(机器可读运行流水, append-only)。
-    自动补 ts; 喂 `lr2.py stats` 出汇总, 也是 stuck 计数的派生来源。纯增量、零回改, 不阻断任何门禁。"""
+    自动补 ts; 喂 `lr.py stats` 出汇总, 也是 stuck 计数的派生来源。纯增量、零回改, 不阻断任何门禁。"""
     line = json.dumps({"ts": _now(), **record}, ensure_ascii=False)
     p = workspace / "metrics.jsonl"
     with p.open("a", encoding="utf-8") as fh:
@@ -1234,7 +1234,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         partial = (err.stdout or b"") if isinstance(err.stdout, (bytes, type(None))) else err.stdout
         if isinstance(partial, bytes):
             partial = partial.decode("utf-8", "replace")
-        summary = verify_summary(124, (partial or "") + f"\n[lr2] TIMEOUT: {label} 超过 {args.timeout}s 未结束(挂起按失败处理)")
+        summary = verify_summary(124, (partial or "") + f"\n[lr] TIMEOUT: {label} 超过 {args.timeout}s 未结束(挂起按失败处理)")
     out_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(f"{'OK' if summary['ok'] else 'FAIL'} {label} exit={summary['exit']} → {out_path.name}\n")
     if args.acceptance:
@@ -1397,19 +1397,19 @@ def cmd_complete_run(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="lr2", description="dev-long-run-v2 multi-pane orchestration harness")
+    parser = argparse.ArgumentParser(prog="lr", description="dev-long-run multi-pane orchestration harness")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("scaffold", help="建 worktree+workspace, 启动 scaffold orchestrator")
+    p = sub.add_parser("scaffold", help="建 worktree+workspace, 进入 scaffold 流程")
     p.add_argument("--requirement", required=True)
     p.add_argument("--goal")
     p.add_argument("--name")
     p.add_argument("--repo-root", default=".")
-    p.add_argument("--new", action="store_true", help="新建隔离 worktree + lr2/<slug> 分支")
+    p.add_argument("--new", action="store_true", help="新建隔离 worktree + lr/<slug> 分支")
     p.add_argument("--in-place", action="store_true", help="在当前 worktree+分支接着做(L16:当前在 main/master 则拒绝)")
     p.set_defaults(func=cmd_scaffold)
 
-    p = sub.add_parser("develop", help="启动 loop orchestrator 进入开发循环")
+    p = sub.add_parser("develop", help="进入逐 phase 开发循环")
     p.add_argument("--workspace", required=True)
     p.set_defaults(func=cmd_develop)
 
@@ -1437,8 +1437,8 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_close)
 
     p = sub.add_parser("await", help="(orchestrator 调用) 健壮等 worker 完成: 轮询 status 文件 + 查 pane 死活")
-    p.add_argument("--status", help="status 文件裸路径; 或改用 --workspace+--phase+--role 让 lr2 解析 phase 目录")
-    p.add_argument("--workspace", help="配合 --phase+--role: lr2 resolve_phase_dir 解析真实目录再拼 <role>.status")
+    p.add_argument("--status", help="status 文件裸路径; 或改用 --workspace+--phase+--role 让 lr 解析 phase 目录")
+    p.add_argument("--workspace", help="配合 --phase+--role: lr resolve_phase_dir 解析真实目录再拼 <role>.status")
     p.add_argument("--phase", help="配合 --workspace+--role 构造 status 路径(数字 id 即可, 会解析到 <NN>_<slug>)")
     p.add_argument("--role", help="配合 --workspace+--phase 构造 status 路径(如 phase_coder)")
     p.add_argument("--pane", help="worker pane id; 给了就每轮查死活+idle 兜底, 死了立即 DEAD 退出")

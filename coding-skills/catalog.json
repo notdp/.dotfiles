@@ -202,8 +202,8 @@
       "role": "canonical"
     },
     {
-      "name": "dev-long-run-v2",
-      "path": "coding-skills/dev-long-run-v2",
+      "name": "dev-long-run",
+      "path": "coding-skills/dev-long-run",
       "domain": "dev",
       "role": "canonical"
     },

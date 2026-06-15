@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>dev-long-run-v2 上手操作手册(首次使用)</title>
+<title>dev-long-run 上手操作手册(首次使用)</title>
 <style>
 :root { color-scheme: light; --bg: #f8fafc; --panel: #ffffff; --text: #111827; --muted: #64748b; --border: #dbe3ef; --accent: #1f4b99; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
@@ -26,13 +26,13 @@ th { background: #eef4ff; }
 <main>
 <header>
 <span class="badge">generic</span>
-<h1>dev-long-run-v2 上手操作手册(首次使用)</h1>
-<div class="meta">Source: skills/dev-long-run-v2/USAGE.md</div>
+<h1>dev-long-run 上手操作手册(首次使用)</h1>
+<div class="meta">Source: skills/dev-long-run/USAGE.md</div>
 <div class="meta">Generated: 2026-05-29T07:10:23+00:00</div>
 </header>
 <section>
-<h1>dev-long-run-v2 上手操作手册(首次使用)</h1>
-<blockquote>代码只落在独立 worktree + <code>lr2/&lt;slug&gt;</code> 分支(或你选的当前分支),<strong>main 永不被碰</strong>,出事删 worktree+分支即可全退。</blockquote>
+<h1>dev-long-run 上手操作手册(首次使用)</h1>
+<blockquote>代码只落在独立 worktree + <code>lr/&lt;slug&gt;</code> 分支(或你选的当前分支),<strong>main 永不被碰</strong>,出事删 worktree+分支即可全退。</blockquote>
 <h2>一句话</h2>
 <p>你<strong>只跟一个 coding agent 对话</strong>,不敲命令、不写文件、不进 tmux。agent 当 orchestrator 替你干所有机械活,<strong>每个 phase 做完都停下问你</strong>,你说一句就推进。全程分 4 步,下面按步走。</p>
 <pre><code>⓪ 讨论需求  →  ① 搭骨架(选分支 + 评审)  →  ② 逐 phase 开发循环  →  ③ 收尾
@@ -44,7 +44,7 @@ th { background: #eef4ff; }
 <p>agent 会问几个问题,然后<strong>替你写好 <code>REQUIREMENT.md</code></strong> 给你过目。你不用自己写文件。</p>
 <h2>① 搭骨架(选分支 + 评审)</h2>
 <p>确认需求后,agent 先问你 <strong>worktree 模式</strong>(它会显示当前分支):</p>
-<ul><li><strong>新建</strong>:新建隔离 worktree + <code>lr2/&lt;slug&gt;</code> 分支。</li><li><strong>接着做</strong>:在当前分支接着干(延续已有工作时选)。</li></ul>
+<ul><li><strong>新建</strong>:新建隔离 worktree + <code>lr/&lt;slug&gt;</code> 分支。</li><li><strong>接着做</strong>:在当前分支接着干(延续已有工作时选)。</li></ul>
 <p>选完它建工作区、拆出 phase 计划,<strong>再开一个 reviewer pane 审一轮</strong>(你当前 tab 里会看到这个 pane),审完自己改,然后把 phase 计划讲给你:</p>
 <blockquote>&quot;拆成 3 个 phase:①…②…③…,phase 1 先开始?&quot;</blockquote>
 <p>你看计划合不合理,说&quot;可以&quot;或&quot;②先别动数据库&quot;之类。</p>
@@ -62,7 +62,7 @@ th { background: #eef4ff; }
 <h2>出问题</h2>
 <ul><li><strong>崩溃/重启</strong>:跟 agent 说&quot;恢复 long-run&quot;,它跑 <code>resume</code> 续上。</li><li><strong>想全删重来</strong>:说&quot;删掉这次 long-run&quot;,它关 worker pane + 删 worktree + 删分支,main 不受影响。</li><li><strong>agent 跑偏</strong>:对话里直接纠正,或说&quot;停&quot;。</li><li>卡住自己搞不定:把<strong>报错原文 + 当时在做什么 + <code>state.json</code></strong> 发给我。</li></ul>
 <h2>要盯的点</h2>
-<ul><li>agent 该<strong>开独立 coder pane</strong> 写代码,不是在对话里自己写。怀疑时说&quot;给我看 <code>lr2.py sessions</code>&quot;:有 <code>phase_coder</code> pane=对;一个 pane 没有=纠正它去 launch。</li><li>每个 phase 真停下问你了吗(没停就提醒它要 confirm)。</li><li>coder 真 commit 到 <code>lr2/</code> 或你的分支了吗(让它给你看 <code>git log</code>)。</li><li>reviewer 真写出 <code>phases/&lt;id&gt;/review.md</code> 了吗。</li></ul>
+<ul><li>agent 该<strong>开独立 coder pane</strong> 写代码,不是在对话里自己写。怀疑时说&quot;给我看 <code>lr.py sessions</code>&quot;:有 <code>phase_coder</code> pane=对;一个 pane 没有=纠正它去 launch。</li><li>每个 phase 真停下问你了吗(没停就提醒它要 confirm)。</li><li>coder 真 commit 到 <code>lr/</code> 或你的分支了吗(让它给你看 <code>git log</code>)。</li><li>reviewer 真写出 <code>phases/&lt;id&gt;/review.md</code> 了吗。</li></ul>
 <p>哪条不对,就是反馈点,发我。</p>
 </section>
 </main>

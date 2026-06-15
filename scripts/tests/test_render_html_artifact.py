@@ -101,15 +101,15 @@ class RenderHtmlArtifactTests(unittest.TestCase):
             return output.read_text(encoding="utf-8")
 
     def test_inline_bold_and_code(self) -> None:
-        rendered = self._render("# T\n\nuse `lr2.py` and **never** touch main.\n")
-        self.assertIn("<code>lr2.py</code>", rendered)
+        rendered = self._render("# T\n\nuse `lr.py` and **never** touch main.\n")
+        self.assertIn("<code>lr.py</code>", rendered)
         self.assertIn("<strong>never</strong>", rendered)
         self.assertNotIn("**never**", rendered)
 
     def test_blockquote(self) -> None:
-        rendered = self._render("# T\n\n> 状态:v0, see `lr2.py`.\n")
+        rendered = self._render("# T\n\n> 状态:v0, see `lr.py`.\n")
         self.assertIn("<blockquote>", rendered)
-        self.assertIn("<code>lr2.py</code>", rendered)
+        self.assertIn("<code>lr.py</code>", rendered)
         self.assertNotIn("&gt; 状态", rendered)  # 不应把 > 当字面文本
 
     def test_ordered_list(self) -> None:

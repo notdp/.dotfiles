@@ -86,7 +86,7 @@ python3 -m unittest discover -s scripts/tests -p "test_*.py"
 | `dev-tdd` | TDD 工作流；新功能/bug 修复时使用 |
 | `dev-refactor` | 代码重构（分支比较、未提交变更、自定义范围） |
 | `dev-simplify` | 实现后从复用/质量/效率角度轻量清理 |
-| `dev-long-run-v2` | 多 phase 长任务编排；planner/coder/reviewer 分工、逐 phase commit、完成门禁 |
+| `dev-long-run` | 多 phase 长任务编排；planner/coder/reviewer 分工、逐 phase commit、完成门禁 |
 | `dev-operational-task` | 长耗时、数据任务、复杂 CLI、dry-run/apply 合同 |
 | `guard-check` | 交付前总入口；编排 review/secure/verify/ship/gitops |
 | `guard-review` | 代码审查（simple/deep 两种模式） |

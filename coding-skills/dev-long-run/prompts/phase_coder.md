@@ -10,9 +10,9 @@
 ## 必写产出
 - 业务代码（在 worktree 里，分支 = `state.json.branch`，**绝不在 main 上**）
 - 更新 `HANDOFF.md`：本轮做了什么 / 下一步 / 验证证据
-- **`phases/<id>/verify.sh`**（**必须在 `done impl` 前写好并本地跑过**）：按 `verify_plan.md` 的 `type=auto` 项逐条实现自动化验证。verify_plan 里的 QA ID 写成 verify.sh 的注释或输出标签，方便 reviewer 对账。可直接 `bash verify.sh` 跑、失败要让脚本非 0 退出(用 `set -e` 或显式判断)。orchestrator 会用 `lr2.py verify` **真跑它**写 `verify.json`，这是完成门禁认的唯一证据 —— **测试写了不跑 = 没写**。发现 verify_plan 与 spec/qa 有冲突且影响 auto 覆盖时，写 `blocked verify_plan conflict: <具体冲突>` 请求 orchestrator 修订 verify_plan.md，不要盲写脚本。
+- **`phases/<id>/verify.sh`**（**必须在 `done impl` 前写好并本地跑过**）：按 `verify_plan.md` 的 `type=auto` 项逐条实现自动化验证。verify_plan 里的 QA ID 写成 verify.sh 的注释或输出标签，方便 reviewer 对账。可直接 `bash verify.sh` 跑、失败要让脚本非 0 退出(用 `set -e` 或显式判断)。orchestrator 会用 `lr.py verify` **真跑它**写 `verify.json`，这是完成门禁认的唯一证据 —— **测试写了不跑 = 没写**。发现 verify_plan 与 spec/qa 有冲突且影响 auto 覆盖时，写 `blocked verify_plan conflict: <具体冲突>` 请求 orchestrator 修订 verify_plan.md，不要盲写脚本。
 - `phases/<id>/qa.md` 填**真实执行证据**(命令 + 输出摘要 + pass/fail)，并按 planner 的两段格式补 `## 人工验证`(只在自动化不划算时，按 目的/操作/观察 三段写清，给点验的人照做)。
-- **不要自己改 `fix_plan.md` 勾选**：phase 完成由 orchestrator 跑 `lr2.py complete-phase` 过门禁后翻；你手翻 = 绕过门禁。
+- **不要自己改 `fix_plan.md` 勾选**：phase 完成由 orchestrator 跑 `lr.py complete-phase` 过门禁后翻；你手翻 = 绕过门禁。
 - 收到 review 后写 `phases/<id>/ack.md`：
   - `## Findings`：逐项 `[agree]/[disagree + 理由]`（L5 你自判，orch 采信）
   - `## Blocker Resolutions`(机器可读，门禁要读)：
@@ -40,7 +40,7 @@
 
 ## 每 phase 收口(L14)
 - ack 处理完、按优先级修完后：① 如果 review 要求修 verify.sh，更新它并重跑 `bash verify.sh` 确认通过(修改不得降低 verify_plan auto 项的覆盖;失败就继续修，别带病收口)→ ② **commit 本 phase 改动到分支**，不 push → ③ 把 `phases/<id>/phase_coder.status` 的**整个文件内容**写成一行 `done commit=<hash>`(只写状态本身,**别把文件名或 `=` 写进文件**)。
-- 你写 `done` 只代表"我自认改完且 verify.sh 本地能过";**真正标 phase 完成是 orchestrator 跑 `lr2.py verify` + `lr2.py complete-phase` 过门禁**(verify.json.ok=真 且每个 blocker 都有 `[fixed]` 或带理由的 `[rejected]` 裁决),门禁不过会打回。
+- 你写 `done` 只代表"我自认改完且 verify.sh 本地能过";**真正标 phase 完成是 orchestrator 跑 `lr.py verify` + `lr.py complete-phase` 过门禁**(verify.json.ok=真 且每个 blocker 都有 `[fixed]` 或带理由的 `[rejected]` 裁决),门禁不过会打回。
 - **只 stage 本 phase 实际改的文件**（显式 `git add <path1> <path2> …`），**禁止 `git add -A` / `git add .`**。
   原因:in-place 模式下分支是用户已有的活跃分支,`git add -A` 会把工作树里无关的未提交改动一并裹进本 phase commit。先 `git status` 看清,只加你这轮动过的文件。
 - commit 完更新 HANDOFF，等 orchestrator 推进，**不要自己跨 phase、不要退出 pane**。

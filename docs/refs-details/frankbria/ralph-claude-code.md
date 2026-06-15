@@ -8,12 +8,12 @@
 
 ## 定位与本仓库的关系（先说结论）
 
-- Ralph 和我们的 `dev-long-run-v2` **哲学相反**：
+- Ralph 和我们的 `dev-long-run` **哲学相反**：
   - Ralph = **无人值守自主**。没有 per-phase 人工确认，单 pane Claude，靠启发式信号自己判断"完成/卡住/该停"，目标是丢进 CI 跑到底。
-  - `dev-long-run-v2` = **人在环监督**。当前 agent 即 orchestrator，每 phase 用户自然语言确认，多 pane（planner/coder/reviewer），L23 硬门禁，worktree 隔离。
+  - `dev-long-run` = **人在环监督**。当前 agent 即 orchestrator，每 phase 用户自然语言确认，多 pane（planner/coder/reviewer），L23 硬门禁，worktree 隔离。
 - 因此 Ralph 的"自主退出启发式 / 沙箱 / 速率限制 / 多 issue 队列"**大部分不适合直接搬**（我们用人工确认 + 硬门禁，比启发式更强，搬过来反而是降级）。
 - 但 Ralph 在**机械可靠性**上有几处比我们成熟，值得吸收：把"卡死检测/失败计数"从 orchestrator 记忆变成磁盘上可计算的信号、per-loop 结构化 metrics、completion gate 区分 optional/blocking、超时时用 git diff 自动区分"在干活的慢"和"真卡住"。
-- 详细的吸收裁决见：[`docs/software-engineering-research/dev-long-run-v2-improvements-from-ralph.md`](../../software-engineering-research/dev-long-run-v2-improvements-from-ralph.md)
+- 详细的吸收裁决见：[`docs/software-engineering-research/dev-long-run-improvements-from-ralph.md`](../../software-engineering-research/dev-long-run-improvements-from-ralph.md)
 
 ## 能力概览
 

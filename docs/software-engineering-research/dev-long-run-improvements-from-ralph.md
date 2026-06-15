@@ -1,8 +1,8 @@
-# 从 Ralph 吸收：dev-long-run-v2 的提升建议
+# 从 Ralph 吸收：dev-long-run 的提升建议
 
 - 对照对象：`refs/frankbria/ralph-claude-code`（分析见 [`docs/refs-details/frankbria/ralph-claude-code.md`](../refs-details/frankbria/ralph-claude-code.md)）
-- 被改对象：`coding-skills/dev-long-run-v2/`（`SKILL.md` / `lr2.py` / `docs/specs/dev-long-run-v2/overview.md`）
-- 文档状态：建议 1、2 **已实现**(2026-06-12,见 spec L26 + `lr2.py` `verify_fingerprint`/`update_stuck`/`summarize_metrics`/`cmd_stats` + `test_lr2.py` StuckDetection/SummarizeMetrics 测试);3-6 **未实现**。每条标了证据来源和置信度。
+- 被改对象：`coding-skills/dev-long-run/`（`SKILL.md` / `lr.py` / `docs/specs/dev-long-run/overview.md`）
+- 文档状态：建议 1、2 **已实现**(2026-06-12,见 spec L26 + `lr.py` `verify_fingerprint`/`update_stuck`/`summarize_metrics`/`cmd_stats` + `test_lr.py` StuckDetection/SummarizeMetrics 测试);3-6 **未实现**。每条标了证据来源和置信度。
 
 ## 0. 先划清边界：哪些**不要**搬（防华而不实）
 
@@ -32,9 +32,9 @@
 - 错误指纹比对（`detect_stuck_loop`）：要求"当前所有错误行都出现在最近 3 个历史输出里"才判 stuck，刻意防"错误在演化"被误判为卡死。
 
 ### 落点（具体、最小）
-- `lr2.py verify` 每次跑完，把**失败摘要的指纹**（如 verify.json 里失败用例名/首条 error 行的 hash）写进 phase 状态：`phases/<id>/stuck.json`，字段 `{consecutive_fail, last_error_fingerprint}`。
+- `lr.py verify` 每次跑完，把**失败摘要的指纹**（如 verify.json 里失败用例名/首条 error 行的 hash）写进 phase 状态：`phases/<id>/stuck.json`，字段 `{consecutive_fail, last_error_fingerprint}`。
 - 规则：本轮 verify 通过 → 清零；失败且指纹与上轮**相同** → `consecutive_fail++`；失败但指纹**不同** → 重置为 1（错误在变 = 还在推进，不算卡死，这点直接抄 Ralph）。
-- `lr2.py gate` / `await` 在 `consecutive_fail >= 2` 时返回一个**明确的 STUCK 信号**（带指纹和历史），orchestrator 看到就按 `/think-unstuck` escalate，而不是凭感觉。
+- `lr.py gate` / `await` 在 `consecutive_fail >= 2` 时返回一个**明确的 STUCK 信号**（带指纹和历史），orchestrator 看到就按 `/think-unstuck` escalate，而不是凭感觉。
 - **置信度 [高]**：和我们既有停止条件语义完全一致，只是把"记忆计数"换成"磁盘计数"，零哲学冲突，纯增可靠性。落地小（一个 json + verify 时算个 hash）。
 
 ---
@@ -50,8 +50,8 @@
 - `ralph-stats.sh` 读它出汇总。监控面板 2s 刷新读同一份。
 
 ### 落点
-- `lr2.py` 在 phase 关键节点（planner 完成 / coder DONE impl / verify / complete-phase）各追加一行到 `.long-loop/<ws>/metrics.jsonl`：`{phase, role, event, ts, files_changed, verify_ok, blocker_count, consecutive_fail}`。
-- 加一个只读子命令 `lr2.py stats --workspace <ws>` 出汇总，orchestrator 用它给用户报进度，**不靠记忆复述**。
+- `lr.py` 在 phase 关键节点（planner 完成 / coder DONE impl / verify / complete-phase）各追加一行到 `.long-loop/<ws>/metrics.jsonl`：`{phase, role, event, ts, files_changed, verify_ok, blocker_count, consecutive_fail}`。
+- 加一个只读子命令 `lr.py stats --workspace <ws>` 出汇总，orchestrator 用它给用户报进度，**不靠记忆复述**。
 - **它还顺便喂了第 1 条**（stuck 计数本就是 metrics 的派生）。
 - **置信度 [高]**：纯增量、零风险（append-only 文件），直接改善可观测性 + 给用户的进度播报有据可查。和我们"无证据的完成不接受"一脉相承。
 
@@ -68,7 +68,7 @@
 - `fix_plan.md` 里 `Optional` / `Future` / `Nice to Have` 标题下的未勾项**不阻塞退出**，awk 维护 `optional_active` 状态只数阻塞项，段名 `OPTIONAL_SECTIONS` 可配。
 
 ### 落点
-- `lr2.py complete-run` / `complete-phase` 数未完成项时，跳过 `## Optional` / `## Backlog` / `## Future` 等约定标题下的条目。
+- `lr.py complete-run` / `complete-phase` 数未完成项时，跳过 `## Optional` / `## Backlog` / `## Future` 等约定标题下的条目。
 - 收尾时这些项自动进 `BACKLOG.md`（我们已有这个产物 + `CLEANUP_PROPOSAL.md` 习惯），而不是卡住门禁。
 - **置信度 [中高]**：和我们"可选 backlog"规则完美对齐，解决一个真实的门禁僵局。唯一要小心的是**别让它变成绕过门禁的后门**——必须约定"只有明确标在 optional 标题下的才豁免，默认全是 blocking"，这点 Ralph 也是这么守的（无标记时等同全量计数）。
 
@@ -77,7 +77,7 @@
 ## 4. 【中】超时用 worktree diff 自动区分"慢"vs"卡"（borrow: productive/idle timeout）
 
 ### 现状缺口
-- `lr2.py await` 有 `4 TIMEOUT` 和 `6 IDLE`，但**区分靠 orchestrator 读 pane tail 主观判**。
+- `lr.py await` 有 `4 TIMEOUT` 和 `6 IDLE`，但**区分靠 orchestrator 读 pane tail 主观判**。
 - SKILL.md 自己记了个坑：worker 跑大型测试套件时画面静止会被**误判 IDLE**（false-IDLE）。
 
 ### Ralph 怎么做（已核实 `ralph_loop.sh` 超时守卫）
@@ -85,7 +85,7 @@
 
 ### 落点
 - 我们本来就在 worktree 里，`git diff --stat` 相对"本轮 worker 启动时记录的 SHA"是现成的。
-- `lr2.py await` 在 TIMEOUT/IDLE 时**自动附带** "自启动以来 worktree 是否有改动 + 改了哪些文件"，把这个客观信号和 pane tail 一起给 orchestrator。有改动 → 大概率 false-IDLE/productive，倾向于调大 timeout 继续；无改动 → 倾向于真卡死。
+- `lr.py await` 在 TIMEOUT/IDLE 时**自动附带** "自启动以来 worktree 是否有改动 + 改了哪些文件"，把这个客观信号和 pane tail 一起给 orchestrator。有改动 → 大概率 false-IDLE/productive，倾向于调大 timeout 继续；无改动 → 倾向于真卡死。
 - **置信度 [中]**：直接缓解我们记在案的 false-IDLE 坑，信号客观。注意它是**辅助信号不是自动决策**——我们是监督模式，最终还是 orchestrator/用户拍板，但给的是事实而非猜测（符合"信息不足先加可观测性"）。
 
 ---
@@ -125,7 +125,7 @@
 | # | 建议 | 置信度 | 落地大小 | 和我们原则的关系 |
 |---|---|---|---|---|
 | 1 | stuck/失败计数持久化到磁盘 | 高 | 小 | 直接补"记忆不可信"漏洞，强化既有"连续2次失败"停止条件 |
-| 2 | per-phase metrics.jsonl + `lr2.py stats` | 高 | 小 | 可观测性 + 进度播报有据，呼应"无证据不算完成" |
+| 2 | per-phase metrics.jsonl + `lr.py stats` | 高 | 小 | 可观测性 + 进度播报有据，呼应"无证据不算完成" |
 | 3 | 门禁区分 optional/blocking | 中高 | 小 | 对齐"可选 backlog"规则，解门禁僵局 |
 | 4 | 超时用 worktree diff 区分慢/卡 | 中 | 小 | 缓解 false-IDLE 坑，给客观信号 |
 | 5 | repo 级 AGENT.md 命令文件 | 中低 | 小 | 降 fresh coder 重发现成本，部分已覆盖 |

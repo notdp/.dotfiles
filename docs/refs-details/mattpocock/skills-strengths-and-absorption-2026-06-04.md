@@ -117,7 +117,7 @@ Why：horizontal slicing 会让 agent 先写一批想象中的测试或基础设
 
 How：`tdd` 要求一个可观察行为对应一轮 `RED -> GREEN`；`to-issues` 要求每个 issue 窄但完整地穿过所有集成层，完成后可独立 demo 或验证。
 
-对本仓库的启发：`dev-tdd` 已经吸收 vertical slice。还可以把同一语言扩散到 `think-plan`、`dev-long-task-scaffold`、`dev-long-run-v2`，让 phase/issue 也以可验收垂直切片为单位。
+对本仓库的启发：`dev-tdd` 已经吸收 vertical slice。还可以把同一语言扩散到 `think-plan`、`dev-long-task-scaffold`、`dev-long-run`，让 phase/issue 也以可验收垂直切片为单位。
 
 ### 7. 具体 Good/Bad 对比比抽象原则更能约束 agent
 
@@ -178,7 +178,7 @@ How：参考项目用 `disable-model-invocation: true` 表达某些 skill 只允
 | 新增项 | 推荐落点 | 为什么吸收 | 怎么吸收 |
 |---|---|---|---|
 | `docs/out-of-scope/` 或 `.out-of-scope/` 模式 | `docs/software-engineering-research/skill-patterns.md`、`guard-close` | 记录长期重复的“不做什么”，减少 scope creep | 先作为可选模式，不自动创建；一个 concept 一个文件 |
-| Durable Agent Brief 模板 | `think-plan`、`guard-ship`、`dev-long-task-scaffold`、`dev-long-run-v2` | 改善长期交接，减少 line number 腐烂 | 模板包含 current behavior、desired behavior、key interfaces、acceptance criteria、out of scope |
+| Durable Agent Brief 模板 | `think-plan`、`guard-ship`、`dev-long-task-scaffold`、`dev-long-run` | 改善长期交接，减少 line number 腐烂 | 模板包含 current behavior、desired behavior、key interfaces、acceptance criteria、out of scope |
 | `manual-only` 语义 | `coding-skills/catalog.json`、`scripts/verify_skills.py`、`skill-authoring.md` | 某些 skill 不应被 agent 自动调用 | 先做 schema 设计；只用于 zoom-out、危险操作准备、反思类 skill |
 | Issue workflow commands | `commands/to-prd.md`、`commands/to-issues.md`、`commands/triage.md` | PRD/issue/triage 是动词型工作流，且可能有远程副作用 | 默认 dry-run；触碰 GitHub/GitLab 前走 `guard-gitops` |
 | Skill 级 `LANGUAGE.md` 模板 | `skill-authoring.md`、部分知识密集 skill 目录 | 降低术语漂移 | 每个术语包含定义、Avoid、冲突处理、例句 |
@@ -191,7 +191,7 @@ How：参考项目用 `disable-model-invocation: true` 表达某些 skill 只允
 | Grilling 一次一个问题 + 推荐答案 | `think-refine`、`think-scope`、`think-plan` | 降低用户认知负担，减少一次倒出十几个问题 | 只问阻塞决策；每问附推荐答案；能读代码就不问用户 |
 | 领域术语冲突显式化 | `think-scope`、`think-refine`、`think-architecture` | 避免用户词、代码词、文档词静默错位 | 输出 flagged ambiguity；需要时建议写入 CONTEXT 类文档 |
 | ADR 触发条件 | `think-plan`、`think-architecture` | 记录为什么，不制造文档仪式 | 只在 hard to reverse、surprising、real trade-off 同时成立时建议 ADR |
-| Vertical slice 计划语言 | `think-plan`、`dev-long-task-scaffold`、`dev-long-run-v2` | phase/issue 如果不可独立验证，会增加交付风险 | 每个 phase 有可观察验收，不按 UI/schema/API 水平拆 |
+| Vertical slice 计划语言 | `think-plan`、`dev-long-task-scaffold`、`dev-long-run` | phase/issue 如果不可独立验证，会增加交付风险 | 每个 phase 有可观察验收，不按 UI/schema/API 水平拆 |
 | Good/Bad 对比 | `skill-authoring.md`、重点 skill 支撑文件 | 抽象原则不够稳定 | 高风险规则配正反 contract cases 和恢复路径 |
 | Hooks guardrail 测试 | `scripts/tests/test_*command_guard*` | 参考项目列出危险 git 命令 | 复核 `git branch -D`、`git checkout .`、`git restore .`、`git clean -fd` 等用例 |
 

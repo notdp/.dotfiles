@@ -27,7 +27,7 @@ argument-hint: <目标|场景|约束>
 | Bug / 排错 | `/dev-debug` -> `/dev-tdd`（行为修复）-> `/guard-verify` | 复现、根因、修复、回归证据 |
 | 问题研究 | `/web-read`（有 URL）-> `/think-research` -> `/think-plan` | 调研结论、推荐方案、实施计划 |
 | 开放主题综述 | `/think-survey` -> `/think-research`（需要决策时）-> `/assist-learn` | 现状、流派、分歧、可复用规则 |
-| 长任务 | `/think-plan` -> `/dev-long-run-v2` -> `/guard-verify` | SPEC、phase 计划、逐 phase commit、完成门禁证据 |
+| 长任务 | `/think-plan` -> `/dev-long-run` -> `/guard-verify` | SPEC、phase 计划、逐 phase commit、完成门禁证据 |
 | 大型交付 | `/think-plan` -> `/dev-large-delivery` -> `/guard-gitops`（触远端前）-> `/guard-ship` | Phase checklist、验收、回滚剧本、PR/发布 |
 | 安全相关 | `/guard-secure` -> `/security-review` 或 `/commit-security-scan`（按场景）-> `/guard-verify` | 威胁模型、finding、验证证据 |
 | 代码质量 / 重构 | `/think-quality` -> `/dev-refactor` -> `/guard-review` -> `/guard-verify` | 结构问题清单、重构、review、测试证据 |
