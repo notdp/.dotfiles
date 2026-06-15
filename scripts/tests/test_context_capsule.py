@@ -66,6 +66,18 @@ class ContextCapsuleTests(unittest.TestCase):
             cwd=REPO_ROOT,
         )
 
+    def capsules_for(self, prompt: str) -> list[tuple[str, str]]:
+        """返回 (heading, context) 对列表。用于"不包含 X"断言。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_capsule(Path(tmp), prompt)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        ctx = payload.get("hookSpecificOutput", {}).get("additionalContext", "")
+        if not ctx:
+            return []
+        headings = [(line.removeprefix("# "), ctx) for line in ctx.splitlines() if line.startswith("# ")]
+        return headings
+
     def assert_prompt_capsules(self, prompt: str, expected_headings: list[str]) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self.run_capsule(Path(tmp), prompt)
@@ -126,9 +138,15 @@ class ContextCapsuleTests(unittest.TestCase):
                 self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
 
     def test_chinese_push_injects_security_capsule(self) -> None:
-        for prompt in ["推到远端", "推送到 origin"]:
+        for prompt in ["推到远端", "推送到 origin", "git push 一下"]:
             with self.subTest(prompt=prompt):
                 self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
+
+    def test_chinese_push_business_does_not_inject_security(self) -> None:
+        for prompt in ["实现消息推送功能", "通知推送模块优化"]:
+            with self.subTest(prompt=prompt):
+                caps = [h for h, _ in self.capsules_for(prompt)]
+                self.assertNotIn("Security / GitOps Capsule", caps, f"'{prompt}' should not trigger security capsule")
 
     def test_review_request_stays_quiet(self) -> None:
         for prompt in ["再 review 一下", "看 review 意见", "commit 一下"]:
