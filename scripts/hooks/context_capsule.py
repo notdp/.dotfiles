@@ -30,7 +30,7 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "security-gitops.md",
         re.compile(
             r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm|"
-            r"发布|上线|下线|回滚|env|gitignore|凭据|密钥|"
+            r"发布|上线|下线|回滚|env|gitignore|凭据|密钥|推送|推到远端|"
             r"external target|exploit|c2|phishing|credential access|lateral movement|brute[- ]?force|auth bypass)",
             re.I,
         ),
@@ -94,7 +94,8 @@ DEEPSEEK_SYSTEM = (
     "1. \"Scope Alignment Capsule\" — 要新增/修改/优化/重构功能但问题未锚定(没说清要解决什么问题); "
     "需求已具体到文件级或纯机械操作则不选。\n"
     "2. \"Planning Task Capsule\" — 明确要方案/计划/架构/阶段拆分/技术选型。\n"
-    "3. \"Debug Task Capsule\" — 故障/异常/bug/行为不符预期/排查/定位/原因分析。\n"
+    "3. \"Debug Task Capsule\" — 故障/异常/bug/行为不符预期/排查/定位/原因分析。注意:code review、"
+    "审查代码变更、看 review 结论不是 debug。\n"
     "4. \"Security / GitOps Capsule\" — 生产/部署/远程机器/数据库/secret凭据/权限/推送发布上线下线/供应链/外部安全测试。\n"
     "5. \"UI Task Capsule\" — 前端/CSS/页面/组件/视觉/截图/布局。\n"
     "6. \"Boundary-Decision Capsule\" — 改动产生边界决策: service/wrapper/adapter/schema/API契约/"
@@ -102,6 +103,18 @@ DEEPSEEK_SYSTEM = (
     "7. \"Operational Task Capsule\" — 长耗时批处理/数据同步/回填/迁移脚本/dry-run/apply/可中断长任务。\n\n"
     "原则: 按主要意图判断, 不是碰到关键词就算(如\"符合原有设计吗\"是诊断不是 planning); "
     "只选真正相关的; 多数日常 prompt 是空或单个; 选 4+ 个几乎一定过度。\n\n"
+    "正反示例(学边界, 非穷举):\n"
+    "- \"再 review 一下\" → [] (要求审查代码, 不是 debug/planning/scope)\n"
+    "- \"看 review 意见\" → [] (阅读已有 review 结论)\n"
+    "- \"commit 一下\" → [] (简单执行操作)\n"
+    "- \"这个 bug 怎么修\" → [\"Debug Task Capsule\"]\n"
+    "- \"帮我看看为什么报错\" → [\"Debug Task Capsule\"]\n"
+    "- \"加一个缓存层\" → [\"Scope Alignment Capsule\"]\n"
+    "- \"这个改动需要改 schema 吗\" → [\"Boundary-Decision Capsule\"]\n"
+    "- \"帮我设计一下方案\" → [\"Planning Task Capsule\"]\n"
+    "- \"推到远端\" → [\"Security / GitOps Capsule\"]\n"
+    "- \"跑一下迁移脚本\" → [\"Operational Task Capsule\"]\n"
+    "- \"按钮样式不对\" → [\"UI Task Capsule\", \"Debug Task Capsule\"]\n\n"
     "只输出一个 JSON 对象 {\"capsules\": [\"名称\", ...]}:\n"
     "- capsules 是字符串数组, 每个元素必须是上面 7 个 capsule 的精确名称之一\n"
     "- 禁止任何其他字段, 元素必须是字符串不能是对象\n"

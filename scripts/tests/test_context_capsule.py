@@ -125,6 +125,16 @@ class ContextCapsuleTests(unittest.TestCase):
             with self.subTest(prompt=prompt):
                 self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
 
+    def test_chinese_push_injects_security_capsule(self) -> None:
+        for prompt in ["推到远端", "推送到 origin"]:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, ["Security / GitOps Capsule"])
+
+    def test_review_request_stays_quiet(self) -> None:
+        for prompt in ["再 review 一下", "看 review 意见", "commit 一下"]:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, [])
+
     def test_non_critical_operation_words_stay_quiet(self) -> None:
         samples = [
             "这个按钮关掉动画",
