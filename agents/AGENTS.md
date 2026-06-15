@@ -43,7 +43,7 @@
 ### Skill 路由
 
 - `think-*`：理解问题、需求对齐（scope）、调研、综述、架构、规划、结构判断、卡住排查
-- `dev-*`：调试、TDD、重构、实现后清理（simplify）；长任务/数据任务（operational-task）、长循环（dev-long-run）、大型交付（large-delivery）
+- `dev-*`：调试、TDD、重构、实现后清理（simplify）；完备单 pass 开发（dev-complete）、长任务/数据任务（operational-task）、长循环（dev-long-run）、大型交付（large-delivery）
 - `guard-*`：review、secure、threat-model、verify、ship、close、check（交付前总入口）、diff-scan（未 commit 遗留物扫描）、mysql-review（MySQL/InnoDB SQL 审查）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
 - `readable-*`：可读性重写、最终答案/过程播报体裁、指标表达
 - `assist-*`：经验沉淀（`assist-learn` / `assist-retrospect`）、长 MD 文档评审与决策点批量裁决（`assist-review-doc`）；`fe-*` / `web-*` / `agent-*` / `hive` / `react-doctor` 处理专项能力
@@ -51,6 +51,7 @@
 常见工作流：
 
 - 普通需求：`/think-map`（读代码）→ `/think-scope`（需求对齐）→ `/think-research`（调研方案）→ `/think-plan`（写计划）→ `/dev-tdd`（开发）→ `/guard-verify`（验证）
+- 中等需求（完备流程不分 phase）：`/dev-complete`（spec→kilo+gpt coding→CC+kilo dual review→verify）
 - 大需求：`/think-map`（读代码）→ `/think-scope`（需求对齐）→ `/dev-long-run`（长任务流程）
 - Bug / 异常：`/dev-debug`（初次排查）→ `/think-unstuck`（排查升级）
 - 交付前总检查：`/guard-check` → 按需路由到 `/guard-review` / `/guard-secure` / `/guard-verify` / `/guard-ship`

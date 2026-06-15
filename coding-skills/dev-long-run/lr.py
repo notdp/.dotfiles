@@ -829,10 +829,10 @@ def default_config_yaml(slug: str) -> str:
     if is_cc:
         rev_a_backend, rev_a_model = "kilo", "cliproxy/gpt-5.5"
         rev_a_extra = ""
-        rev_b_backend, rev_b_model = "claude_cli", "claude-opus-4-8"
+        rev_b_backend, rev_b_model = "claude_cli", "claude-opus-4-6"
         rev_b_extra = "\n    cmd: 'claude --dangerously-skip-permissions'"
     else:
-        rev_a_backend, rev_a_model = "claude_cli", "claude-opus-4-8"
+        rev_a_backend, rev_a_model = "claude_cli", "claude-opus-4-6"
         rev_a_extra = "\n    cmd: 'claude --dangerously-skip-permissions'"
         rev_b_backend, rev_b_model = "kilo", "cliproxy/gpt-5.5"
         rev_b_extra = ""
