@@ -30,7 +30,7 @@ CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "security-gitops.md",
         re.compile(
             r"(prod|生产|deploy|部署|ssh|scp|push|release|secret|token|auth|permission|权限|db|database|数据库|kubectl|terraform|helm|"
-            r"发布|上线|下线|回滚|env|gitignore|凭据|密钥|推到远端|git\s*push|推送到\s*\w+|"
+            r"发布|上线|下线|回滚|env|gitignore|凭据|密钥|推到远端|git\s*push|推送到\s*[A-Za-z0-9_/.-]+|"
             r"external target|exploit|c2|phishing|credential access|lateral movement|brute[- ]?force|auth bypass)",
             re.I,
         ),
