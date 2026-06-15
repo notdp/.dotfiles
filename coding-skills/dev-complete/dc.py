@@ -391,17 +391,27 @@ def cmd_verify(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 def _parse_ack_resolutions(ack_text: str, review_texts: dict[str, str]) -> tuple[list[str], list[str]]:
     """从 ack.md 解析 blocker 裁决，对照 review 中的 blocker ID。
-    复用 lr.parse_ack_resolutions（限定 ## Blocker Resolutions section）。
+    复用 lr.parse_review_blockers + lr.parse_ack_resolutions。
     返回 (unresolved_ids, errors)。"""
     blocker_ids: list[str] = []
     for label, text in review_texts.items():
-        for m in re.finditer(r"\[blocker\s+(B\d+)\]", text, re.IGNORECASE):
-            bid = f"{label}:{m.group(1)}"
-            if bid not in blocker_ids:
-                blocker_ids.append(bid)
+        if not text.strip():
+            continue
+        for bid, _desc in lr.parse_review_blockers(text):
+            if label and bid:
+                prefixed = f"{label.upper()}:{bid}"
+            elif label and not bid:
+                prefixed = None
+            else:
+                prefixed = bid
+            if prefixed and prefixed not in blocker_ids:
+                blocker_ids.append(prefixed)
 
     res = lr.parse_ack_resolutions(ack_text)
     errors: list[str] = []
+
+    if res["deferred"] > 0:
+        errors.append(f"{res['deferred']} 个 [deferred]，blocker 不允许 deferred")
 
     _rejected_no_reason = re.compile(r"^\s*-\s*\[rejected\]\s*[A-Za-z0-9:_-]*\s*$", re.IGNORECASE)
     for ln in res.get("rejected_lines", []):
@@ -457,11 +467,10 @@ def cmd_complete(args: argparse.Namespace) -> int:
     # 4. commit 证据
     status_path = workspace / "coder.status"
     if status_path.exists():
-        raw = status_path.read_text(encoding="utf-8").strip().split("\n")[0].strip()
-        m = re.search(r"commit=([0-9a-fA-F]{6,40})\b", raw)
-        commit_hash = m.group(1) if m else None
+        status_text = status_path.read_text(encoding="utf-8")
+        commit_hash = lr.parse_status_commit(status_text)
         if not commit_hash:
-            blocks.append("coder.status 缺 commit=<hash>")
+            blocks.append("coder.status 缺 commit=<hash>（需要 state=done + commit=<hex>）")
         else:
             worktree = Path(state.get("worktree_path", workspace))
             ret = subprocess.run(

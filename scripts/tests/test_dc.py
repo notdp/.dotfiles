@@ -82,6 +82,13 @@ class ScaffoldTests(unittest.TestCase):
             ret = dc.main(["scaffold", "--requirement", str(req), "--repo-root", tmp])
             self.assertEqual(ret, 2)
 
+    def test_scaffold_mutual_exclusive_flags_returns_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            req = Path(tmp) / "REQ.md"
+            req.write_text("requirement", encoding="utf-8")
+            ret = dc.main(["scaffold", "--requirement", str(req), "--repo-root", tmp, "--new", "--in-place"])
+            self.assertEqual(ret, 2)
+
     def test_scaffold_missing_requirement_returns_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             ret = dc.main(["scaffold", "--requirement", str(Path(tmp) / "nope.md"), "--repo-root", tmp])
