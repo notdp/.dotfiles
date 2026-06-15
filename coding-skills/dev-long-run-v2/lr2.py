@@ -892,7 +892,7 @@ tmux:
 
 
 WORKSPACE_FILES = {
-    "SPEC_OVERVIEW.md": "# Spec Overview\n\n(scaffold orchestrator 产出: Task Understanding / Code Facts / 边界)\n",
+    "SPEC_OVERVIEW.md": "# Spec Overview\n\n(scaffold orchestrator 产出: Task Understanding / Code Facts / 边界)\n\n## Coverage Matrix\n\n| Req ID | REQUIREMENT 目标 | 覆盖 Phase | 备注 |\n|--------|-----------------|-----------|------|\n| R1     |                 |           |      |\n",
     "fix_plan.md": "# Fix Plan\n\n(phase 清单, scaffold orchestrator 产出。格式: `- [ ] 01 <phase>`)\n",
     "SCAFFOLD_REVIEW.md": "# Scaffold Review\n\n(scaffold reviewer 产出: blocker / should / nit)\n",
     "HANDOFF.md": "# Handoff\n\n(phase coder 每轮交接: 做了什么 / 下一步 / 验证证据)\n",
@@ -991,7 +991,7 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         f"  workspace: {workspace}\n  worktree : {wt}\n  branch   : {branch}\n\n"
         f"Next (act as scaffold orchestrator yourself):\n"
         f"  1. Read {workspace}/REQUIREMENT.md and the repo (cwd={wt}).\n"
-        f"  2. Write SPEC_OVERVIEW.md / fix_plan.md / phases/<NN>_<slug>/spec.md into {workspace}.\n"
+        f"  2. Write SPEC_OVERVIEW.md (with Coverage Matrix) / fix_plan.md / qa.md / phases/<NN>_<slug>/spec.md into {workspace}.\n"
         f"  3. (L2, mandatory) launch dual scaffold reviewers:\n"
         f"       python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer_a\n"
         f"       python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer_b\n"
@@ -1012,9 +1012,12 @@ def cmd_develop(args: argparse.Namespace) -> int:
     save_state(workspace / "state.json", state)
     sys.stdout.write(
         f"develop state set. You (agent) drive the loop: per phase →\n"
-        f"  launch planner/coder/reviewer panes via `lr2.py launch --role <r>`,\n"
-        f"  send review to coder via `lr2.py send`, commit per phase (L14),\n"
-        f"  then ask the user in chat: confirm next / done / block.  See {workspace}/ORCHESTRATOR.md\n"
+        f"  1. planner → {{research,plan,qa,verify_plan}}.md\n"
+        f"  2. coder → impl + verify.sh (before done impl, no commit yet)\n"
+        f"  3. dual reviewer → Verification Coverage + Debugger + Refactor\n"
+        f"  4. send review to coder → ack+fix → commit (L14)\n"
+        f"  5. lr2.py verify + complete-phase, then ask user: next/done/block\n"
+        f"  See {workspace}/ORCHESTRATOR.md\n"
     )
     return 0
 

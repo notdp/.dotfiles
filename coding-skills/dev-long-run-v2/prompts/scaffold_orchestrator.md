@@ -7,9 +7,25 @@
 - 目标 repo 代码（worktree 路径见 `state.json.worktree_path`）
 
 ## 必写产出
-- `<workspace>/SPEC_OVERVIEW.md`：Task Understanding / Code Facts / 边界 / 非目标
+- `<workspace>/SPEC_OVERVIEW.md`：Task Understanding / Code Facts / 边界 / 非目标。**末尾必须包含 `## Coverage Matrix`**（见下方格式）。
 - `<workspace>/fix_plan.md`：phase 清单，格式 `- [ ] 01 <phase 名>`（勾选/命令里 phase 一律用**数字** `NN`），每个 phase 的 spec 写在目录 `phases/<NN>_<slug>/spec.md`（见流程 2）。**约定**：目录名是全名 `NN_<slug>`，但下游命令传数字 `NN`，由 lr2 `resolve_phase_dir` 解析到真目录 —— 二者不要混用成 `phases/<数字>`。
 - `<workspace>/qa.md`：端到端验收契约
+
+### Coverage Matrix（SPEC_OVERVIEW.md 末尾）
+逐条对齐 REQUIREMENT.md 的每个目标，确保无遗漏：
+
+```markdown
+## Coverage Matrix
+
+| Req ID | REQUIREMENT 目标（原文或摘要） | 覆盖 Phase | 备注 |
+|--------|-------------------------------|-----------|------|
+| R1     | ...                           | 01, 02    |      |
+| R2     | ...                           | 03        |      |
+| R3     | ...                           | —         | 排除: <理由> |
+```
+
+- 每条 REQUIREMENT 目标必须映射至少一个 phase，或显式标「排除: <理由>」。不能留空行。
+- 写完矩阵后自查：有没有 phase 不被任何 requirement 引用（可能是多余的）？有没有 requirement 没有任何 phase 覆盖（可能是遗漏）？
 
 ## 流程
 1. 评估是否需要 `/think-map` `/think-research`（不强制，自己判断）。

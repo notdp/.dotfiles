@@ -9,8 +9,8 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 把现有 `/dev-long-loop`（单 agent 跨多轮）升级为 6 角色协作流：
 
 1. 用户在普通对话中产出 `REQUIREMENT.md`
-2. **scaffold orchestrator** 调 `/think-map /think-research`，搭工作区并与 **orchestrator reviewer** 单轮对齐
-3. **loop orchestrator** 进入开发循环：每 phase 调用 **phase planner** 增强 → **phase coder**（tmux pane 长驻）实现 → **phase reviewer** 单轮分级 review → coder 自判 ack → 等用户 `confirm next` → 下一 phase
+2. **scaffold orchestrator** 产出 SPEC_OVERVIEW(含 Coverage Matrix, L27) + fix_plan + qa + phases，**双路 scaffold reviewer**(CC+kilo 并发)校验完整性
+3. **loop orchestrator** 进入开发循环：每 phase **planner** 产 research/plan/qa/verify_plan(L28) → **每 phase fresh coder**(L6) 实现 + 写 verify.sh(done impl 前, L29) → **双路 reviewer**(第一优先级 Verification Coverage) → coder 仲裁(`[fixed]`/`[rejected]`) → commit → 用户自然语言确认 → 下一 phase
 4. 收尾阶段做端到端验收 + 删除/沉淀建议
 
 工作区文件是 SSOT，YAML 配置驱动 agent×model×thinking 映射，复用 `long_loop.py` 的 workspace 模板与 tmux 启动，全部 LLM 调度脑迁出 python。
@@ -21,7 +21,7 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 |---|---|
 | L1 | 6 角色，2 个 orchestrator（scaffold + loop）不合并。**实现(2026-05-29 UX 决策):两个 orchestrator 角色由"用户正在对话的 coding agent"扮演,无独立 orchestrator pane;只有 planner/coder/reviewer 是 tmux pane。** |
 | L2 | 控制面构建：scaffold orch ↔ reviewer 两段；orch 自吃意见改 |
-| L3 | phase reviewer 单一 agent，一轮分级输出（blocker/should/nit + refactor 维度），写入 `phases/<id>/review.md` 单文件 |
+| L3 | ~~phase reviewer 单一 agent~~ **改(2026-06-15):双路 reviewer(CC+kilo 并发)**,一轮分级输出写入 `review_a.md`/`review_b.md`,coder 仲裁(`[fixed]`/`[rejected]`+理由)。review 三节:**Verification Coverage**(最高优先级:对照 verify_plan.md 审 verify.sh 覆盖度)→ Debugger → Refactor |
 | L4 | review 循环：一轮 reviewer + 一轮 coder ack/修复 = 收口（不震荡） |
 | L5 | 仲裁：coder 自判同意/不同意 + 阐述理由，loop orch 采信，不强制覆盖 |
 | L6 | ~~phase coder 跨 phase 持久化(长驻复用)~~ **反转(用户决策 2026-05-29):每 phase fresh coder** —— orchestrator 每 phase 开始先关掉上一个 coder pane(SESSIONS 标 closed),再开新的;续接靠新 coder 读 `HANDOFF.md`,不依赖跨 phase 长驻 context。**本条取代下文一切"coder pane 复用/不重开/跨所有 phase 长驻"的措辞。** 副作用:不再依赖"send-keys 长驻不死"这条最高风险假设,架构更稳(within-phase 仍需 send-keys 发 review,跨 phase 不需要)|
@@ -44,6 +44,9 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 | L25 | pane 命名(2026-06-06,因默认水浒传随机名不利调试而改):`pane_title(role, phase)` 从 `lr2:{slug}:{role}:{phase}` 改为 **`phase {n} {身份}`**(身份去 `phase_` 前缀=planner/coder/reviewer;不含任务名 slug——同 window 下任务相同、带上太长)。关键:用户看到的水浒传名来自 `scripts/notify-tmux-title.sh` hook 写的 pane 选项 `@notify_tmux_title_pane_name`(`pane-border-format` 显示的是它,**不是** `select-pane -T` 标题),且 hook 只在该选项为空时才分配随机名 → `launch_role` 在 `-T` 之外**同时 `set-option -pt @notify_tmux_title_pane_name <title>`**, hook 便不再覆盖,border 直接显示 phase 名。 |
 | L21 | worker 思考等级(2026-05-29,部分推翻 L19):kilo TUI 无 `--variant` flag、in-session 命令(`variant_list`/`ctrl+t`)无法 blind 自动落到指定档,故**用"默认即高档的模型别名"**实现——install_hooks 加 `cliproxy/gpt-5.5-xhigh`(id→gpt-5.5,options 默认 xhigh);config 模板 phase_coder/phase_planner 指向它,`kilo -m` 启动即 xhigh。variant 字段仍仅意图标注 |
 | L20 | UX 决策(2026-05-29)：**用户全程只跟一个 coding agent 自然语言对话**,该 agent 扮演两个 orchestrator 角色,用 `lr2.py` 做机械活(建 worktree/工作区、开 worker pane、send-keys、存活检查)。用户从不敲 `lr2.py`、不敲精确命令、不进 tmux pane。下方"场景化推演"里的 `scaffold orch pane` / `loop orch pane` / `在 orch pane 输入` 等措辞,按 L1/L20 重新理解为**对话 agent 自身的行为**(那些 pane 不存在);场景正文未逐行重写,以本条为准 |
+| L27 | 质量前移——Coverage Matrix(2026-06-15):scaffold orchestrator 必须在 SPEC_OVERVIEW.md 末尾产出 `## Coverage Matrix`(REQUIREMENT 每条目标→覆盖 phase 映射表);scaffold reviewer 第一优先级校验矩阵完整性 + phantom coverage(声称覆盖但 phase spec 未体现)。 |
+| L28 | 质量前移——verify_plan.md(2026-06-15):phase planner 新增 `verify_plan.md`(结构化表格:QA ID / source / type=auto\|manual / 检验方式 / pass\|fail 判定),与 qa.md 共享 QA ID;planner 完成信号从 3 文件改为 4 文件。 |
+| L29 | 质量前移——verify.sh 提前 + Verification Coverage(2026-06-15):coder 必须在 `done impl` 前写好 verify.sh 并本地跑过(reviewer 要审 verify.sh);phase reviewer 三节顺序=Verification Coverage(最高优先级)→Debugger→Refactor;Verification Coverage 对照 verify_plan auto 项审 verify.sh 覆盖度,缺覆盖标 blocker。这是 prompt-level gate,不是 lr2.py 机器 gate。Verification Coverage blocker 指向 verify_plan 自身时,coder 可修改 verify_plan.md(唯一允许 coder 改 planner 产物的场景)。 |
 | L26 | 卡死检测 + 运行流水(2026-06-12,吸收 `refs/frankbria/ralph-claude-code` 的 circuit_breaker / metrics.jsonl 思路;裁决见 `docs/software-engineering-research/dev-long-run-v2-improvements-from-ralph.md`):背景——SKILL 停止条件"连续 2 次验证失败"原靠 orchestrator 记忆数,跨 compact/resume 必丢(违"记忆不可信")。落地两件**机械可靠性**(刻意不搬 Ralph 的自主退出启发式/沙箱/限流——我们有人在环 + L23 硬门禁,比启发式强):**(a) 失败计数持久化**——`lr2.py verify`(仅 phase verify,非 acceptance)失败时,纯函数 `verify_fingerprint`(归一行号/耗时/temp 路径/内存地址等噪声后对失败行 sha1 截断)取指纹,`update_stuck` 跨轮转换(同指纹累加、换指纹重置为 1=错误在演化仍算推进、通过清零),写 `phases/<id>/stuck.json`;`consecutive_fail ≥ STUCK_THRESHOLD(2)` 时 verify 输出 `STUCK:` 行提示调 `/think-unstuck`;`resume`/`stats` 重新暴露该计数(崩溃重启不丢)。**(b) 结构化运行流水**——`append_metric` 向 `<ws>/metrics.jsonl`(append-only,在 `.long-loop/` 下已被 L18 git-exclude)追加 verify/complete_phase/complete_run 事件;`summarize_metrics`(纯)聚合,`lr2.py stats`(只读)出 run/per-phase 进度 + 卡死汇总,供 orchestrator 给用户报进度(不靠记忆复述)。退出码/门禁契约不变(verify 仍 `0 ok`/`2 fail`),STUCK 是叠加的 stdout 信号不是新退出码。边界:`metrics.jsonl`/`stuck.json` 是新增可观测产物,只增不改既有 SSOT,不参与 L23 门禁判定。 |
 
 ## 待决策
@@ -117,18 +120,18 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 | Step | (1) 用户与某 agent 讨论需求 → 产出 `~/scratch/REQUIREMENT.md` |
 | | (2) 用户跑 `/dev-long-run-v2 scaffold --requirement ~/scratch/REQUIREMENT.md` |
 | | (3) `lr2.py scaffold` 建 worktree `../<repo>-lr2-compliance` + 分支 `lr2/20260529-compliance`（L16）→ mv `REQUIREMENT.md` 进 `.long-loop/20260529-compliance/` → state.json 记 worktree_path + branch |
-| | (4) scaffold orch (kilo + cliproxy/gpt-5.5 + xhigh) 启动 → 调 `/think-map /think-research` → 产 `SPEC_OVERVIEW.md` `fix_plan.md` `phases/*/spec.md` |
-| | (5) scaffold orch 调 launcher 开 reviewer pane (claude cli + opus 4.8 + max) → reviewer 写 `SCAFFOLD_REVIEW.md` → reviewer pane 关闭 |
-| | (6) scaffold orch 读 review 自改工作区 → 关 scaffold orch pane |
-| | (7) 用户跑 `/dev-long-run-v2 develop` → loop orch (kilo + cliproxy/gpt-5.5-fast + low) 启动 |
-| | (8) loop orch 读 fix_plan，选 phase 01 → 开 planner pane (kilo + cliproxy/gpt-5.5 + xhigh) → planner 增强 `phases/01/{research,plan,qa}.md` → 关 planner |
-| | (9) loop orch 开 phase coder pane (kilo + cliproxy/gpt-5.5 + high)，cwd = worktree（L16）→ coder 实现 phase 01 → 写 HANDOFF + 不退出 pane |
-| | (10) loop orch 开 reviewer pane → reviewer 读 diff + spec 写 `phases/01/review.md`（debugger + refactor 两小节）→ 关 reviewer |
-| | (11) loop orch send-keys review 内容到 coder pane → coder 写 `phases/01/ack.md` 逐项 ack → 修复同意项 → 更新 HANDOFF → **commit phase 01 改动（L14）** |
-| | (12) loop orch 在自己 pane 内 prompt 用户：`Phase 01 complete. confirm next / confirm done / block <reason>?` |
-| | (13) 用户跑测试、合 PR、上线、回 orch pane 敲 `confirm next` |
+| | (4) scaffold orch(= 对话 agent)调 `/think-map /think-research` → 产 `SPEC_OVERVIEW.md`(含 Coverage Matrix, L27) `fix_plan.md` `qa.md` `phases/*/spec.md` |
+| | (5) scaffold orch 并发开双路 reviewer pane(L-dual: scaffold_reviewer_a + scaffold_reviewer_b)→ 各自写 `SCAFFOLD_REVIEW_A/B.md` → 关 reviewer pane |
+| | (6) scaffold orch 读两份 review 自吃意见改工作区(一轮收口) |
+| | (7) 用户同意后进 develop 循环 |
+| | (8) loop orch 读 fix_plan，选 phase 01 → 开 planner pane → planner 增强 `phases/01/{research,plan,qa,verify_plan}.md`(四文件, L28)→ 关 planner |
+| | (9) loop orch 开 phase coder pane，cwd = worktree(L16)→ coder 读 verify_plan.md 实现 phase 01 + **写 verify.sh 并本地跑过(L29)** → `done impl`(未 commit) |
+| | (10) loop orch 并发开双路 reviewer pane(phase_reviewer_a + phase_reviewer_b)→ reviewer 审三节:**Verification Coverage**(对照 verify_plan.md 审 verify.sh 覆盖度)→ Debugger → Refactor → 关 reviewer pane |
+| | (11) loop orch send-keys 两份 review 内容到 coder pane → coder 写 `ack.md` 仲裁(`[fixed]`/`[rejected]`+理由)→ 修认同项(含 verify.sh) → **commit phase 01 改动(L14)** |
+| | (12) loop orch 在对话里告诉用户「Phase 01 完成(门禁已过),继续/收尾/停?」 |
+| | (13) 用户自然语言回「继续 / 收尾 / 停」 |
 | | (14) phase 02 重复步骤 8-13；**每 phase 开始关掉上一个 coder pane,开 fresh coder 读 HANDOFF 续(L6 改)** |
-| | (15) `confirm done` 后 loop orch 跑端到端验收 → 整体扫 `BACKLOG.md` 标"可快速收敛"项（L15）→ 写 `CLEANUP_PROPOSAL.md` → 关闭所有 pane |
+| | (15) 收尾：写 `acceptance.sh` → `lr2.py verify --acceptance` 真跑 → 人工验收 → `lr2.py complete-run` → 扫 `BACKLOG.md` → 写 `CLEANUP_PROPOSAL.md` → 关闭所有 pane |
 | Touchpoints | tmux server / 文件系统 workspace / git worktree + 分支 / kilo CLI / claude CLI |
 | Failure paths | coder pane 死掉、reviewer blocker 全 reject、用户长时间不 confirm、context 爆 |
 | Exposes | pane 存活检查、冲突 escalation、wait_confirm 可中断、coder pane compact 触发 |
@@ -160,7 +163,9 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
 ├── config.yaml                 # 角色—模型—thinking 映射（新增）
 ├── REQUIREMENT.md              # 用户讨论后产出，scaffold 时 mv 进来（新增）
 ├── SPEC_OVERVIEW.md            # scaffold orch 产出（沿用）
-├── SCAFFOLD_REVIEW.md          # scaffold reviewer 产出（新增）
+├── SCAFFOLD_REVIEW_A.md        # scaffold reviewer A 产出（双路, L-dual）
+├── SCAFFOLD_REVIEW_B.md        # scaffold reviewer B 产出（双路, L-dual）
+├── SCAFFOLD_REVIEW.md          # legacy 占位 / 旧单路兼容
 ├── ORCHESTRATOR.md             # loop orch 协议（v2 内容覆盖 v1 模板）
 ├── WORKER_PROMPT.md            # phase coder 协议（v2 内容覆盖 v1 模板）
 ├── HANDOFF.md                  # phase coder 最新交接（沿用）
@@ -176,9 +181,12 @@ Replaces: `/dev-long-loop` 与 `/dev-long-task-scaffold`（2026-06-11 清理：v
         ├── research.md         # planner 增强
         ├── spec.md             # scaffold 初稿，planner 增强
         ├── plan.md             # planner 增强
-        ├── qa.md               # planner 增强
-        ├── review.md           # reviewer 分级输出（新增，单文件，内分 debugger / refactor）
-        └── ack.md              # coder 对 review 的逐项 ack（新增）
+        ├── qa.md               # planner 增强（验收点带 QA ID）
+        ├── verify_plan.md      # planner 产出（L28: 结构化表格，QA ID / source / type / 检验方式 / pass-fail）
+        ├── verify.sh           # coder 产出（L29: done impl 前写好并本地跑过）
+        ├── review_a.md         # reviewer A 分级输出（L3 改: Verification Coverage → Debugger → Refactor）
+        ├── review_b.md         # reviewer B 分级输出（双路并发）
+        └── ack.md              # coder 对两份 review 的逐项仲裁（[fixed]/[rejected]+理由）
 ```
 
 ## YAML schema
@@ -249,33 +257,35 @@ tmux:
 
 | 角色 | 必读输入 | 必写产出 | 关键约束 |
 |---|---|---|---|
-| scaffold orchestrator | `REQUIREMENT.md`、repo 代码 | `SPEC_OVERVIEW.md`、`fix_plan.md`、`phases/*/spec.md`、`qa.md` | 评估调 `/think-map /think-research`；不写代码；读 `SCAFFOLD_REVIEW.md` 做自修订 |
-| scaffold reviewer | `REQUIREMENT.md`、`SPEC_OVERVIEW.md`、`fix_plan.md`、`phases/*/spec.md` | `SCAFFOLD_REVIEW.md` | 只读；分 blocker/should/nit；focus 完整性、phase 拆分合理性、验收可执行性 |
-| loop orchestrator | `SPEC_OVERVIEW.md`、`fix_plan.md`、`HANDOFF.md`、`logs.md`、`SESSIONS.md`、git status | `logs.md` append、`SESSIONS.md` 更新、状态转移决策 | 不写代码；不跑测试；只判断"开/关哪个角色 pane"和 wait_confirm 切换；**检测 coder 完成靠轮询 HANDOFF/done-marker 文件 mtime，不抓屏判断**（spike 已证抓屏不可靠）|
-| phase planner | `SPEC_OVERVIEW.md`、`phases/<id>/spec.md`、repo 代码 | `phases/<id>/research.md`、`plan.md`、`qa.md` 增强 | 评估是否需要 `/think-map /think-research`；不写代码 |
-| phase coder | `phases/<id>/{spec,plan,qa,research}.md`、`WORKER_PROMPT.md`、`HANDOFF.md`、`review.md`（如已存在） | 代码、**phase 收口 commit（L14）**、`HANDOFF.md`、`fix_plan.md` 状态、`phases/<id>/qa.md` evidence、`ack.md`（收到 review 后） | 完成 phase 前不退出 pane；不自动跨 phase；ack 收口后 commit 本 phase 改动（commit 不 push/deploy）；接收 review 后写 ack.md 逐项响应 |
-| phase reviewer | `phases/<id>/{spec,plan,qa}.md`、git diff、`HANDOFF.md` | `phases/<id>/review.md`（含 `## Debugger` 和 `## Refactor` 两节，每项标 `[blocker/should/nit]`） | 只读；不动代码；不执行命令；每项给文件:行号 + 证据 |
+| scaffold orchestrator | `REQUIREMENT.md`、repo 代码 | `SPEC_OVERVIEW.md`(含 Coverage Matrix, L27)、`fix_plan.md`、`phases/*/spec.md`、`qa.md` | 评估调 `/think-map /think-research`；不写代码；读双路 `SCAFFOLD_REVIEW_A/B.md` 做自修订 |
+| scaffold reviewer(双路 _a/_b) | `REQUIREMENT.md`、`SPEC_OVERVIEW.md`、`fix_plan.md`、`qa.md`、`phases/*/spec.md` | `SCAFFOLD_REVIEW_A.md` / `SCAFFOLD_REVIEW_B.md` | 只读；第一优先级 Coverage Matrix 完整性 + phantom coverage；分 blocker/should/nit |
+| loop orchestrator | `SPEC_OVERVIEW.md`、`fix_plan.md`、`HANDOFF.md`、`logs.md`、`SESSIONS.md`、git status | `logs.md` append、`SESSIONS.md` 更新、状态转移决策 | 不写代码；不跑测试；检测 worker 完成靠 `lr2.py await`(status 文件 + pane 存活)；verify_plan conflict 时回退 planner 修订 |
+| phase planner | `SPEC_OVERVIEW.md`、`phases/<id>/spec.md`、repo 代码 | `phases/<id>/research.md`、`plan.md`、`qa.md`(带 QA ID)、`verify_plan.md`(L28) | 评估是否需要 `/think-map /think-research`；不写代码；完成信号需四文件全写完 |
+| phase coder | `phases/<id>/{spec,plan,qa,research,verify_plan}.md`、`HANDOFF.md`、`review_a/b.md`（如已存在） | 代码、`verify.sh`(L29: done impl 前写好并跑过)、**phase 收口 commit（L14）**、`HANDOFF.md`、`qa.md` evidence、`ack.md`（仲裁双路 review） | done impl 前写 verify.sh；不自动跨 phase；Verification Coverage blocker 指向 verify_plan 自身时可修改 verify_plan.md(唯一允许改 planner 产物的场景) |
+| phase reviewer(双路 _a/_b) | `phases/<id>/{spec,plan,qa,verify_plan}.md`、`verify.sh`、git diff、`HANDOFF.md` | `review_a.md` / `review_b.md`（三节: Verification Coverage → Debugger → Refactor） | 只读；Verification Coverage 最高优先级(L29)；每项标 `[blocker B1/should/nit]` |
 
 ## 状态机
 
 ```mermaid
 stateDiagram-v2
     [*] --> ScaffoldGen: /dev-long-run-v2 scaffold
-    ScaffoldGen --> ScaffoldReview: orch produced SPEC_OVERVIEW
-    ScaffoldReview --> ScaffoldRevise: SCAFFOLD_REVIEW.md written
+    ScaffoldGen --> ScaffoldReview: orch produced SPEC_OVERVIEW(+Coverage Matrix) + fix_plan + qa
+    ScaffoldReview --> ScaffoldRevise: dual SCAFFOLD_REVIEW_A/B.md written
     ScaffoldRevise --> ScaffoldDone: orch applied revisions
     ScaffoldDone --> [*]
 
     [*] --> LoopInit: /dev-long-run-v2 develop
     LoopInit --> PhasePlan: select next phase from fix_plan
-    PhasePlan --> PhaseCode: planner closed, coder pane opened/reused
-    PhaseCode --> PhaseReview: coder HANDOFF complete
-    PhaseReview --> PhaseAck: review.md written
-    PhaseAck --> WaitConfirm: ack.md written + phase committed, coder pane idle
-    WaitConfirm --> PhasePlan: user "confirm next"
-    WaitConfirm --> Wrapup: user "confirm done"
-    WaitConfirm --> Blocked: user "block <reason>"
-    Wrapup --> [*]: e2e check + CLEANUP_PROPOSAL written
+    PhasePlan --> PhaseCode: planner wrote research/plan/qa/verify_plan (4 files)
+    PhaseCode --> PhaseReview: coder done impl + verify.sh written & passed (no commit)
+    PhaseReview --> PhaseAck: dual review_a/b.md written (VerifCoverage→Debugger→Refactor)
+    PhaseAck --> WaitConfirm: coder ack [fixed]/[rejected] + commit
+    WaitConfirm --> PhasePlan: user "继续/next"
+    WaitConfirm --> Wrapup: user "收尾/done"
+    WaitConfirm --> Blocked: user "停/block"
+    PhaseCode --> PlannerRework: coder blocked verify_plan conflict
+    PlannerRework --> PhaseCode: planner revised verify_plan, coder continues
+    Wrapup --> [*]: acceptance.sh + complete-run + CLEANUP_PROPOSAL
     Blocked --> [*]
 ```
 
@@ -300,18 +310,19 @@ stateDiagram-v2
 
 | 角色 | 何时开 | 何时关 | 跨 phase |
 |---|---|---|---|
-| scaffold orch | scaffold 阶段开始 | scaffold done | 不跨 |
-| scaffold reviewer | scaffold orch 调用 | review.md 写完 | 不跨 |
-| loop orch | develop 阶段开始 | 收尾结束 | 跨整个 develop |
-| phase planner | 每 phase 开始 | plan.md 增强完 | 不跨 phase |
-| **phase coder** | 每 phase 开始(开 fresh) | 该 phase 收口 / 下一 phase 开始前被关 | **不跨 phase(L6 改)** |
-| phase reviewer | coder HANDOFF 完成后 | review.md 写完 | 不跨 phase |
+| scaffold orch | scaffold 阶段开始(= 对话 agent) | scaffold done | 不跨(无独立 pane) |
+| scaffold reviewer _a/_b | scaffold orch 调用(双路并发) | SCAFFOLD_REVIEW_A/B.md + status 写完 | 不跨 |
+| loop orch | develop 阶段开始(= 对话 agent) | 收尾结束 | 跨整个 develop(无独立 pane) |
+| phase planner | 每 phase 开始 | research/plan/qa/verify_plan 四文件写完 | 不跨 phase |
+| **phase coder** | 每 phase 开始(开 fresh, L6) | 该 phase 收口 / 下一 phase 开始前被关 | **不跨 phase** |
+| phase reviewer _a/_b | coder done impl 后(双路并发) | review_a/b.md + status 写完 | 不跨 phase |
 
 **Resume 协议**：
 1. 读 `SESSIONS.md` 拿 pane_id
 2. `tmux list-panes -aF '#{pane_id}' | grep <pane_id>` 验证
-3. 存活 → loop orch send-keys 续上
-4. 不存活 → 报告丢失，提供"重开（fresh context 读 HANDOFF）/ 标 phase failed"两选项
+3. **定位当前未完成 phase；若缺 `verify_plan.md`(旧 workspace)，先 reset/launch planner 补产，planner done 后再启动 coder/reviewer**
+4. 存活 → loop orch send-keys 续上
+5. 不存活 → 报告丢失，提供"重开（fresh context 读 HANDOFF）/ 标 phase failed"两选项
 
 ## 旧资产边界
 
@@ -338,7 +349,9 @@ stateDiagram-v2
 |---|---|---|
 | loop orch pane 误关 | 用户手动发现 | `/dev-long-run-v2 resume --workspace <path>` |
 | phase coder pane 死掉 | resume 时 `tmux list-panes` 不见 | 报告丢失 → 用户选"重开 fresh + 读 HANDOFF 续" 或 "标 phase failed" |
-| reviewer 全 blocker 被 coder reject | coder ack.md 全 reject | loop orch 不仲裁；写 BACKLOG.md `disputed` 项；escalate 给用户 |
+| reviewer 全 blocker 被 coder reject | coder ack.md 全 reject | loop orch 不仲裁；写 BACKLOG.md `disputed` 项；escalate 给用户。带理由 `[rejected]` 门禁视为已裁决不阻塞 |
+| coder blocked verify_plan conflict | coder status = `blocked verify_plan conflict: ...` | loop orch reset planner/coder status → relaunch planner 修订 verify_plan.md(带 brief 说明冲突)→ planner done 后 reset coder status → send 继续 |
+| 旧 workspace 缺 verify_plan.md | resume 时检查当前 phase 目录无 verify_plan.md | 先 launch planner 补产 verify_plan.md，planner done 后再 launch coder/reviewer |
 | coder context 爆 | coder 自报 or HANDOFF 长度超阈值 | coder 写 "需 compact" 标记 → loop orch 关 pane → 开新 coder pane（fresh + 读 HANDOFF + phase 文件续） |
 | kilo / claude CLI 调用失败 | `launch-worker` 返回非零 | 写 logs.md 失败块 → 暂停 → 通知用户检查 CLI |
 | 用户 `confirm` 前断电 | resume 时检测 state.json = wait_confirm | 恢复后直接回到 wait_confirm 状态 |
@@ -349,18 +362,18 @@ stateDiagram-v2
 ## 验证 / 验收策略
 
 ### Inner-loop verifier（实现期）
-- `lr2.py scaffold --config config.yaml --goal <g> --requirement <path>` 生成完整 workspace，模板齐全
-- `lr2.py launch --role planner --workspace <ws>` 在 tmux split 出正确 pane title
+- `lr2.py scaffold --goal <g> --requirement <path> --repo-root <repo> --new/--in-place` 生成完整 workspace（含 Coverage Matrix stub），模板齐全
+- `lr2.py launch --role phase_planner --workspace <ws> --phase NN` 在 tmux split 出正确 pane title
 - `SESSIONS.md` 的 pane_id 与 `tmux list-panes` 一致
 - 状态机所有合法迁移有对应入口；非法迁移被拒绝
 - 配置 schema 校验：缺字段、错 enum、未知 backend 都被拒
 
 ### Acceptance verifier（用户目标）
 - **跑通一个真实 3-phase 任务**（场景 1），全程产物可审阅
-- review.md 的 blocker 项被 coder 至少考虑过（ack.md 有逐项响应）
+- review_a.md/review_b.md 的 blocker 项被 coder 在 ack.md 逐项裁决（`[fixed]` 或 `[rejected]`+理由）
 - phase coder 每 phase fresh:phase 2 开始前 phase 1 的 coder pane 被关闭,SESSIONS 标 closed,新 coder 读 HANDOFF 续(L6 改)
 - 每个完成的 phase 在进入 wait_confirm 前都有对应 commit（`git log` 可见，L14）
-- 用户能在 phase 间中断 / 合 PR / 再 `confirm next` 续上
+- 用户能在 phase 间中断 / 合 PR / 再自然语言说「继续」续上
 - 全流程产物可被另一个人接手（不依赖 agent 内存）
 - 收尾阶段产出的 CLEANUP_PROPOSAL.md 是建议，不是自动删除
 - 收尾阶段在 CLEANUP_PROPOSAL.md 或 BACKLOG.md 中明确标出了"可快速收敛"项（L15）
