@@ -14,9 +14,20 @@
 ## 流程
 1. 评估是否需要 `/think-map` `/think-research`（不强制，自己判断）。
 2. 产出上述文件，给每个 phase 建 `phases/<NN>_<slug>/spec.md`。
-3. 调 launcher 开 scaffold reviewer：`lr2.py launch --workspace <ws> --role scaffold_reviewer --mode split-down`，拿到 pane_id。
-4. 用 `lr2.py send --pane <reviewer_pane> --text "..."` 让 reviewer 读工作区并写 `SCAFFOLD_REVIEW.md`。
-5. `lr2.py await --status <ws>/scaffold_reviewer.status --pane <reviewer_pane>` 等 DONE(别轮询 `SCAFFOLD_REVIEW.md` 存在性,刚出现可能只写了一半)，然后读它自改工作区（一轮收口，不震荡）。
+3. **双路 scaffold review(L-dual)**：并发启动两个 reviewer（config 决定 a=kilo/cc, b=cc/kilo）:
+   ```
+   lr2.py launch --workspace <ws> --role scaffold_reviewer_a --mode split-down
+   lr2.py launch --workspace <ws> --role scaffold_reviewer_b --mode split-down
+   ```
+   记下两个 pane_id。`launch` 自动注入 prompt + 产出文件名,不需要再 `send`。
+   **旧单路 config 兼容**：config 里是 `scaffold_reviewer`（非 `_a`/`_b`）时，按原单路只开一个。
+4. 分别等两个 reviewer DONE:
+   ```
+   lr2.py await --status <ws>/scaffold_reviewer_a.status --pane <pane_a>
+   lr2.py await --status <ws>/scaffold_reviewer_b.status --pane <pane_b>
+   ```
+   一路 DEAD/TIMEOUT → 降级用另一路继续,不卡流程。
+5. 读 `SCAFFOLD_REVIEW_A.md` + `SCAFFOLD_REVIEW_B.md`，汇总自吃意见改工作区（一轮收口，不震荡）。关两个 reviewer pane。
 6. 完成后在 `logs.md` append 一行，**在对话里**把 phase 计划讲给用户、问是否开始开发；用户同意后你直接进 develop 循环(见 ORCHESTRATOR.md),不要让用户去敲命令。
 
 ## 约束

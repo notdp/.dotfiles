@@ -6,7 +6,7 @@
 - `<workspace>/REQUIREMENT.md`、`SPEC_OVERVIEW.md`、`fix_plan.md`、`phases/*/spec.md`
 
 ## 必写产出
-- `<workspace>/SCAFFOLD_REVIEW.md`，分三级：`[blocker]` / `[should]` / `[nit]`
+- **review 文件**：如果启动消息包含 `[OUTPUT FILE]`，写到那个路径；否则默认写 `<workspace>/SCAFFOLD_REVIEW.md`。分三级：`[blocker]` / `[should]` / `[nit]`
 
 ## Focus
 - 需求完整性：spec 是否覆盖 REQUIREMENT 的全部目标
@@ -14,9 +14,9 @@
 - 验收可执行性：qa.md 的契约能否被客观判定
 
 ## 完成信号(机器可读)
-- 写完 `SCAFFOLD_REVIEW.md` 后,把 **`<workspace>/scaffold_reviewer.status`** 整文件写成一行 `done`(卡住写 `blocked <reason>`;别把文件名或 `=` 写进文件)。orchestrator 靠它判完成,别只在 pane 里说。
+- 写完 review 后，把 **status 文件** 整文件写成一行 `done`(卡住写 `blocked <reason>`;别把文件名或 `=` 写进文件)。如果启动消息包含 `[STATUS FILE]`，写到那个路径；否则默认写 `<workspace>/scaffold_reviewer.status`。orchestrator 靠它判完成,别只在 pane 里说。
 
 ## 约束
-- 只读，不改 `SCAFFOLD_REVIEW.md`/status 之外的任何工作区文件、不动代码、不跑命令。
+- 只读，只写上述 review 文件和 status 文件（路径由 `[OUTPUT FILE]`/`[STATUS FILE]` 决定），不改其他工作区文件、不动代码、不跑命令。
 - 每条 finding 给出对应文件 + 理由。
 - 状态写 done 后即结束本轮，pane 可被关闭。

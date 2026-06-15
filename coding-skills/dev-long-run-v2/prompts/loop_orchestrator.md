@@ -24,13 +24,32 @@
 1. 读 `fix_plan.md` 选下一个未完成 phase。
 2. 开 planner pane → 让它增强 `phases/<id>/{research,plan,qa}.md` → `lr2.py await --workspace <ws> --phase <NN> --role phase_planner --pane <planner>` → `lr2.py close --workspace <ws> --role phase_planner`。
 3. 关掉上一 phase 的 coder、开 fresh coder(L6,工具自动)→ 让它实现 → `lr2.py await --workspace <ws> --phase <NN> --role phase_coder --pane <coder>`，**等到 `DONE impl`**(coder 实现完、HANDOFF 已更新、**未 commit**,等 review)。若 DONE 带 `commit=` 说明 coder 没等 review 就收口了——流程错位,问清再继续。
-4. 开 reviewer pane（split-down）→ 让它写 `phases/<id>/review.md` → `lr2.py await --workspace <ws> --phase <NN> --role phase_reviewer --pane <reviewer>` → `lr2.py close --workspace <ws> --role phase_reviewer`。
-5. **先 `lr2.py reset-status --workspace <ws> --phase <NN> --role phase_coder`**(清掉 step 3 残留的 `done impl`,防 stale done 误判)→ `lr2.py send --workspace <ws>` 把 review 内容发给 coder pane → coder 逐项 ack 按优先级修(**blocker 必修;低成本非阻塞也修;高成本非阻塞入 `BACKLOG.md`**)、写 `verify.sh`、**commit + 写 `phase_coder.status`(整文件一行 `done commit=<hash>`,L14)** → 再 `await` coder,**等到 `DONE commit=<hash>`**。
+4. **双路 review(L-dual)**：并发开两个 reviewer pane（config 决定 a/b 各用 kilo/cc）:
+   ```
+   lr2.py launch --workspace <ws> --role phase_reviewer_a --phase <NN> --mode split-down
+   lr2.py launch --workspace <ws> --role phase_reviewer_b --phase <NN> --mode split-down
+   ```
+   分别等两路 DONE:
+   ```
+   lr2.py await --workspace <ws> --phase <NN> --role phase_reviewer_a --pane <pane_a>
+   lr2.py await --workspace <ws> --phase <NN> --role phase_reviewer_b --pane <pane_b>
+   ```
+   一路 DEAD/TIMEOUT → 降级用另一路,不卡流程。两路完成后关 reviewer pane:
+   ```
+   lr2.py close --workspace <ws> --role phase_reviewer_a
+   lr2.py close --workspace <ws> --role phase_reviewer_b
+   ```
+   **旧单路 config 兼容**：config 里是 `phase_reviewer`（非 `_a`/`_b`）时，按原单路只开一个。
+5. **先 `lr2.py reset-status --workspace <ws> --phase <NN> --role phase_coder`**(清掉 step 3 残留的 `done impl`,防 stale done 误判)→ 把两份 review 拼接发给 coder:
+   ```
+   lr2.py send --workspace <ws> --pane <coder> --text "## Review A\n<review_a 内容>\n\n## Review B\n<review_b 内容>"
+   ```
+   coder 逐项仲裁(**blocker 认同就 `[fixed] A:B1 …`;不认同就 `[rejected] B:B2 理由…`**)、修认同的、写 `verify.sh`、**commit + 写 `phase_coder.status`(整文件一行 `done commit=<hash>`,L14)** → 再 `await` coder,**等到 `DONE commit=<hash>`**。
 6. **完成门禁(L23,硬门 —— 不许跳、绝不手翻 `fix_plan.md`)**：
    a. `lr2.py verify --workspace <ws> --phase <id>` —— 在 worktree 真跑 `verify.sh`、写 `verify.json`。非 0 = 验证没过 → 打回 coder 继续修，不准进下一步。
    b. qa.md 有 `## 人工验证` 时：**把 目的/操作/观察 原样贴进对话**，请用户照着点验回报；用户报"通过"才进 c，"不对"就打回 coder。人工项不能自动判，必须用户亲口确认。**人工验证在 complete-phase 之前**——翻勾必须是最后一步，翻了没有"翻回去"的工具。
-   c. `lr2.py complete-phase --workspace <ws> --phase <id>` —— 内部跑门禁(verify.json.ok=真 + `review.md` 非空 + review 每个 `[blocker B<n>]` 在 ack 的 `[fixed]` 行按 ID 对上 + `phase_coder.status` 的 `commit=<hash>` 真实存在于分支)，**过了才翻 `fix_plan.md [x]`**；exit 2 按它打印的 BLOCK 原因打回，别绕过。门禁过后**自动 teardown 兜底**：关掉本 phase 残留的 planner/reviewer pane（coder 不关——它由下一 phase 的 fresh launch 关闭，L6）——所以 step 2/4 的显式 `close` 漏了也有兜底。
-7. 全 blocker 被 coder reject(分歧) → 写 `BACKLOG.md` disputed 项，escalate 给用户，不仲裁（L5）；门禁此时也会拦(blocker 未 fixed)，正常。
+   c. `lr2.py complete-phase --workspace <ws> --phase <id>` —— 内部跑门禁(verify.json.ok=真 + review 非空(双路至少一路) + 每个 blocker 有裁决(`[fixed]` 或 `[rejected]`,不许 deferred) + `phase_coder.status` 的 `commit=<hash>` 真实存在于分支)，**过了才翻 `fix_plan.md [x]`**；exit 2 按它打印的 BLOCK 原因打回，别绕过。门禁过后**自动 teardown 兜底**：关掉本 phase 残留的 planner/reviewer pane（coder 不关——它由下一 phase 的 fresh launch 关闭，L6）——所以 step 2/4 的显式 `close` 漏了也有兜底。
+7. 全 blocker 被 coder reject(分歧) → 写 `BACKLOG.md` disputed 项，escalate 给用户，不仲裁（L5）。注意：带理由的 `[rejected]` 门禁视为已裁决不阻塞，但全 reject 意味着 reviewer 意见全被否决——这时值得 escalate 让用户判断是否合理。
 8. 进入 wait_confirm：**在对话里**告诉用户「Phase <id> 完成(门禁已过、verify 真跑通)，要点是…，继续 / 收尾 / 卡住?」，等用户自然语言回。
 
 ## 用户在对话里说什么(你来理解意图,不要求精确命令)

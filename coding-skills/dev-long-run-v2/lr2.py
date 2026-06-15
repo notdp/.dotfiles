@@ -30,7 +30,16 @@ def slugify(name: str) -> str:
 
 BACKENDS = ("kilo", "claude_cli", "droid", "custom")
 AUTONOMY = ("off", "low", "medium", "high")
-REQUIRED_ROLES = (
+# 双路 reviewer (L-dual): _a + _b 并发审查。旧单路 config 仍接受（向后兼容）。
+REQUIRED_ROLES_DUAL = (
+    "scaffold_orchestrator",
+    "scaffold_reviewer_a", "scaffold_reviewer_b",
+    "loop_orchestrator",
+    "phase_planner",
+    "phase_coder",
+    "phase_reviewer_a", "phase_reviewer_b",
+)
+REQUIRED_ROLES_LEGACY = (
     "scaffold_orchestrator",
     "scaffold_reviewer",
     "loop_orchestrator",
@@ -38,16 +47,23 @@ REQUIRED_ROLES = (
     "phase_coder",
     "phase_reviewer",
 )
+REVIEWER_SUFFIXES = ("_a", "_b")
+
+
+def is_dual_review_config(roles: dict) -> bool:
+    return "phase_reviewer_a" in roles
 
 
 def validate_config(config: dict) -> dict:
-    """校验已解析的 config.yaml(缺字段/错 enum/未知 backend 都拒)。返回原 config。"""
+    """校验已解析的 config.yaml(缺字段/错 enum/未知 backend 都拒)。返回原 config。
+    向后兼容：接受旧单路 role 名（phase_reviewer / scaffold_reviewer）。"""
     if config.get("version") != 2:
         raise ValueError(f"config version must be 2, got {config.get('version')!r}")
     roles = config.get("roles")
     if not isinstance(roles, dict):
         raise ValueError("config.roles must be a mapping")
-    missing = [r for r in REQUIRED_ROLES if r not in roles]
+    required = REQUIRED_ROLES_DUAL if is_dual_review_config(roles) else REQUIRED_ROLES_LEGACY
+    missing = [r for r in required if r not in roles]
     if missing:
         raise ValueError(f"config.roles missing: {', '.join(missing)}")
     for name, role in roles.items():
@@ -275,10 +291,11 @@ def parse_review_blockers(review_text: str) -> list[tuple[str | None, str]]:
 
 
 def parse_ack_resolutions(ack_text: str) -> dict:
-    """统计 ack.md 里 `## Blocker Resolutions` 段内的 `[fixed]` / `[deferred]` 数量,
-    并保留 fixed 行原文(fixed_lines, 供按 blocker ID 对账)。
-    只认这一段, 防止 Findings 段里的 `[agree] [blocker]` 叙述被误计。"""
-    counts: dict = {"fixed": 0, "deferred": 0, "fixed_lines": []}
+    """统计 ack.md 里 `## Blocker Resolutions` 段内的 `[fixed]` / `[rejected]` / `[deferred]` 数量,
+    并保留 fixed_lines 和 rejected_lines 原文(供按 blocker ID 对账)。
+    只认这一段, 防止 Findings 段里的 `[agree] [blocker]` 叙述被误计。
+    双路 reviewer 下 coder 用 `[rejected] A:B2 理由` 表示不认同,门禁视为已裁决(不阻塞)。"""
+    counts: dict = {"fixed": 0, "rejected": 0, "deferred": 0, "fixed_lines": [], "rejected_lines": []}
     in_section = False
     for raw in ack_text.splitlines():
         line = raw.strip()
@@ -291,44 +308,79 @@ def parse_ack_resolutions(ack_text: str) -> dict:
         if "[fixed]" in low:
             counts["fixed"] += 1
             counts["fixed_lines"].append(line)
+        elif "[rejected]" in low:
+            counts["rejected"] += 1
+            counts["rejected_lines"].append(line)
         elif "[deferred]" in low:
             counts["deferred"] += 1
     return counts
 
 
-def phase_gate(verify: dict | None, review_text: str, ack_text: str) -> dict:
-    """phase 完成的硬门(纯谓词)。三条:
-    (a) verify 必须真跑且过(verify 为 None/未 ok → 阻塞) —— 杜绝"测试只写没跑"。
-    (b) review 必须产出(review.md 缺失/为空 → 阻塞) —— 杜绝 reviewer 环节被静默跳过。
-    (c) review 的每个 [blocker] 必须在 ack 标 [fixed](fixed<blocker数 或 有 deferred → 阻塞)
-        —— 杜绝 reviewer 开了 blocker 却被静默放行。
-    全过才 ok。reasons 给人看, 调用方据 ok 决定是否拒绝完成。"""
+def phase_gate(verify: dict | None, review_text, ack_text: str) -> dict:
+    """phase 完成的硬门(纯谓词)。
+
+    review_text: str (单路旧格式) 或 dict[str, str] (双路, {"a": "...", "b": "..."})。
+    双路时每份 review 的 blocker 加来源前缀 (A:B1, B:B2)，coder ack 按前缀对账。
+    一路为空(降级) = 跳过该路, 但至少一路要有产出。
+    [rejected] 视为已裁决(不阻塞), [deferred] 仍禁止。
+
+    三条:
+    (a) verify 必须真跑且过(verify 为 None/未 ok → 阻塞)。
+    (b) review 必须产出(全空 → 阻塞)。
+    (c) review 的每个 [blocker] 必须在 ack 标 [fixed] 或 [rejected](缺裁决 → 阻塞)。"""
     reasons: list[str] = []
     if not verify or not verify.get("ok"):
         reasons.append("验证未跑或失败：先 `lr2.py verify --phase <id>`，verify.json.ok 必须为真")
-    if not review_text.strip():
-        reasons.append("review 未产出：phases/<id>/review.md 缺失或为空 —— reviewer 环节不可跳过")
-    blockers = parse_review_blockers(review_text)
+
+    # 归一化 review_text 为 dict
+    if isinstance(review_text, str):
+        review_texts: dict[str, str] = {"": review_text}
+    else:
+        review_texts = review_text
+
+    has_any_review = any(t.strip() for t in review_texts.values())
+    if not has_any_review:
+        reasons.append("review 未产出：review 文件缺失或为空 —— reviewer 环节不可跳过")
+
+    # 从所有 review 中收集 blocker，双路时加来源前缀
+    all_blockers: list[tuple[str | None, str]] = []
+    for source, text in review_texts.items():
+        if not text.strip():
+            continue
+        for bid, desc in parse_review_blockers(text):
+            if source and bid:
+                prefixed_id = f"{source.upper()}:{bid}"
+            elif source and not bid:
+                prefixed_id = None
+            else:
+                prefixed_id = bid
+            all_blockers.append((prefixed_id, desc))
+
     res = parse_ack_resolutions(ack_text)
-    if blockers:
-        ids = [bid for bid, _ in blockers]
+    # [rejected] 必须有理由（ID 后至少有非空文本），空理由 = 静默丢弃 blocker
+    _rejected_no_reason = re.compile(r"^\s*-\s*\[rejected\]\s*[A-Za-z0-9:_-]*\s*$", re.IGNORECASE)
+    bad_rejects = [ln for ln in res.get("rejected_lines", []) if _rejected_no_reason.match(ln)]
+    if bad_rejects:
+        reasons.append(f"[rejected] 缺理由（必须写明不认同原因）：{bad_rejects[0]!r}")
+    resolved_lines = res["fixed_lines"] + res.get("rejected_lines", [])
+    if all_blockers:
+        ids = [bid for bid, _ in all_blockers]
         if all(ids):
-            # 按 ID 对账(reviewer 全部编号时): 重复提及去重; 每个 ID 必须出现在某个 [fixed] 行里。
             unique = list(dict.fromkeys(ids))
             missing = [bid for bid in unique
-                       if not any(re.search(rf"\b{re.escape(bid)}\b", ln) for ln in res["fixed_lines"])]
+                       if not any(re.search(rf"\b{re.escape(bid)}\b", ln) for ln in resolved_lines)]
             problems = []
             if missing:
-                problems.append(f"{', '.join(missing)} 未在 ack `## Blocker Resolutions` 标 [fixed]")
+                problems.append(f"{', '.join(missing)} 未在 ack `## Blocker Resolutions` 标 [fixed] 或 [rejected]")
             if res["deferred"] > 0:
                 problems.append(f"出现 {res['deferred']} 个 [deferred]（blocker 不允许 deferred）")
             if problems:
-                reasons.append("blocker 未解决：" + "；".join(problems))
-        elif res["fixed"] < len(blockers) or res["deferred"] > 0:
-            # 回落计数对账(存在未编号 blocker 的历史 review)
+                reasons.append("blocker 未裁决：" + "；".join(problems))
+        elif (res["fixed"] + res["rejected"]) < len(all_blockers) or res["deferred"] > 0:
             reasons.append(
-                f"blocker 未解决：review 有 {len(blockers)} 个 [blocker]，"
-                f"ack 仅 fixed={res['fixed']} deferred={res['deferred']}（blocker 不允许 deferred）"
+                f"blocker 未裁决：review 有 {len(all_blockers)} 个 [blocker]，"
+                f"ack 仅 fixed={res['fixed']} rejected={res['rejected']} deferred={res['deferred']}"
+                f"（blocker 不允许 deferred）"
             )
     return {"ok": not reasons, "reasons": reasons}
 
@@ -550,7 +602,7 @@ def _git(repo_root: Path, args: list[str]) -> str:
 
 def pane_title(role: str, phase: str) -> str:
     # `phase {n} {身份}`(用户决策 2026-06-06): 比 lr2:slug:role:phase 更易调试; 不含任务名(太长)。
-    # 身份去掉 phase_ 前缀 → planner/coder/reviewer。
+    # 身份去掉 phase_ 前缀 → planner/coder/reviewer；双路 reviewer 保留后缀 → reviewer_a/reviewer_b。
     identity = role[len("phase_"):] if role.startswith("phase_") else role
     return f"phase {phase} {identity}"
 
@@ -600,8 +652,9 @@ def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
 # L24(pane 生命周期收尾): phase 收口该清的临时角色。coder 不在内 — 不是复用(L6 已反转为
 # fresh-per-phase), 而是它由下一 phase 的 fresh launch 负责关; run 收尾清全部 worker。
-PHASE_TRANSIENT_ROLES = ("phase_planner", "phase_reviewer")
-WORKER_ROLES = ("phase_planner", "phase_coder", "phase_reviewer")
+# 双路 reviewer: _a/_b + 旧单路都列出，close/teardown 按 role 名匹配。
+PHASE_TRANSIENT_ROLES = ("phase_planner", "phase_reviewer", "phase_reviewer_a", "phase_reviewer_b")
+WORKER_ROLES = ("phase_planner", "phase_coder", "phase_reviewer", "phase_reviewer_a", "phase_reviewer_b")
 
 
 def _close_roles(workspace: Path, roles) -> list[str]:
@@ -652,11 +705,43 @@ def resolve_phase_dir(workspace: Path, phase: str) -> Path:
     return exact
 
 
+def _reviewer_suffix(role: str) -> str | None:
+    """双路 reviewer 的后缀(_a/_b)。非 reviewer 或旧单路返回 None。"""
+    for sfx in REVIEWER_SUFFIXES:
+        if role.endswith(sfx):
+            return sfx
+    return None
+
+
+def _prompt_file_for(role: str) -> Path:
+    """role → prompt 文件。双路 reviewer (_a/_b) 共享去掉后缀的 prompt。"""
+    sfx = _reviewer_suffix(role)
+    base = role[:-len(sfx)] if sfx else role
+    return PROMPTS_DIR / f"{base}.md"
+
+
+def _reviewer_output_files(role: str, phase: str, workspace: Path) -> tuple[str, str] | None:
+    """双路 reviewer 的 (review_file, status_file) 绝对路径。非双路返回 None。
+    pane cwd 是 worktree（不是 workspace），所以必须返回绝对路径。"""
+    sfx = _reviewer_suffix(role)
+    if not sfx:
+        return None
+    label = sfx.lstrip("_")  # "a" or "b"
+    if role.startswith("scaffold_reviewer"):
+        return (str(workspace / f"SCAFFOLD_REVIEW_{label.upper()}.md"),
+                str(workspace / f"scaffold_reviewer_{label}.status"))
+    if role.startswith("phase_reviewer"):
+        pdir = resolve_phase_dir(workspace, phase)
+        return (str(pdir / f"review_{label}.md"), str(pdir / f"phase_reviewer_{label}.status"))
+    return None
+
+
 def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> str:
     """worker pane 的初始 prompt(多行结构化, 经 bracketed paste 注入, 窗口可读)。
     phase 角色才注入 [PHASE DIR]; scaffold_reviewer 等非 phase 角色(phase=0)不注入 —
-    否则会把不存在的 phases/0 当成产出目录, 与其角色契约(写工作区根)冲突。"""
-    prompt_file = PROMPTS_DIR / f"{role}.md"
+    否则会把不存在的 phases/0 当成产出目录, 与其角色契约(写工作区根)冲突。
+    双路 reviewer: 共享 prompt 文件，但注入不同的 OUTPUT FILE 和 STATUS FILE。"""
+    prompt_file = _prompt_file_for(role)
     is_phase_role = role in WORKER_ROLES and phase != "0"
     header = (f"You are the {role} for phase {phase}." if is_phase_role else f"You are the {role}.")
     parts = [
@@ -667,9 +752,17 @@ def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> st
         (f"[PHASE DIR — this exact directory holds your spec; read it here and write ALL your phase outputs "
          f"(status/verify.sh/qa/ack/...) here, do not invent phases/{phase}] {resolve_phase_dir(workspace, phase)}")
         if is_phase_role else "",
+    ]
+    # 双路 reviewer: 注入具体产出文件名(覆盖 prompt 里的默认名)
+    rv_files = _reviewer_output_files(role, phase, workspace)
+    if rv_files:
+        review_file, status_file = rv_files
+        parts.append(f"[OUTPUT FILE — write your review here, NOT the default name] {review_file}")
+        parts.append(f"[STATUS FILE — write 'done' here when finished] {status_file}")
+    parts.extend([
         "[EVALUATE] whether /think-map or /think-research helps (per your role contract; evaluate, not forced).",
         "[RULES] Workspace files are the SSOT, your memory is not. Stay within your role's allowed outputs; do not touch files outside them.",
-    ]
+    ])
     return "\n".join(p for p in parts if p)
 
 
@@ -730,21 +823,37 @@ def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "
 # 模板
 # ---------------------------------------------------------------------------
 def default_config_yaml(slug: str) -> str:
+    # 双路 reviewer: 检测 orchestrator 运行时, a/b backend 互补。
+    # CC 环境 → a=kilo b=cc；非 CC 环境 → a=cc b=kilo。
+    is_cc = bool(os.environ.get("CLAUDECODE"))
+    if is_cc:
+        rev_a_backend, rev_a_model = "kilo", "cliproxy/gpt-5.5"
+        rev_a_extra = ""
+        rev_b_backend, rev_b_model = "claude_cli", "claude-opus-4-8"
+        rev_b_extra = "\n    cmd: 'claude --dangerously-skip-permissions'"
+    else:
+        rev_a_backend, rev_a_model = "claude_cli", "claude-opus-4-8"
+        rev_a_extra = "\n    cmd: 'claude --dangerously-skip-permissions'"
+        rev_b_backend, rev_b_model = "kilo", "cliproxy/gpt-5.5"
+        rev_b_extra = ""
+
     return f"""version: 2
 
-# dev-long-run-v2 角色配置。模型只有 gpt-5.5 + claude-opus-4-8 两个;思考档由模型默认承载:
-#   - kilo worker(planner/coder): cliproxy/gpt-5.5, 默认 effort=high(模型默认; kilo TUI 无 --variant flag, 非交互启动用默认)。
-#   - claude_cli reviewer: cmd 不传 --model/--effort → claude CLI 默认(Opus 4.8 @ high, 自动跟最新);下方 model 仅记录。
-#   - scaffold/loop orchestrator = 用户对话的 agent(无 pane),model 仅占位不生效。
+# dev-long-run-v2 角色配置(双路 reviewer)。
+# 双路 reviewer: _a + _b 并发审查, 两份 review 原样交 coder 仲裁。
+# orchestrator 检测: {'CC → a=kilo b=cc' if is_cc else 'kilo/other → a=cc b=kilo'}
 roles:
   scaffold_orchestrator:
     backend: kilo
     model: cliproxy/gpt-5.5     # 不生效(orchestrator = 对话 agent)
     autonomy: medium
-  scaffold_reviewer:
-    backend: claude_cli
-    cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-8      # 仅记录;实际用 claude CLI 默认(Opus 4.8 @ high)
+  scaffold_reviewer_a:
+    backend: {rev_a_backend}
+    model: {rev_a_model}{rev_a_extra}
+    autonomy: off
+  scaffold_reviewer_b:
+    backend: {rev_b_backend}
+    model: {rev_b_model}{rev_b_extra}
     autonomy: off
   loop_orchestrator:
     backend: kilo
@@ -758,10 +867,13 @@ roles:
     backend: kilo
     model: cliproxy/gpt-5.5     # effort=high(模型默认)
     autonomy: high
-  phase_reviewer:
-    backend: claude_cli
-    cmd: 'claude --dangerously-skip-permissions'
-    model: claude-opus-4-8      # 仅记录;实际用 claude CLI 默认(Opus 4.8 @ high)
+  phase_reviewer_a:
+    backend: {rev_a_backend}
+    model: {rev_a_model}{rev_a_extra}
+    autonomy: off
+  phase_reviewer_b:
+    backend: {rev_b_backend}
+    model: {rev_b_model}{rev_b_extra}
     autonomy: off
 
 policy:
@@ -880,7 +992,9 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         f"Next (act as scaffold orchestrator yourself):\n"
         f"  1. Read {workspace}/REQUIREMENT.md and the repo (cwd={wt}).\n"
         f"  2. Write SPEC_OVERVIEW.md / fix_plan.md / phases/<NN>_<slug>/spec.md into {workspace}.\n"
-        f"  3. (optional) launch a reviewer pane: python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer\n"
+        f"  3. (L2, mandatory) launch dual scaffold reviewers:\n"
+        f"       python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer_a\n"
+        f"       python3 {Path(__file__).resolve()} launch --workspace {workspace} --role scaffold_reviewer_b\n"
         f"  4. Tell the user the phase plan in chat; on approval, start the develop loop (see ORCHESTRATOR.md).\n"
         f"  resume: python3 {Path(__file__).resolve()} resume --workspace {workspace}\n"
     )
@@ -1163,9 +1277,16 @@ def _phase_gate_for(workspace: Path, phase: str) -> dict:
     pdir = resolve_phase_dir(workspace, phase)
     vj = pdir / "verify.json"
     verify = json.loads(vj.read_text(encoding="utf-8")) if vj.exists() else None
-    review = (pdir / "review.md").read_text(encoding="utf-8") if (pdir / "review.md").exists() else ""
+    # 双路 reviewer: review_a.md + review_b.md；旧单路: review.md
+    review_a = (pdir / "review_a.md").read_text(encoding="utf-8") if (pdir / "review_a.md").exists() else ""
+    review_b = (pdir / "review_b.md").read_text(encoding="utf-8") if (pdir / "review_b.md").exists() else ""
+    review_legacy = (pdir / "review.md").read_text(encoding="utf-8") if (pdir / "review.md").exists() else ""
+    if review_a or review_b:
+        review_text: dict[str, str] | str = {"a": review_a, "b": review_b}
+    else:
+        review_text = review_legacy
     ack = (pdir / "ack.md").read_text(encoding="utf-8") if (pdir / "ack.md").exists() else ""
-    gate = phase_gate(verify, review, ack)
+    gate = phase_gate(verify, review_text, ack)
     commit_reason = _commit_evidence(workspace, phase)
     if commit_reason:
         return {"ok": False, "reasons": gate["reasons"] + [commit_reason]}

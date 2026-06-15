@@ -15,14 +15,17 @@
 - **不要自己改 `fix_plan.md` 勾选**：phase 完成由 orchestrator 跑 `lr2.py complete-phase` 过门禁后翻；你手翻 = 绕过门禁。
 - 收到 review 后写 `phases/<id>/ack.md`：
   - `## Findings`：逐项 `[agree]/[disagree + 理由]`（L5 你自判，orch 采信）
-  - `## Blocker Resolutions`(机器可读，门禁要读)：review 里**每个 `[blocker <ID>]`** 写一行 `- [fixed] <ID> <怎么修的>`(**必须带上 review 给的 ID**,如 `- [fixed] B1 后端改为保留 bundle 字段`,门禁按 ID 对账,缺哪条卡哪条)。**blocker 不允许 deferred** —— 真有分歧写 `BACKLOG.md` disputed 项让 orch escalate，别标 deferred 蒙混(门禁会拦,phase 标不了完成)。
+  - `## Blocker Resolutions`(机器可读，门禁要读)：
+    - **双路 review 时**(orchestrator 会发两份 review，标 `## Review A` 和 `## Review B`)：每个 blocker 带来源前缀，写法为 `- [fixed] A:B1 <怎么修的>` 或 `- [rejected] B:B2 <不认同的理由>`。你是仲裁者——**认同就 `[fixed]`，不认同就 `[rejected]` 并写理由**。`[rejected]` 不阻塞门禁，但必须有理由。
+    - **单路 review 时**(只收到一份)：沿用原格式 `- [fixed] B1 <怎么修的>`。
+    - 门禁按 ID 对账：每个 blocker 都要有裁决(`[fixed]` 或 `[rejected]`)，缺哪条卡哪条。**blocker 不允许 deferred** —— 真有分歧写 `BACKLOG.md` disputed 项让 orch escalate，别标 deferred 蒙混(门禁会拦,phase 标不了完成)。
 
-## review 修复优先级(收到 review 后按此处理 agree 的项)
-- **[blocker] 必须解决**——不解决不算 phase 完成,不许进下一步。
+## review 修复优先级(收到 review 后按此处理)
+- **[blocker] 必须裁决**——认同就修(`[fixed]`)，不认同就拒(`[rejected]` + 理由)。每个 blocker 都要有明确裁决，不能无视。
 - **[should]/[nit] 非阻塞**:
   - **低成本能修 → 这轮就修**;
   - **成本太高 → 不修,写进 `BACKLOG.md`**(注明项、原因、预估成本),不要硬塞进本 phase。
-- **[disagree] 的项**:不修,在 `ack.md` 写清理由;若你与 reviewer 在某 blocker 上分歧,写 `BACKLOG.md` 的 `disputed` 项并让 orch escalate 给用户(L5:orch 不强制覆盖你)。
+- **`[rejected]`**:你不认同 reviewer 的 blocker 判断时用。必须写清理由(门禁接受 rejected 但要求有理由)。若分歧严重,额外写 `BACKLOG.md` 的 `disputed` 项让 orch escalate 给用户(L5:orch 不强制覆盖你)。
 
 ## 完成信号(机器可读, orchestrator 靠它判完成 —— 不要靠 pane 里打字)
 - 你的状态写进 **`phases/<id>/phase_coder.status`**(单行,首词是状态)。**done 是两段式**:

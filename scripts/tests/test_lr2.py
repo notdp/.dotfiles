@@ -133,7 +133,28 @@ class NamingTests(unittest.TestCase):
                 lr2.plan_worktree(Path("/home/u/repo"), "auth", in_place=True, current_branch=b)
 
 
-def valid_config() -> dict:
+def valid_config_dual() -> dict:
+    """双路 reviewer 配置(新默认)。"""
+    def role(backend, autonomy, **extra):
+        return {"backend": backend, "model": "m", "autonomy": autonomy, **extra}
+    cmd = "claude --dangerously-skip-permissions"
+    return {
+        "version": 2,
+        "roles": {
+            "scaffold_orchestrator": role("kilo", "medium"),
+            "scaffold_reviewer_a": role("kilo", "off"),
+            "scaffold_reviewer_b": role("claude_cli", "off", cmd=cmd),
+            "loop_orchestrator": role("kilo", "medium"),
+            "phase_planner": role("kilo", "low"),
+            "phase_coder": role("kilo", "high"),
+            "phase_reviewer_a": role("kilo", "off"),
+            "phase_reviewer_b": role("claude_cli", "off", cmd=cmd),
+        },
+    }
+
+
+def valid_config_legacy() -> dict:
+    """旧单路 reviewer 配置(向后兼容)。"""
     def role(backend, autonomy, **extra):
         return {"backend": backend, "model": "m", "autonomy": autonomy, **extra}
     cmd = "claude --dangerously-skip-permissions"
@@ -150,6 +171,10 @@ def valid_config() -> dict:
     }
 
 
+def valid_config() -> dict:
+    return valid_config_dual()
+
+
 class ConfigValidationTests(unittest.TestCase):
     def test_valid_config_passes(self) -> None:
         self.assertEqual(lr2.validate_config(valid_config()), valid_config())
@@ -159,6 +184,15 @@ class ConfigValidationTests(unittest.TestCase):
         del cfg["roles"]["phase_coder"]
         with self.assertRaises(ValueError):
             lr2.validate_config(cfg)
+
+    def test_missing_dual_reviewer_rejected(self) -> None:
+        cfg = valid_config_dual()
+        del cfg["roles"]["phase_reviewer_b"]
+        with self.assertRaises(ValueError):
+            lr2.validate_config(cfg)
+
+    def test_legacy_config_still_valid(self) -> None:
+        self.assertEqual(lr2.validate_config(valid_config_legacy()), valid_config_legacy())
 
     def test_unknown_backend_rejected(self) -> None:
         cfg = valid_config()
@@ -173,9 +207,8 @@ class ConfigValidationTests(unittest.TestCase):
             lr2.validate_config(cfg)
 
     def test_claude_cli_role_requires_cmd(self) -> None:
-        # claude_cli 走独立 CLI, 必须有 cmd(否则 launcher 不知怎么起)
         cfg = valid_config()
-        del cfg["roles"]["phase_reviewer"]["cmd"]
+        del cfg["roles"]["phase_reviewer_b"]["cmd"]
         with self.assertRaises(ValueError):
             lr2.validate_config(cfg)
 
@@ -238,8 +271,15 @@ class YamlLoaderTests(unittest.TestCase):
         cfg = lr2.load_yaml(lr2.default_config_yaml("demo"))
         self.assertEqual(cfg["version"], 2)
         self.assertEqual(cfg["roles"]["phase_coder"]["backend"], "kilo")
-        # claude_cli cmd 单引号标量正确解出
-        self.assertEqual(cfg["roles"]["phase_reviewer"]["cmd"], "claude --dangerously-skip-permissions")
+        # 双路 reviewer: _a + _b 都存在
+        self.assertIn("phase_reviewer_a", cfg["roles"])
+        self.assertIn("phase_reviewer_b", cfg["roles"])
+        # 两路 backend 互补(一个 kilo 一个 claude_cli)
+        backends = {cfg["roles"]["phase_reviewer_a"]["backend"], cfg["roles"]["phase_reviewer_b"]["backend"]}
+        self.assertEqual(backends, {"kilo", "claude_cli"})
+        # claude_cli 路有 cmd
+        cc_role = "phase_reviewer_a" if cfg["roles"]["phase_reviewer_a"]["backend"] == "claude_cli" else "phase_reviewer_b"
+        self.assertEqual(cfg["roles"][cc_role]["cmd"], "claude --dangerously-skip-permissions")
         # 生成的模板必须通过 schema 校验(round-trip)
         self.assertEqual(lr2.validate_config(cfg), cfg)
 
@@ -323,8 +363,11 @@ class TmuxArgTests(unittest.TestCase):
     def test_role_sets_membership(self) -> None:
         self.assertNotIn("phase_coder", lr2.PHASE_TRANSIENT_ROLES)
         self.assertIn("phase_planner", lr2.PHASE_TRANSIENT_ROLES)
-        self.assertIn("phase_reviewer", lr2.PHASE_TRANSIENT_ROLES)
-        for r in ("phase_planner", "phase_coder", "phase_reviewer"):
+        # 双路 + 旧单路 reviewer 都在 transient/worker 里
+        for r in ("phase_reviewer", "phase_reviewer_a", "phase_reviewer_b"):
+            self.assertIn(r, lr2.PHASE_TRANSIENT_ROLES)
+            self.assertIn(r, lr2.WORKER_ROLES)
+        for r in ("phase_planner", "phase_coder"):
             self.assertIn(r, lr2.WORKER_ROLES)
 
     def test_pane_registered_matches_any_status_row(self) -> None:
@@ -555,6 +598,157 @@ class PhaseGateTests(unittest.TestCase):
         self.assertFalse(g["ok"])  # 2 个 blocker 只有 1 个 fixed
         ack2 = "## Blocker Resolutions\n- [fixed] B1 done\n- [fixed] b done\n"
         self.assertTrue(lr2.phase_gate(self.OK_VERIFY, review, ack2)["ok"])
+
+
+class DualReviewGateTests(unittest.TestCase):
+    """双路 reviewer + [rejected] 裁决的门禁测试。"""
+    OK_VERIFY = {"ok": True, "exit": 0, "output_tail": "ok"}
+
+    def test_dual_review_both_blockers_fixed(self) -> None:
+        reviews = {
+            "a": "### [blocker B1] drops field\n",
+            "b": "### [blocker B1] race condition\n",
+        }
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 kept field\n- [fixed] B:B1 added lock\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertTrue(g["ok"])
+
+    def test_dual_review_missing_resolution_blocks(self) -> None:
+        reviews = {
+            "a": "### [blocker B1] drops field\n",
+            "b": "### [blocker B1] race\n### [blocker B2] null check\n",
+        }
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 kept field\n- [fixed] B:B1 lock\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("B:B2" in r for r in g["reasons"]))
+
+    def test_rejected_counts_as_resolved(self) -> None:
+        reviews = {
+            "a": "### [blocker B1] drops field\n",
+            "b": "### [blocker B1] race\n",
+        }
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 kept field\n- [rejected] B:B1 not a real issue\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertTrue(g["ok"])
+
+    def test_deferred_still_blocks_in_dual(self) -> None:
+        reviews = {"a": "### [blocker B1] x\n", "b": ""}
+        ack = "## Blocker Resolutions\n- [deferred] A:B1 later\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertFalse(g["ok"])
+
+    def test_one_route_empty_degrades_gracefully(self) -> None:
+        reviews = {"a": "### [blocker B1] field\n", "b": ""}
+        ack = "## Blocker Resolutions\n- [fixed] A:B1 done\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertTrue(g["ok"])
+
+    def test_both_routes_empty_blocks(self) -> None:
+        reviews = {"a": "", "b": ""}
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, "")
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("review" in r.lower() for r in g["reasons"]))
+
+    def test_single_route_no_blockers_passes(self) -> None:
+        reviews = {"a": "looks good, no issues\n", "b": "clean code\n"}
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, "")
+        self.assertTrue(g["ok"])
+
+    def test_legacy_string_still_works(self) -> None:
+        g = lr2.phase_gate(self.OK_VERIFY, "### [blocker B1] x\n",
+                           "## Blocker Resolutions\n- [fixed] B1 done\n")
+        self.assertTrue(g["ok"])
+
+    def test_rejected_without_reason_blocks(self) -> None:
+        reviews = {"a": "### [blocker B1] field\n", "b": ""}
+        ack = "## Blocker Resolutions\n- [rejected] A:B1\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertFalse(g["ok"])
+        self.assertTrue(any("缺理由" in r for r in g["reasons"]))
+
+    def test_rejected_with_reason_passes(self) -> None:
+        reviews = {"a": "### [blocker B1] field\n", "b": ""}
+        ack = "## Blocker Resolutions\n- [rejected] A:B1 not a real issue because X\n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertTrue(g["ok"])
+
+    def test_rejected_with_only_whitespace_after_id_blocks(self) -> None:
+        reviews = {"a": "### [blocker B1] field\n", "b": ""}
+        ack = "## Blocker Resolutions\n- [rejected] A:B1   \n"
+        g = lr2.phase_gate(self.OK_VERIFY, reviews, ack)
+        self.assertFalse(g["ok"])
+
+
+class ParseAckRejectedTests(unittest.TestCase):
+    def test_counts_rejected_lines(self) -> None:
+        ack = ("## Blocker Resolutions\n"
+               "- [fixed] A:B1 kept field\n"
+               "- [rejected] B:B1 not real\n"
+               "- [rejected] B:B2 disagree\n")
+        r = lr2.parse_ack_resolutions(ack)
+        self.assertEqual(r["fixed"], 1)
+        self.assertEqual(r["rejected"], 2)
+        self.assertEqual(len(r["rejected_lines"]), 2)
+
+    def test_rejected_outside_section_ignored(self) -> None:
+        ack = "## Findings\n- [rejected] disagree\n## Blocker Resolutions\n- [fixed] B1 done\n"
+        r = lr2.parse_ack_resolutions(ack)
+        self.assertEqual(r["rejected"], 0)
+        self.assertEqual(r["fixed"], 1)
+
+
+class DualReviewConfigTests(unittest.TestCase):
+    def test_is_dual_review_detects_dual(self) -> None:
+        self.assertTrue(lr2.is_dual_review_config(valid_config_dual()["roles"]))
+
+    def test_is_dual_review_detects_legacy(self) -> None:
+        self.assertFalse(lr2.is_dual_review_config(valid_config_legacy()["roles"]))
+
+    def test_reviewer_suffix_extracts_a_b(self) -> None:
+        self.assertEqual(lr2._reviewer_suffix("phase_reviewer_a"), "_a")
+        self.assertEqual(lr2._reviewer_suffix("phase_reviewer_b"), "_b")
+        self.assertEqual(lr2._reviewer_suffix("scaffold_reviewer_a"), "_a")
+        self.assertIsNone(lr2._reviewer_suffix("phase_reviewer"))
+        self.assertIsNone(lr2._reviewer_suffix("phase_coder"))
+
+    def test_prompt_file_maps_dual_to_base(self) -> None:
+        p = lr2._prompt_file_for("phase_reviewer_a")
+        self.assertEqual(p.name, "phase_reviewer.md")
+        p = lr2._prompt_file_for("scaffold_reviewer_b")
+        self.assertEqual(p.name, "scaffold_reviewer.md")
+
+    def test_prompt_file_keeps_non_reviewer(self) -> None:
+        p = lr2._prompt_file_for("phase_coder")
+        self.assertEqual(p.name, "phase_coder.md")
+
+    def test_pane_title_dual_reviewer(self) -> None:
+        self.assertEqual(lr2.pane_title("phase_reviewer_a", "02"), "phase 02 reviewer_a")
+        self.assertEqual(lr2.pane_title("phase_reviewer_b", "02"), "phase 02 reviewer_b")
+
+    def test_scaffold_reviewer_output_files_are_absolute(self) -> None:
+        ws = Path("/tmp/ws")
+        result = lr2._reviewer_output_files("scaffold_reviewer_a", "0", ws)
+        self.assertIsNotNone(result)
+        review_file, status_file = result
+        self.assertTrue(review_file.startswith("/"), f"review path not absolute: {review_file}")
+        self.assertTrue(status_file.startswith("/"), f"status path not absolute: {status_file}")
+        self.assertIn("SCAFFOLD_REVIEW_A.md", review_file)
+        self.assertIn("scaffold_reviewer_a.status", status_file)
+
+    def test_phase_reviewer_output_files_are_absolute(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            (ws / "phases" / "02_foo").mkdir(parents=True)
+            result = lr2._reviewer_output_files("phase_reviewer_b", "02", ws)
+            self.assertIsNotNone(result)
+            review_file, status_file = result
+            self.assertTrue(review_file.startswith("/"), f"review path not absolute: {review_file}")
+            self.assertIn("review_b.md", review_file)
+            self.assertIn("phase_reviewer_b.status", status_file)
+
+    def test_non_reviewer_returns_none(self) -> None:
+        self.assertIsNone(lr2._reviewer_output_files("phase_coder", "02", Path("/tmp/ws")))
 
 
 class ParseStatusCommitTests(unittest.TestCase):
