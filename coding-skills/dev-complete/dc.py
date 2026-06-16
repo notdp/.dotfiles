@@ -135,6 +135,13 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         if wt.exists():
             sys.stderr.write(f"worktree 路径已存在: {wt}\n用 --name 换 slug 或删除旧 worktree\n")
             return 1
+        branch_check = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", f"refs/heads/{plan['branch']}"],
+            capture_output=True,
+        )
+        if branch_check.returncode == 0:
+            sys.stderr.write(f"分支 {plan['branch']} 已存在\n续做请切到该分支用 --in-place，或 --name 换 slug\n")
+            return 1
         subprocess.run(["git", "-C", str(repo_root), "worktree", "add",
                         "-b", plan["branch"], str(wt)], check=True, capture_output=True)
 
@@ -383,7 +390,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
             timeout=timeout_s,
         )
     except subprocess.TimeoutExpired as e:
-        partial = (e.stdout or "") + (e.stderr or "") if e.stdout or e.stderr else ""
+        def _to_str(v): return v.decode("utf-8", "replace") if isinstance(v, bytes) else (v or "")
+        partial = _to_str(e.stdout) + _to_str(e.stderr)
         output = partial + f"\n[dc] TIMEOUT: verify.sh 超过 {timeout_s}s（挂起按失败处理）"
         summary = lr.verify_summary(124, output)
         json_path = workspace / "verify.json"
@@ -466,8 +474,8 @@ def cmd_complete(args: argparse.Namespace) -> int:
     # 2. review 存在
     review_a = workspace / "review_a.md"
     review_b = workspace / "review_b.md"
-    has_review = (review_a.exists() and review_a.stat().st_size > 0) or \
-                 (review_b.exists() and review_b.stat().st_size > 0)
+    has_review = (review_a.exists() and review_a.read_text(encoding="utf-8").strip()) or \
+                 (review_b.exists() and review_b.read_text(encoding="utf-8").strip())
     if not has_review:
         blocks.append("review_a.md 和 review_b.md 都不存在或为空")
 
