@@ -17,5 +17,5 @@
 - 写完 review 后，把启动消息 `[STATUS FILE]` 指定的 status 文件整文件写成一行 `done`。orchestrator 靠它判完成。
 
 ## 约束
-- 只读，不动代码、不跑命令。
+- 只读，不动代码、不改文件。**允许只读命令**（`git diff`、`git log`、`cat`、`grep` 等）以获取 review 所需信息。
 - 状态写 done 后即结束，pane 可关。

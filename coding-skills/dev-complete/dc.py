@@ -114,20 +114,29 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         )
         return 2
 
-    plan = lr.plan_worktree(repo_root, slug, in_place=args.in_place,
-                            current_branch=subprocess.run(
-                                ["git", "-C", str(repo_root), "branch", "--show-current"],
-                                text=True, capture_output=True,
-                            ).stdout.strip())
+    try:
+        plan = lr.plan_worktree(repo_root, slug, in_place=args.in_place,
+                                current_branch=subprocess.run(
+                                    ["git", "-C", str(repo_root), "branch", "--show-current"],
+                                    text=True, capture_output=True,
+                                ).stdout.strip())
+    except ValueError as e:
+        sys.stderr.write(f"拒绝: {e}\n")
+        return 1
 
     ws_dir = repo_root / ".long-loop" / f"{datetime.now().strftime('%Y%m%d')}_{slug}"
-    ws_dir.mkdir(parents=True, exist_ok=True)
+    if ws_dir.exists():
+        sys.stderr.write(f"workspace 已存在: {ws_dir}\n用 --name 换 slug 或删除旧 workspace\n")
+        return 1
+    ws_dir.mkdir(parents=True)
 
     if plan["create"]:
         wt = Path(plan["worktree_path"])
-        if not wt.exists():
-            subprocess.run(["git", "-C", str(repo_root), "worktree", "add",
-                            "-b", plan["branch"], str(wt)], check=True, capture_output=True)
+        if wt.exists():
+            sys.stderr.write(f"worktree 路径已存在: {wt}\n用 --name 换 slug 或删除旧 worktree\n")
+            return 1
+        subprocess.run(["git", "-C", str(repo_root), "worktree", "add",
+                        "-b", plan["branch"], str(wt)], check=True, capture_output=True)
 
     state = {
         "skill": "dev-complete",
@@ -364,13 +373,23 @@ def cmd_verify(args: argparse.Namespace) -> int:
         sys.stderr.write(f"verify.sh 不存在: {verify_sh}\n")
         return 1
 
-    result = subprocess.run(
-        ["bash", str(verify_sh)],
-        cwd=str(worktree),
-        text=True,
-        capture_output=True,
-        timeout=getattr(args, "timeout", 300),
-    )
+    timeout_s = getattr(args, "timeout", 300)
+    try:
+        result = subprocess.run(
+            ["bash", str(verify_sh)],
+            cwd=str(worktree),
+            text=True,
+            capture_output=True,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as e:
+        partial = (e.stdout or "") + (e.stderr or "") if e.stdout or e.stderr else ""
+        output = partial + f"\n[dc] TIMEOUT: verify.sh 超过 {timeout_s}s（挂起按失败处理）"
+        summary = lr.verify_summary(124, output)
+        json_path = workspace / "verify.json"
+        json_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        sys.stderr.write(f"verify: TIMEOUT ({timeout_s}s)\n")
+        return 1
     output = (result.stdout or "") + (result.stderr or "")
     summary = lr.verify_summary(result.returncode, output)
 
@@ -393,22 +412,28 @@ def _parse_ack_resolutions(ack_text: str, review_texts: dict[str, str]) -> tuple
     """从 ack.md 解析 blocker 裁决，对照 review 中的 blocker ID。
     复用 lr.parse_review_blockers + lr.parse_ack_resolutions。
     返回 (unresolved_ids, errors)。"""
+    is_single_review = sum(1 for t in review_texts.values() if t.strip()) == 1
     blocker_ids: list[str] = []
+    no_id_count = 0
     for label, text in review_texts.items():
         if not text.strip():
             continue
         for bid, _desc in lr.parse_review_blockers(text):
-            if label and bid:
-                prefixed = f"{label.upper()}:{bid}"
-            elif label and not bid:
-                prefixed = None
-            else:
+            if not bid:
+                no_id_count += 1
+                continue
+            if is_single_review:
                 prefixed = bid
-            if prefixed and prefixed not in blocker_ids:
+            else:
+                prefixed = f"{label.upper()}:{bid}"
+            if prefixed not in blocker_ids:
                 blocker_ids.append(prefixed)
 
     res = lr.parse_ack_resolutions(ack_text)
     errors: list[str] = []
+
+    if no_id_count > 0:
+        errors.append(f"{no_id_count} 个 [blocker] 缺 ID（reviewer 应写 [blocker B1] 等编号格式）")
 
     if res["deferred"] > 0:
         errors.append(f"{res['deferred']} 个 [deferred]，blocker 不允许 deferred")
@@ -441,8 +466,8 @@ def cmd_complete(args: argparse.Namespace) -> int:
     # 2. review 存在
     review_a = workspace / "review_a.md"
     review_b = workspace / "review_b.md"
-    has_review = (review_a.exists() and review_a.stat().st_size > 10) or \
-                 (review_b.exists() and review_b.stat().st_size > 10)
+    has_review = (review_a.exists() and review_a.stat().st_size > 0) or \
+                 (review_b.exists() and review_b.stat().st_size > 0)
     if not has_review:
         blocks.append("review_a.md 和 review_b.md 都不存在或为空")
 
@@ -474,11 +499,11 @@ def cmd_complete(args: argparse.Namespace) -> int:
         else:
             worktree = Path(state.get("worktree_path", workspace))
             ret = subprocess.run(
-                ["git", "-C", str(worktree), "rev-parse", "--verify", commit_hash],
+                ["git", "-C", str(worktree), "merge-base", "--is-ancestor", commit_hash, "HEAD"],
                 capture_output=True,
             )
             if ret.returncode != 0:
-                blocks.append(f"commit {commit_hash} 不在 worktree 分支上")
+                blocks.append(f"commit {commit_hash} 不在当前 worktree 分支历史上")
     else:
         blocks.append("coder.status 不存在")
 

@@ -99,7 +99,7 @@ await 退出码：`0 DONE` / `2 BLOCKED` / `3 DEAD` / `4 TIMEOUT` / `5 COMPACT` 
 4. coder.status 含 commit=<hash>，hash 在分支上存在
 
 ## 硬约束
-- 全程在独立 worktree + 分支，**绝不在 main 上开发/commit**。
+- 默认在独立 worktree + 分支；`--in-place` 仅限非 main/master 的 feature 分支。**绝不在 main 上开发/commit**。
 - 不自动 push/deploy/改 secrets。
 - 工作区文件是 SSOT，你的记忆不可信。
 - **门禁只能经 `dc.py complete` 通过**，不许手标完成。

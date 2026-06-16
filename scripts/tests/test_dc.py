@@ -97,7 +97,7 @@ class ScaffoldTests(unittest.TestCase):
 
 class AckResolutionTests(unittest.TestCase):
     def test_all_resolved(self):
-        review = {"A": "found [blocker B1] and [blocker B2] issues"}
+        review = {"A": "found [blocker B1] issue\nand [blocker B2] another issue"}
         ack = "## Blocker Resolutions\n- [fixed] A:B1 done\n- [rejected] A:B2 not a real issue because xyz"
         unresolved, errors = dc._parse_ack_resolutions(ack, review)
         self.assertEqual(unresolved, [])
@@ -130,9 +130,9 @@ class AckResolutionTests(unittest.TestCase):
 
     def test_only_searches_blocker_resolutions_section(self):
         review = {"A": "[blocker B1] bug"}
-        ack = "## Findings\n- [fixed] A:B1 agree\n\n## Blocker Resolutions\n"
+        ack = "## Findings\n- [fixed] B1 agree\n\n## Blocker Resolutions\n"
         unresolved, _ = dc._parse_ack_resolutions(ack, review)
-        self.assertIn("A:B1", unresolved)
+        self.assertIn("B1", unresolved)
 
 
 class CompleteGateTests(unittest.TestCase):
