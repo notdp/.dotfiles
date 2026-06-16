@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -131,6 +131,55 @@ class NamingTests(unittest.TestCase):
         for b in ("main", "master", ""):
             with self.assertRaises(ValueError):
                 lr.plan_worktree(Path("/home/u/repo"), "auth", in_place=True, current_branch=b)
+
+
+class ScaffoldCommandTests(unittest.TestCase):
+    def _init_repo(self, tmp: Path) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=tmp, check=True, capture_output=True)
+
+    def _run(self, argv: list[str]) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = lr.main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_flagless_chinese_goal_prompts_for_mode_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            self._init_repo(repo)
+            req = repo / "REQUIREMENT.md"
+            req.write_text("# 需求\n", encoding="utf-8")
+
+            code, _stdout, stderr = self._run([
+                "scaffold",
+                "--requirement", str(req),
+                "--goal", "实现提报配置与提报表格体验优化需求",
+                "--repo-root", str(repo),
+            ])
+
+        self.assertEqual(code, 2)
+        self.assertIn("worktree 模式未指定", stderr)
+        self.assertIn("--name", stderr)
+
+    def test_explicit_mode_chinese_goal_requires_name_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            self._init_repo(repo)
+            req = repo / "REQUIREMENT.md"
+            req.write_text("# 需求\n", encoding="utf-8")
+
+            code, _stdout, stderr = self._run([
+                "scaffold",
+                "--requirement", str(req),
+                "--goal", "实现提报配置与提报表格体验优化需求",
+                "--repo-root", str(repo),
+                "--in-place",
+            ])
+
+        self.assertEqual(code, 2)
+        self.assertIn("cannot derive git-safe slug", stderr)
+        self.assertIn("--name <ascii-slug>", stderr)
 
 
 def valid_config_dual() -> dict:

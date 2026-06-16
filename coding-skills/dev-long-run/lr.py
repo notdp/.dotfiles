@@ -22,10 +22,16 @@ from pathlib import Path
 
 def slugify(name: str) -> str:
     """自由任务名 → git-branch + 文件系统安全 slug(小写, 非字母数字折成单连字符)。"""
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    slug = try_slugify(name)
     if not slug:
         raise ValueError(f"cannot derive slug from {name!r}")
     return slug
+
+
+def try_slugify(name: str) -> str | None:
+    """slugify 的非抛错版本, 用于 CLI 先给可恢复提示。"""
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or None
 
 
 BACKENDS = ("kilo", "claude_cli", "droid", "custom")
@@ -924,17 +930,28 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         sys.stderr.write(f"REQUIREMENT not found: {requirement}\n")
         return 1
     name = args.name or args.goal or requirement.stem
-    slug = slugify(name)
     current_branch = _git(repo_root, ["branch", "--show-current"])
+    slug = try_slugify(name)
     # 强制显式选择 worktree 模式: 不默认, 逼 agent 先问用户(L16/L20)
     if args.new == args.in_place:  # 都没给 或 同时给, 都拒绝
         conflict = args.new and args.in_place
+        if conflict:
+            sys.stderr.write("both --new and --in-place given; pick one\n")
+            return 2
+        slug_hint = slug or "<slug-from---name>"
+        name_hint = "" if slug else "  注意: 当前任务名无法生成 git-safe slug；重跑时请加 --name <ascii-slug>\n"
         sys.stderr.write(
-            ("both --new and --in-place given; pick one\n" if conflict else
-             "worktree 模式未指定 — 请先把下面信息给用户、让用户选,再带 --new 或 --in-place 重跑:\n")
+            "worktree 模式未指定 — 请先把下面信息给用户、让用户选,再带 --new 或 --in-place 重跑:\n"
             + f"  当前分支: {current_branch or 'detached HEAD'}\n"
-            f"  --new      : 新建隔离 worktree(../<repo>-lr-{slug}) + 分支 lr/{slug}\n"
+            f"  --new      : 新建隔离 worktree(../<repo>-lr-{slug_hint}) + 分支 lr/{slug_hint}\n"
             f"  --in-place : 在当前分支 '{current_branch}' 接着做(main/master 会被拒)\n"
+            f"{name_hint}"
+        )
+        return 2
+    if not slug:
+        sys.stderr.write(
+            f"cannot derive git-safe slug from {name!r}; "
+            "use --name <ascii-slug>, e.g. --name commit-submission-config-optimization\n"
         )
         return 2
     date = datetime.now().strftime("%Y%m%d")
