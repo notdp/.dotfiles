@@ -1,6 +1,6 @@
 # dotfiles
 
-My Droid skills/scripts.
+跨 coding agent（Droid / Claude / Codex / opencode / kilo）的 harness 仓库：全局规则、skills、slash commands、hooks、statusline、本地脚本与第三方 refs。
 
 ## 项目定位
 
