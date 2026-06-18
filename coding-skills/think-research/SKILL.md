@@ -107,6 +107,7 @@ argument-hint: <技术问题|方案对比|可行性评估>
 - Risks: [必须在 plan 里继续管理的风险]
 - Verification: [inner-loop verifier 与 acceptance verifier]
 - Scenario inputs: [可用于 plan 阶段推演的具体路径 / 示例 / 反例；附来源和置信度]
+- Derisk spikes: [命中 fragility-types.md 的待验证脆弱点：类型、不确定问题、建议验证方式；research 出清单，由 think-plan 决定哪些 spike-before-implement]
 
 ## 参考
 [文档链接、代码示例]
@@ -138,6 +139,7 @@ HTML companion 硬约束：
 - 每条结论标注置信度（确认/推断/未验证）
 - 不给模糊建议（"可以考虑 X 或 Y"→ 给出推荐和理由）
 - 调研结果必须可作为 `/think-plan` 的输入；至少给出 Requirements / Approach / Risks / Verification
+- 方案矩阵的"脆弱假设"命中 `docs/software-engineering-research/fragility-types.md` 类型时，标注是否需 spike-before-implement，并汇入 Plan Handoff 的 Derisk spikes；research 负责识别、think-plan 负责裁决哪些必 spike（POC 是 derisk spike 的一种，不要两边重复造）
 - 方法论、平台型或多组件调研，先画能力地图，再做方案取舍
 - 方法论、工程流程或系统改造类调研，必须说明如何复用当前仓库已有能力；不要因为看到外部工具链就默认新增平行入口
 - 方法论、平台型或多组件调研，至少给出一个可供 `/think-plan` 场景化推演使用的具体输入；未由官方示例、当前项目代码或用户材料支持时，必须标 `[推断]` / `[未验证]`

@@ -228,7 +228,7 @@ docs/specs/
 - **R（需求 / need）**：要达成什么，用户/业务视角，不写实现。`R1 / R2 / ...`，禁止 R 之间同义反复。
 - **S（机制 / mechanism）**：怎么造，技术方案/组件。`S1 / S2 / ...`。
 - **Fit 矩阵**：R × S，每格 `✅`（该机制满足该需求）/ `❌`（不满足）。**二元，不准 ⚠️**。
-- **Flagged unknown**：若"知道要什么但不知道怎么造"，该需求标为**未满足（❌）**并挂一个 spike/验证动作，不要乐观标 ✅（与 Truth Directive 的 `[未验证]` 同源）。
+- **Flagged unknown**：若"知道要什么但不知道怎么造"，或命中 fragility-types.md 任一脆弱点类型（外部依赖行为未知 / 第三方契约未知 / 数据规模未知 / 算法可行性未知……），该需求标为**未满足（❌）**并挂一个 spike（与 §6 Premise Collapse 的 spike 同一概念，与 Truth Directive 的 `[未验证]` 同源），不要乐观标 ✅。
 
 价值：能一眼扫出"哪条 R 没有任何 S 覆盖"（整行无 ✅）和"哪些 S 是多余的"（整列无 ✅）。简单任务不用此格式。
 
@@ -249,6 +249,11 @@ validation_commands:
   - "python3 scripts/verify_skills.py"
 locked_decisions:
   - "已锁定决策 1"
+derisk_spikes:
+  - type: "脆弱点类型编号/名（见 fragility-types.md）"
+    question: "这个 spike 要回答的唯一问题"
+    method: "怎么验证（最小脚本打真实 API / 造满表 / 对拍……）"
+    status: "verified | spike-before-implement | deferred(理由)"
 ```
 
 规则：
@@ -256,6 +261,7 @@ locked_decisions:
 - non_goals 与 spec 主体的排除项保持一致，不新增
 - validation_commands 只列已知可执行的命令；没有时留空列表
 - locked_decisions 从 spec 主体的"已锁定"区提取
+- derisk_spikes 列 §6 Premise Collapse 识别出的脆弱点；`status=spike-before-implement` 的条目表示该环节尚未验证就不应进实现，供 agent 自查与 review 抽查（无脚本强制；`scan_fragility_touchpoints.py` 仅做 advisory 弱提醒）。无脆弱点时留空列表
 - 简单任务（单文件/单函数级）可以省略此块
 - 此块是 spec 的派生视图，spec 主体是 SSOT；两者冲突时以主体为准
 
@@ -280,6 +286,7 @@ Spec 写完后执行检查清单：
 - [ ] 没有把所有细节一次平铺到压垮读者
 - [ ] 术语、命名、接口名在全文保持一致
 - [ ] 存在明确验证护栏；必要时先进入 `/dev-tdd`
+- [ ] 已按 §6 Premise Collapse 对照 fragility-types.md 扫描脆弱点：命中的不确定环节已 spike 或显式标 `spike-before-implement`（若命中，写出至少 1 个命中的类型编号留痕，便于 review 抽查）；未识别=未真正想清边界，回 §1
 - [ ] 复杂任务已附 spec-contract YAML 块（简单任务可省略）
 
 ## 6. 硬约束（与"行为不变""先搜后改"同级，不可绕过）
@@ -302,9 +309,18 @@ ADR 建议必须克制。只有同时满足以下三条才写入计划：
 
 不满足三条时，不要为了“看起来规范”创建 ADR。
 
-### Premise Collapse（脆弱假设显式化）
+### Premise Collapse（脆弱假设显式化 + 脆弱点预验证）
 
-每个方案必须显式指认它"最脆弱的假设"——形式固定为：
+反模式：agent 识别出方案里有不确定环节，却不先做最小成本的本地验证，直接把未验证假设放进系统级试错，反复改、反复撞（典型："如何在已满的飞书表格里加一行"——本地小脚本 10 分钟能确认的事，却放进系统猜好几版）。本节把"标注假设"升级为"标注 + spike 验证"闭环。
+
+**第一步：脆弱点扫描。** 对照 `docs/software-engineering-research/fragility-types.md` 的 11 类，枚举本方案命中哪些不确定环节（不只最脆弱一条）。最高频的 4 类（其余见文档）：
+
+1. **SaaS 配额 / 边界 / 满载** —— 第三方平台硬限制（飞书表满、单批 ≤500、rate limit、配额），本地空表复现不出。
+2. **第三方 API / SDK 实际契约** —— 分页语义、HTTP 200 但 body code≠0、单位/时区、SDK 隐藏重试；文档与实现常不一致。
+3. **鉴权 / token / webhook 回调** —— token TTL/scope、验签握手、回调 at-least-once 重复乱序、公网可达。
+4. **数据形态边界** —— 空/满/超大/emoji-CJK/null/缺字段/脏数据；理想样本永远撞不到。
+
+**第二步：Premise Collapse 声明。** 每个方案显式指认它"最脆弱的假设"——形式固定为：
 
 ```
 If <X> does not hold, <Y> happens.
@@ -320,7 +336,9 @@ If <X> does not hold, <Y> happens.
 - `If 用户量 < 10 万，<内存缓存方案>。If does not hold, 缓存击穿 + DB 雪崩，必须切 Redis。`
 - `If 第三方 webhook 重试 ≤ 3 次，<幂等键方案>。If does not hold, 重复消费导致订单重复创建。`
 
-写不出来 = 没真正想清楚方案的边界，回到第 2 节继续推。
+**第三步：命中脆弱点 → 挂 spike（与"设计未批准禁止写代码"同级的纪律）。** 凡命中第一步脆弱点类型的环节，必须挂一个 **timeboxed spike**（spike 定义见 fragility-types.md：写下要回答的唯一问题、定时间盒、答完即弃、产物是真实事实而非"应该可以"），并标 `spike-before-implement`。**spike 通过把不确定性变成事实之前，该环节不得进入系统级实现**——先本地小范围验证（打真实/sandbox API、造对抗性样本、读官方 limits 页），而不是把未验证假设放进系统反复试错。这是 soft 纪律，无脚本强制兜底；真正生效靠 agent 自觉 + review 抽查 spec 里的 spike 标记。
+
+写不出 premise collapse / 不做脆弱点扫描 = 没真正想清楚方案的边界，回到第 2 节继续推。
 
 ### Blocking Ambiguity（矛盾必须先问）
 

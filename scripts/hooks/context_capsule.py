@@ -322,7 +322,12 @@ def render_prompt_preview(prompt: str) -> str:
 
 def post_tool_context(root: Path) -> str:
     contexts: list[str] = []
-    for script_name in ["scan_operational_task_contract.py", "scan_diff_residue.py", "scan_boundary_decisions.py"]:
+    for script_name in [
+        "scan_operational_task_contract.py",
+        "scan_diff_residue.py",
+        "scan_boundary_decisions.py",
+        "scan_fragility_touchpoints.py",
+    ]:
         scanner = config_root() / "scripts" / script_name
         if not scanner.exists():
             continue

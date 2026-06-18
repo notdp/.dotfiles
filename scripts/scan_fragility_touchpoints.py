@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""扫 git diff 新增行里的"脆弱点触点"——外部依赖调用/写入。
+
+定位：advisory 弱信号，不是门禁。命中即提醒 agent 这段触及 fragility-types.md 的
+高风险类型（SaaS 配额/契约/鉴权），确认相关不确定性已用 spike 验证过（打真实/sandbox
+API、读官方 limits 页），而非把未验证假设直接放进系统试错。
+
+强度上限：外部依赖触点可从 diff 高精度判定，但"是否已 spike 验证"无法从 diff 判定，
+故只能 advisory。--hook 模式永不阻塞（fail-open），与 scan_boundary_decisions 同级。
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,17 +19,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-FINDING_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
-    ("TODO/FIXME", re.compile(r"\b(?:TODO|FIXME|XXX|HACK)\b"), "删除、改写，或转成 issue"),
-    ("DEBUG 前缀", re.compile(r"\[DEBUG-[A-Za-z0-9_-]+\]"), "删除临时插桩"),
-    ("调试打印", re.compile(r"\b(?:console\.log|print\(|dbg!|fmt\.Println|pp )"), "删除调试打印"),
-    ("调试断点", re.compile(r"\b(?:debugger;|breakpoint\(\)|pdb\.set_trace)"), "删除断点"),
-    (
-        "疑似 secret",
-        re.compile(r"\b(?:password|api[_-]?key|token|secret)\s*=\s*[\"'][^\"']{6,}[\"']", re.I),
-        "确认不是凭据；若是凭据，立即移除并轮换",
-    ),
-    ("临时变量名", re.compile(r"\b(?:foo|bar|tmp1|test_xxx)\b"), "生产代码中改成有意图的名字"),
+# 已知 SaaS / 云 / 第三方平台触点——高精度（这些名字出现基本就是外部依赖）。
+EXTERNAL_DEP_RE = re.compile(
+    r"\b(?:feishu|lark|larksuite|bitable|notion|airtable|stripe|twilio|sendgrid|"
+    r"dingtalk|wecom|dashscope|aliyun|oss2|boto3|firebase|supabase|mailgun|"
+    r"sendcloud|paypal|alipay|wxpay)\b|飞书|钉钉|企业微信|多维表格",
+    re.I,
+)
+# HTTP 客户端写操作——对外写请求是契约/配额/幂等脆弱点的直接信号。
+HTTP_WRITE_RE = re.compile(
+    r"\b(?:requests|httpx|aiohttp|session|http_client|client)\.(?:post|put|patch|delete)\s*\(|"
+    r"\baxios\.(?:post|put|patch|delete)\s*\(|"
+    r"\.(?:batch_create|create_record|add_record|append_row|insert_rows?)\s*\(",
+    re.I,
+)
+
+SUGGESTION = (
+    "外部依赖触点（fragility-types #1/#2/#3：SaaS 配额-满载 / 第三方契约 / 鉴权回调）。"
+    "确认相关不确定性已 spike 验证（打真实/sandbox API、读官方 limits 页、连发两次验幂等），"
+    "而非把未验证假设直接放进系统试错。"
 )
 
 
@@ -40,40 +57,31 @@ class Finding:
     suggestion: str
 
 
-def is_default_excluded(file_path: str) -> bool:
+def is_excluded(file_path: str) -> bool:
     path = Path(file_path)
     parts = path.parts
     return (
-        path.suffix.lower() in {".md", ".markdown"}
+        path.suffix.lower() in {".md", ".markdown", ".html", ".htm", ".txt", ".json", ".lock"}
         or parts[:2] == ("scripts", "tests")
         or parts[:2] == ("scripts", "hooks")
         or parts[:2] == (".factory", "hooks")
-        or file_path == "scripts/scan_diff_residue.py"
-        or file_path == "scripts/scan_operational_task_contract.py"
-        or file_path == "scripts/scan_boundary_decisions.py"
-        or file_path == "scripts/scan_fragility_touchpoints.py"
-        or file_path == "scripts/skill_maintenance_collect.py"
+        or parts[:1] == ("tests",)
+        or path.name.startswith("scan_")
     )
 
 
 def git_diff() -> str:
-    result = subprocess.run(
+    chunks: list[str] = []
+    for command in (
         ["git", "diff", "--cached", "--", ".", ":!refs/**"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    unstaged = subprocess.run(
         ["git", "diff", "--", ".", ":!refs/**"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "git diff --cached failed")
-    if unstaged.returncode != 0:
-        raise RuntimeError(unstaged.stderr.strip() or "git diff failed")
-    return result.stdout + unstaged.stdout + untracked_diff()
+    ):
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or f"{' '.join(command)} failed")
+        chunks.append(result.stdout)
+    chunks.append(untracked_diff())
+    return "".join(chunks)
 
 
 def untracked_diff() -> str:
@@ -93,11 +101,8 @@ def untracked_diff() -> str:
             continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, OSError):
             continue
-        except OSError:
-            continue
-
         chunks.extend(
             [
                 f"diff --git a/{raw_path} b/{raw_path}",
@@ -107,7 +112,6 @@ def untracked_diff() -> str:
             ]
         )
         chunks.extend(f"+{line}" for line in lines)
-
     return "\n".join(chunks) + ("\n" if chunks else "")
 
 
@@ -142,27 +146,31 @@ def parse_added_lines(diff_text: str) -> list[AddedLine]:
             continue
         else:
             new_line += 1
-
     return added
 
 
 def scan_added_lines(added_lines: list[AddedLine]) -> list[Finding]:
     findings: list[Finding] = []
-    for added_line in added_lines:
-        if is_default_excluded(added_line.file):
+    for line in added_lines:
+        if is_excluded(line.file):
             continue
-        for kind, pattern, suggestion in FINDING_PATTERNS:
-            if pattern.search(added_line.text):
-                findings.append(
-                    Finding(
-                        kind=kind,
-                        file=added_line.file,
-                        line_number=added_line.line_number,
-                        snippet=added_line.text.strip(),
-                        suggestion=suggestion,
-                    )
-                )
-    return findings
+        if EXTERNAL_DEP_RE.search(line.text) or HTTP_WRITE_RE.search(line.text):
+            findings.append(
+                Finding("fragility-touchpoint", line.file, line.line_number, line.text.strip(), SUGGESTION)
+            )
+    return dedupe_findings(findings)
+
+
+def dedupe_findings(findings: list[Finding]) -> list[Finding]:
+    seen: set[tuple[str, str, int]] = set()
+    deduped: list[Finding] = []
+    for finding in findings:
+        key = (finding.kind, finding.file, finding.line_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(finding)
+    return deduped
 
 
 def markdown_escape_cell(value: str) -> str:
@@ -171,17 +179,16 @@ def markdown_escape_cell(value: str) -> str:
 
 def render_findings(findings: list[Finding]) -> str:
     lines = [
-        "## Diff Scan 结果",
+        "## Fragility Touchpoint Scan",
         "",
-        "| 类型 | 文件 | 行 | 片段 | 建议 |",
-        "|------|------|----|------|------|",
+        "| 文件 | 行 | 片段 | 建议 |",
+        "|------|----|------|------|",
     ]
     for finding in findings:
         lines.append(
             "| "
             + " | ".join(
                 [
-                    markdown_escape_cell(finding.kind),
                     markdown_escape_cell(finding.file),
                     str(finding.line_number),
                     f"`{markdown_escape_cell(finding.snippet)}`",
@@ -190,7 +197,7 @@ def render_findings(findings: list[Finding]) -> str:
             )
             + " |"
         )
-    lines.extend(["", "## 总结", f"- 命中 {len(findings)} 条"])
+    lines.extend(["", "## 总结", f"- 命中 {len(findings)} 条（advisory，非门禁）"])
     return "\n".join(lines) + "\n"
 
 
@@ -201,7 +208,9 @@ def render_hook_output(findings: list[Finding]) -> str:
         {
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
-                "additionalContext": "Diff residue scan found possible cleanup issues:\n\n" + render_findings(findings),
+                "additionalContext": "Fragility touchpoints in this change — confirm each was spiked before "
+                "implementing (docs/software-engineering-research/fragility-types.md):\n\n"
+                + render_findings(findings),
             },
             "suppressOutput": True,
         },
@@ -210,7 +219,7 @@ def render_hook_output(findings: list[Finding]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Scan added diff lines for debug residue.")
+    parser = argparse.ArgumentParser(description="Scan added diff lines for external-dependency fragility touchpoints.")
     parser.add_argument("--stdin", action="store_true", help="Read unified diff from stdin.")
     parser.add_argument("--hook", action="store_true", help="Emit hook JSON and never block by exit code.")
     args = parser.parse_args()

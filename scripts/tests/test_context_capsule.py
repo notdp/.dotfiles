@@ -328,5 +328,27 @@ class DeepseekRoutingTests(unittest.TestCase):
                 os.environ["DEEPSEEK_API_KEY"] = orig_env
 
 
+class CapsuleContentDriftTests(unittest.TestCase):
+    """静态断言 capsule 关键纪律句存在且顺序正确，防后续维护把它删掉/降位（漂移门）。"""
+
+    CAPSULE_DIR = REPO_ROOT / "agents" / "context-capsules"
+
+    def test_debug_capsule_puts_observability_first(self) -> None:
+        text = (self.CAPSULE_DIR / "debug-task.md").read_text(encoding="utf-8")
+        self.assertIn("Observability first", text)
+        # 观测优先必须排在 feedback loop 之前（问题②的核心：先廉价观测再建反馈环/猜假设）
+        self.assertLess(
+            text.index("Observability first"),
+            text.index("feedback loop"),
+            "debug capsule 的观测优先必须排在 feedback loop 之前",
+        )
+
+    def test_planning_capsule_has_fragility_spike_pointer(self) -> None:
+        text = (self.CAPSULE_DIR / "planning-task.md").read_text(encoding="utf-8")
+        self.assertIn("fragile points", text)
+        self.assertIn("spike", text)
+        self.assertIn("Premise Collapse", text)
+
+
 if __name__ == "__main__":
     unittest.main()
