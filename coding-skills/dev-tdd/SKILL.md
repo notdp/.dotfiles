@@ -1,6 +1,6 @@
 ---
 name: dev-tdd
-description: 当新增功能、修复 bug 或调整行为前使用；以 Red→Green→Refactor 循环驱动测试先行的开发，纯配置/文档/样式不适用。
+description: 当新增单个功能、修复 bug 或调整某个可观察行为前使用；以 Red→Green→Refactor 循环驱动测试先行的开发（inner-loop verifier）。不用于纯配置/文档/样式（事后补测）；想要 spec→code→review→verify 完备链改用 /dev-complete，多 phase 长任务改用 /dev-long-run，跨子系统/不可逆大交付改用 /dev-large-delivery。
 argument-hint: <功能点|bug 描述|行为变更>
 ---
 

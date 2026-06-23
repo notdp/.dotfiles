@@ -1,6 +1,6 @@
 ---
 name: think-ask-context
-description: 当 agent 准备回答复杂问题但未掌握所有相关文件、或怀疑上下文不足时使用；输出信息需求清单作为回答前置。
+description: 当 agent 准备回答复杂问题但未掌握所有相关文件、或怀疑上下文不足时使用；本簇最轻量，只输出信息需求清单（Must See / Should See / Already Have / Uncertainties）作为回答前置，不铺展依赖 / 测试 / 模式分析。不用于要改代码画影响面地图（改用 think-context-map）、仓库全局地图（改用 think-map）；问题已清晰且上下文足够时直接回答，不强行走本 skill。
 ---
 
 # Ask Context

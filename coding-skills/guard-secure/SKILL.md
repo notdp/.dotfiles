@@ -1,6 +1,6 @@
 ---
 name: guard-secure
-description: 当改动触及认证、授权、数据处理、网络边界或外部依赖，或需要做漏洞扫描和攻击面评估时使用；只读代码安全审查可直接做，外部目标扫描、攻击模拟或 offensive 验证必须先取得授权范围、允许动作和停止条件；基于 STRIDE 威胁建模。
+description: 当改动触及认证、授权、数据处理、网络边界或外部依赖，或需要做漏洞扫描、攻击面评估、STRIDE 威胁建模时使用；只读代码安全审查可直接做，外部目标扫描、攻击模拟或 offensive 验证必须先取得授权范围、允许动作和停止条件。不用于通用代码正确性/架构/质量审查→改用 guard-review；不用于建立项目级威胁模型 SSOT→改用 guard-threat-model；不用于 MySQL/InnoDB schema 与查询性能审查→改用 guard-mysql-review。
 argument-hint: <pr|weekly|full|staged|commit-range|文件/目录|功能描述|留空=pr>
 ---
 

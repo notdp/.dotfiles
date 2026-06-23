@@ -1,6 +1,6 @@
 ---
 name: guard-check
-description: 当任务完成、准备合并或需要交付前总检查时使用；交付前总入口，统一编排 review/secure/verify/ship 的裁决（与 guard-close 区别：本 skill 是检查链编排，不判停/继续）。
+description: 当任务完成、准备合并或需要交付前一站式总检查、不确定该跑哪些 guard 时使用；作为交付前总入口按 diff 风险路由并编排 guard-review/guard-secure/guard-verify/guard-ship 的裁决汇总。不用于只判该不该继续做下去→改用 guard-close；不用于单独审 diff→改用 guard-review；不自己实现验证或安全扫描逻辑（只编排）。
 argument-hint: <diff 范围|留空=当前未提交变更>
 ---
 

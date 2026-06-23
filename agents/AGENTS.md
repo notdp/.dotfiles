@@ -47,6 +47,7 @@
 - `guard-*`：review、secure、threat-model、verify、ship、close、check（交付前总入口）、diff-scan（未 commit 遗留物扫描）、mysql-review（MySQL/InnoDB SQL 审查）、gitops（触碰线上/远程/部署产物前默认触发 `/guard-gitops`）
 - `readable-*`：可读性重写、最终答案/过程播报体裁、指标表达
 - `assist-*`：经验沉淀（`assist-learn` / `assist-retrospect`）、长 MD 文档评审与决策点批量裁决（`assist-review-doc`）；`fe-*` / `web-*` / `agent-*` / `hive` / `react-doctor` 处理专项能力
+- `write-*` + `guard-write-*` / `assist-write-corpus` / `article-growth-diagnosis`：中文写作能力（取材/提纲/起草/改稿/voice/质检查证/语料/增长诊断），已并入编程池供编程项目里的写作诉求；纯 account 特定 voice 仍由项目 `account-style.md` 注入
 
 常见工作流：
 
@@ -62,6 +63,15 @@
 - 资料消化（多源汇总）：`/think-survey` →（如需沉淀规则）`/assist-learn`
 - 长 MD 文档评审 / agent 累积 ≥5 决策点需批量裁决：`/assist-review-doc`（生成可交互 HTML，浏览器写评论，subagent 隔离消费）
 - 表达太绕 / 整理最终答案 / PR 描述：`/readable-final-answer`；指标展示：`/readable-metrics`
+
+相邻技能怎么选（近邻易误选时看判别）：
+
+- 调研/取舍：`survey`=开放综述可无结论 · `research`=选型必下推荐 · `compare`=候选已定按维度打分。
+- 理解/范围：`map`=仓库全局 · `context-map`=单次改动文件影响面 · `ask-context`=回答前信息需求（最轻）· `scope`=和用户对齐「解决什么问题/改什么」。
+- 推理/救火/发散：`dev-debug`=bug 域科学定位 · `unstuck`=连续失败救火升级 · `ideate`=健康态主动发散（只产候选不裁决）· `plan`=收敛成 spec。
+- guard 闸门：`check`=交付前总编排路由 · `close`=停/继续裁决 · `verify`=给自己交付物出证据 · `review`=审 diff 质量 · `secure`=STRIDE 安全。
+- dev 工作流（按规模）：`tdd`=单功能/bug · `complete`=中等需求单 pass 完备链 · `long-run`=多 phase 长任务 · `large-delivery`=跨子系统/不可逆大交付。
+- 写作 vs 编程（同前缀防混）：`write-*`=中文写作各阶段 · `guard-write-check/facts`=写作质检/查证（**非代码**，代码用 `guard-review`/`guard-verify`）· `assist-write-corpus`=写作语料库（**非** `assist-learn` 的工程经验沉淀）。
 
 ### 行为准则
 

@@ -247,6 +247,27 @@ const doSave = useCallback(async (fields: CommitFieldConfig[], options?: { silen
         self.assertNotIn("Operational Task Capsule", context)
         self.assertNotIn("Planning Task Capsule", context)
 
+    def test_role_dispatch_prompts_stay_quiet(self) -> None:
+        # dev-long-run 等编排的角色派发提示不是用户意图, 不应注入任何 capsule(B1 修复)
+        samples = [
+            "You are the phase_planner for phase 01. Do your role's job, then STOP when your output is ready.",
+            "You are the phase_coder for phase 02. Do your role's job, then STOP.",
+        ]
+        for prompt in samples:
+            with self.subTest(prompt=prompt):
+                self.assert_prompt_capsules(prompt, [])
+
+    def test_role_dispatch_skip_in_resolve(self) -> None:
+        # 即使 deepseek 可用也跳过(直接 resolve 层短路, 省 API 调用)
+        original = cc.classify_with_deepseek
+        cc.classify_with_deepseek = lambda prompt: {"planning-task.md"}
+        try:
+            self.assertEqual(cc.resolve_capsule_names("You are the phase_planner for phase 03. Do your role's job, then STOP."), [])
+            # 非派发提示仍正常走 deepseek
+            self.assertEqual(cc.resolve_capsule_names("帮我设计方案"), ["planning-task.md"])
+        finally:
+            cc.classify_with_deepseek = original
+
     def test_boundary_prompt_injects_boundary_capsule(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self.run_capsule(Path(tmp), "帮我封装这个服务，并确认 response_model 和 metric label")

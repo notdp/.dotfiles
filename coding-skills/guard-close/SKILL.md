@@ -1,6 +1,6 @@
 ---
 name: guard-close
-description: 当任务接近完成、需要判断是否该继续，或中途出现 scope creep / 边际收益递减时使用；产出必须项 vs 可选 backlog 切分与停止裁决（与 guard-check 区别：本 skill 只判停/继续，不做交付检查）。
+description: 当任务接近完成、想说"已完成/先停在这里"，或中途出现 scope creep、顺手扩到用户没要求的相邻工作、边际收益递减时使用；产出必须项 vs 可选 backlog 切分与现在停止/带风险停止/必须继续的三选一裁决。不用于跑交付前检查链或路由其它 guard→改用 guard-check；不用于给"已完成"出验证证据→改用 guard-verify。
 argument-hint: <当前目标|交付范围|留空=当前任务>
 ---
 

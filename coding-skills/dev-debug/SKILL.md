@@ -1,6 +1,6 @@
 ---
 name: dev-debug
-description: 当出现 bug、错误、异常行为或复现不稳定时使用；定位故障并产出可验证的修复方案。
+description: 当出现 bug、错误、异常行为或复现不稳定时使用；先建反馈环再科学定位根因并产出可验证的修复方案。不用于:连续失败 2 次/卡壳/路径漂移的救火升级(改用 think-unstuck)、根因清楚后的大改方案设计(改用 think-plan)、主动发散撑大解空间(改用 think-ideate)。
 argument-hint: <bug 描述|错误信息|复现步骤>
 ---
 

@@ -25,6 +25,9 @@ OPERATIONAL_PROMPT_RE = re.compile(
     re.I,
 )
 CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
+# dev-long-run 等编排会向 fresh coder/planner 派发"角色提示",这类内部派发不是用户意图,
+# 不该注入纪律 capsule(B1 实测:phase_planner/coder 提示系统性误触发 Planning)。命中即跳过。
+ROLE_DISPATCH_RE = re.compile(r"You are the \w+ for phase\b|Do your role's job, then STOP\b", re.I)
 CAPSULE_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "security-gitops.md",
@@ -220,6 +223,8 @@ def classify_with_deepseek(prompt: str) -> set[str] | None:
 
 def resolve_capsule_names(prompt: str) -> list[str]:
     """决定注入哪些 capsule: deepseek 主, 失败 fallback 正则。返回按 CAPSULE_RULES 顺序的文件名。"""
+    if ROLE_DISPATCH_RE.search(prompt):
+        return []  # 编排角色派发提示, 非用户意图, 不注入(也省一次 deepseek 调用)
     selected = classify_with_deepseek(prompt)
     if selected is None:
         searchable = prompt_for_matching(prompt)

@@ -1,6 +1,6 @@
 ---
 name: think-context-map
-description: 当任务需要改动多个文件或影响面不明时使用；产出单次任务的文件地图 + 依赖 + 测试 + 风险 checklist（与 think-map 区别：本 skill 聚焦单次任务，think-map 聚焦仓库全局）。
+description: 当某次具体任务要改动多个文件或影响面不明、需要在实施前圈定改动范围时使用；产出单次任务的文件地图（Files to Modify + Dependencies + Test Files + Reference Patterns + Risk checklist）。不用于仓库全局地图（改用 think-map）、回答问题前的轻量信息需求清单（改用 think-ask-context）、还没和用户对齐要解决什么问题（先用 think-scope）。
 ---
 
 # Context Map

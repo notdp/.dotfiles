@@ -1,6 +1,6 @@
 ---
 name: dev-long-run
-description: 当复杂多 phase 任务需要在独立 worktree 分支上逐 phase 实现、review、commit，且希望全程只跟一个 coding agent 对话(由它调度 planner/coder/reviewer 的 tmux pane、每 phase fresh coder 靠 HANDOFF 续接)时使用；单次小改动不走本 skill，用 /dev-tdd。
+description: 当复杂多 phase 任务需要在独立 worktree 分支上逐 phase 实现、review、commit，且全程只跟一个 coding agent 对话（由它调度 planner/coder/reviewer 的 tmux pane、每 phase fresh coder 靠 HANDOFF 续接）时使用；单次小改动改用 /dev-tdd，不分 phase 的单 pass 完备链改用 /dev-complete，跨子系统/动基础设施/不可逆的大交付治理改用 /dev-large-delivery（其 Phase 内可嵌套本 skill）。
 argument-hint: <直接用自然语言说你想做什么,例如:用 long-run 帮我重构鉴权模块>
 ---
 

@@ -312,6 +312,84 @@
       "path": "coding-skills/dev-observe",
       "domain": "dev",
       "role": "canonical"
+    },
+    {
+      "name": "think-ideate",
+      "path": "coding-skills/think-ideate",
+      "domain": "think",
+      "role": "canonical"
+    },
+    {
+      "name": "write-scope",
+      "path": "coding-skills/write-scope",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-dissolve",
+      "path": "coding-skills/write-dissolve",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-source",
+      "path": "coding-skills/write-source",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-outline",
+      "path": "coding-skills/write-outline",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-draft",
+      "path": "coding-skills/write-draft",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-revise",
+      "path": "coding-skills/write-revise",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-hook",
+      "path": "coding-skills/write-hook",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "write-voice",
+      "path": "coding-skills/write-voice",
+      "domain": "write",
+      "role": "canonical"
+    },
+    {
+      "name": "guard-write-check",
+      "path": "coding-skills/guard-write-check",
+      "domain": "guard",
+      "role": "canonical"
+    },
+    {
+      "name": "guard-write-facts",
+      "path": "coding-skills/guard-write-facts",
+      "domain": "guard",
+      "role": "canonical"
+    },
+    {
+      "name": "assist-write-corpus",
+      "path": "coding-skills/assist-write-corpus",
+      "domain": "assist",
+      "role": "canonical"
+    },
+    {
+      "name": "article-growth-diagnosis",
+      "path": "coding-skills/article-growth-diagnosis",
+      "domain": "write",
+      "role": "brand-exception"
     }
   ]
 }

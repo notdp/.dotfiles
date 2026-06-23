@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 
-ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team", "workflow"}
+ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team", "workflow", "write"}
 ALLOWED_ROLES = {"canonical", "legacy", "brand-exception"}
 CATALOG_OPTIONAL_BOOLEANS = {"trigger-exempt", "manual-only"}
-BRAND_EXCEPTIONS = {"hive", "agent-browser", "react-doctor"}
+BRAND_EXCEPTIONS = {"hive", "agent-browser", "react-doctor", "article-growth-diagnosis"}
 REFERENCE_PATTERN = re.compile(
     r"(?<![/.])\b(?:refs|references|examples|scripts|agents|templates)/[\w./-]+\b"
 )

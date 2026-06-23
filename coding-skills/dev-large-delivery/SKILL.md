@@ -1,6 +1,6 @@
 ---
 name: dev-large-delivery
-description: 当改动跨 Phase、跨子系统或动基础设施时使用；以"双跑+人工验收+回滚剧本"框架驱动大型交付（日常小改动用 /dev-tdd，不走本 skill）。
+description: 当改动跨 2+ 子系统、动基础设施、涉及 schema/数据/权限等不可逆改动或回滚成本高于前滚时使用；以"test 等价双跑+人工验收+Phase 级回滚剧本"框架驱动大型交付治理（outer-loop）。日常小改动改用 /dev-tdd，不分 phase 的完备链改用 /dev-complete，纯实现编排的多 phase 长任务改用 /dev-long-run（可作为本 skill 单个 Phase 内的实现引擎）。
 argument-hint: <项目名|改动范围|当前 Phase>
 ---
 

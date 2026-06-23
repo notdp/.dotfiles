@@ -1,6 +1,6 @@
 ---
 name: think-plan
-description: 当需求不清、需要方案对比或要写 spec/阶段计划时使用；产出 spec / 阶段计划，未经批准不进入实现。
+description: 当需求不清、需要方案对比或要写 spec/阶段计划时使用;产出 spec / 阶段计划,未经批准不进入实现。不用于:对齐改动范围/系统现状理解(改用 think-scope)、bug 根因未明的定位(先走 dev-debug,清楚后再回本 skill)、只发散不收敛地撑大候选(改用 think-ideate)。
 argument-hint: <需求描述|范围|方案问题>
 ---
 

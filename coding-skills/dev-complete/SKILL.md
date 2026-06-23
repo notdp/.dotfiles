@@ -1,6 +1,6 @@
 ---
 name: dev-complete
-description: 当小到中等需求想要完备开发流程（spec→kilo+gpt coding→CC+kilo dual review→verify）但不需要分 phase 时使用；单次大改动用 /dev-long-run，纯 bug fix 用 /dev-tdd。
+description: 当小到中等需求想要单 pass 完备开发流程（spec→coder 编码→双路 reviewer 双审→verify，由你做 orchestrator 调度 tmux pane）但不需要分 phase 时使用；纯 bug fix / 单行为测试先行改用 /dev-tdd，复杂多 phase 长任务改用 /dev-long-run，跨子系统/不可逆大交付改用 /dev-large-delivery。
 argument-hint: <直接用自然语言说你想做什么>
 ---
 

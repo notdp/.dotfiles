@@ -1,6 +1,6 @@
 ---
 name: guard-verify
-description: 当准备报告“已完成/已修复/可交付”时使用；输出验证证据和剩余缺口。
+description: 当准备报告"已完成/已修复/可交付"、需要为自己交付物逐条给证据时使用；跑 test/build/lint 并按 L1 存在/L2 实质/L3 接通三层级 + Inner-loop/Acceptance/Holdout 分层输出验证证据与剩余缺口。不用于审查他人/未合并 diff 的代码质量→改用 guard-review；不用于做安全漏洞与攻击面评估→改用 guard-secure；不用于裁决停/继续→改用 guard-close。
 argument-hint: <交付物|验证范围>
 ---
 

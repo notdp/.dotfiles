@@ -1,6 +1,6 @@
 ---
 name: guard-review
-description: 当存在未 review 的代码变更或需要在合并前把关时使用；产出分级问题清单与 merge 裁决。
+description: 当存在未 review 的代码变更或需要在合并前把关时使用；对 diff 做正确性/架构/测试/可观测性/scope drift 审查，产出带 file:line 的分级问题清单(Hard Stop/Critical/Important/Minor)与 Ready to merge 裁决，支持 --deep / --two-pass。不用于专项安全漏洞与 STRIDE 攻击面评估→改用 guard-secure；不用于给自己交付物出验证证据→改用 guard-verify；不做交付前多 guard 编排→改用 guard-check。
 argument-hint: <分支名|commit-range|--deep|--two-pass|留空=未提交变更>
 ---
 

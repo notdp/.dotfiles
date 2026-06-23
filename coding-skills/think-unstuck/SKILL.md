@@ -1,6 +1,6 @@
 ---
 name: think-unstuck
-description: 当连续失败 2 次、agent 路径漂移或卡壳时使用；提供压力升级、检查清单、方法论切换（也接受用户手动触发）。
+description: 当连续失败 2 次、agent 路径漂移或卡壳时使用;提供压力升级、检查清单、方法论切换(也接受用户手动触发,可接 dev-debug 的 Handoff 续接)。不用于:首次 bug 定位(改用 dev-debug)、健康态主动求更宽方案(改用 think-ideate)、收敛到 spec/阶段计划(改用 think-plan)。
 argument-hint: <当前卡点/失败模式>
 ---
 
