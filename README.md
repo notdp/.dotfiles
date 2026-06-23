@@ -11,7 +11,7 @@
 | 机制 | 载体 | 作用 |
 |------|------|------|
 | 规则层 | `agents/`（`AGENTS.md` 硬约束 + `dev-guideLines.md` 开发准则 + `harness-ops.md` 维护规范） | 定义所有任务都成立的行为边界与事实纪律 |
-| 护栏层 | `scripts/hooks/`（boundary gate / command guard / context capsule / stop check） | 在编辑前、命令执行前、交付前做强制门禁 |
+| 护栏层 | `scripts/hooks/`（context capsule / boundary gate / command guard / stop check / context state） | 在 prompt 阶段、编辑前、命令执行前、交付前、会话压缩时做强制门禁与状态续接 |
 | 能力层 | `coding-skills/` + `commands/` + `coding-agents/` | 按需触发的工作流能力包与隔离执行体，不污染 idle context |
 
 项目目标是把软件工程工作流拆成可按需触发、可验证、可复用的能力包：理解问题、调研、规划、TDD、调试、重构、验证、审查、安全、交付、UI 设计和经验沉淀。
@@ -39,10 +39,11 @@
 - `bin/droid-observe`：查看 long-loop workspace。
 - `bin/longrun`：启动 longrun dashboard。
 - `bin/droid-vim-command`：支持 `/vim`、`/cvim` 外部编辑器工作流。
-- `scripts/install_hooks.py`：为 Droid / Claude / Codex 生成 hook 配置。
+- `bin/droid-session-map-hook`：维护 droid session 映射（配合 `/vim` 工作流的 session-map）。
+- `scripts/install_hooks.py`：为 Droid / Claude / Codex / opencode / kilo 生成 hook 配置，并把 `coding-skills/` 软链到各 agent 的 skills 入口。
 - `scripts/run-verify.sh`：自动探测并运行测试、lint、typecheck、build 和本仓库 skill 校验。
 
-当前 hooks 主要承担四类护栏：prompt 阶段注入 context capsule、编辑前做 boundary gate、命令执行前做 command guard、结束前检查验证证据和 boundary manifest。
+当前 `scripts/hooks/` 有五个 hook：prompt 阶段注入 context capsule、编辑前做 boundary gate、命令执行前做 command guard、结束前检查验证证据和 boundary manifest（stop check）、会话压缩/恢复时存取任务检查点（context state）。
 
 ## 验证
 
@@ -64,6 +65,21 @@ python3 -m unittest discover -s scripts/tests -p "test_*.py"
 | `/droid-mod` | 修改/检查/恢复 droid 二进制 |
 | `/fe-audit` | 前端设计质量审计（设计原则 + 反模式 + 可访问性 + 代码健康） |
 | `/design-md` | 建立、使用、诊断和验证项目 DESIGN.md |
+| `/dev-complete` | 单 pass 完备开发编排（spec→code→dual review→verify） |
+| `/dev-long-run` | 多角色长任务编排入口（scaffold / develop / resume） |
+| `/dev-cover` | 一段开发告一段落后，基于 diff 梳理测试覆盖分层与缺口 |
+| `/triage` | 对 issue 做状态判断（分类 / 优先级 / out-of-scope），默认只给建议 |
+| `/to-prd` | 把当前上下文整理成结构化 PRD（默认只生成 markdown） |
+| `/to-issues` | 把已批准的 plan/PRD 按 vertical slice 拆成可独立交付的 issue |
+| `/skill-maintenance` | 一次性维护仓库 skills / commands / hooks / refs，输出修复清单与待决策项 |
+
+## Subagents
+
+`coding-agents/` 下的权限收窄、context 隔离执行体（双格式：`claude/` 给 Claude Code，`opencode/` 双软链 opencode 与 kilo）。当前住户 1 个，分工判据与命名即权限契约见 `agents/harness-ops.md`，门禁为 `scripts/verify_agents.py`。
+
+| Subagent | 作用 |
+|----------|------|
+| `security-fp-judge` | 对 `/guard-secure` 单条 finding 做只读对抗式误报裁决，输出 verdict/confidence/justification 固定 JSON（工具收窄为 Read/Grep/Glob） |
 
 ## Skills
 
@@ -192,28 +208,38 @@ guard-gitops ─→ 触碰线上/远程/部署产物前的前置门禁（被 gua
 ### 目录结构
 
 ```text
-refs/
-├── {owner}/
-│   └── {repo}/          # git submodule → github.com/{owner}/{repo}
-└── docs/                # 研究文档（gitignored，本地生成）
-    ├── README.md        # 汇总表格 + 分类
-    └── {owner}/{repo}.md
+refs/{owner}/{repo}/                    # git submodule → github.com/{owner}/{repo}
+
+docs/                                   # 研究文档（git-tracked）
+├── refs-summary.md                     # 汇总表格 + 17 分类 + 14 天更新速览
+├── refs-micro-index.md                 # 零散短参考登记簿（非 submodule）
+├── refs-details/{owner}/{repo}.md      # 单项目深度分析（含 Source SHA + 分析日期）
+└── software-engineering-research/refs-absorption-methodology.md  # 吸收方法论 SSOT
 ```
 
 ### 分类
 
-| 分类 | 项目 |
-|------|------|
-| 浏览器自动化 | `ChromeDevTools/chrome-devtools-mcp`, `vercel-labs/agent-browser` |
-| 多智能体协作 | `Yeachan-Heo/oh-my-claudecode`, `notdp/hive`, `nyldn/claude-octopus` |
-| 前端 UI / 设计系统 | `google-labs-code/stitch-skills`, `nextlevelbuilder/ui-ux-pro-max-skill`, `pbakaus/impeccable`, `vercel-labs/agent-skills` |
-| 研发流程 / 项目管理 | `automazeio/ccpm`, `gsd-build/get-shit-done`, `obra/superpowers` |
+下表为 17 类的代表项目；**完整 56 个 submodule 的一句话总结、活动速览与吸收裁决以 [`docs/refs-summary.md`](./docs/refs-summary.md) 为准**。
+
+| 分类 | 代表项目 |
+|------|----------|
+| 浏览器自动化与前端调试 | `ChromeDevTools/chrome-devtools-mcp`, `vercel-labs/agent-browser` |
+| 技能集合与市场 | `anthropics/skills`, `Dimillian/Skills`, `affaan-m/everything-claude-code`, `github/awesome-copilot`, `libukai/awesome-agent-Skills`, `lijigang/ljg-skills`, `tw93/Waza` |
+| LLM 应用模板 / Agent 示例库 | `Shubhamsaboo/awesome-llm-apps` |
+| 多智能体协作与工作流编排 | `Yeachan-Heo/oh-my-claudecode`, `notdp/hive`, `nyldn/claude-octopus`, `frankbria/ralph-claude-code` |
 | 上下文 / 记忆管理 | `mksglu/context-mode`, `muratcankoylan/Agent-Skills-for-Context-Engineering` |
-| 最佳实践 / 知识库 | `shanraisshan/claude-code-best-practice` |
-| 技能集合与市场 | `anthropics/skills`, `Dimillian/Skills`, `affaan-m/everything-claude-code`, `glittercowboy/taches-cc-resources`, `libukai/awesome-agent-Skills`, `travisvn/awesome-claude-Skills` |
-| 代码质量 / 审查 | `millionco/react-doctor` |
-| MCP / 工具链 | `vercel-labs/skills` |
-| 行为协议 / 提示工程 | `tanweai/pua` |
+| 前端 UI / 设计系统 | `google-labs-code/stitch-skills`, `nextlevelbuilder/ui-ux-pro-max-skill`, `nexu-io/open-design`, `pbakaus/impeccable`, `vercel-labs/agent-skills` |
+| 科研 / 数据分析 / 领域技能 | `K-Dense-AI/scientific-agent-skills` |
+| AWS / 云 Agent 平台 | `awslabs/agent-plugins`, `awslabs/agentcore-samples` |
+| 研发流程 / 项目管理 | `addyosmani/agent-skills`, `automazeio/ccpm`, `garrytan/gstack`, `gsd-build/get-shit-done`, `obra/superpowers` |
+| Harness 工程 / Agent 工作流框架 | `Chachamaru127/claude-code-harness` |
+| 最佳实践 / 知识库 | `humanlayer/12-factor-agents`, `shanraisshan/claude-code-best-practice` |
+| 代码质量 / 审查 / 调试 | `millionco/react-doctor`, `addyosmani/web-quality-skills`, `tirth8205/code-review-graph` |
+| 安全 / 网络安全技能库 | `mukul975/Anthropic-Cybersecurity-Skills`, `anthropics/claude-code-security-review` |
+| MCP / 工具链 / 安装分发 | `vercel-labs/skills` |
+| 行为协议 / 提示工程 | `HughYau/qiushi-skill`, `multica-ai/andrej-karpathy-skills`, `tanweai/pua` |
+| Agent 配置管理 / 工具链 | `notdp/.dotfiles` |
+| Agent 角色库 / 多工具 Agent 资产 | `msitarzewski/agency-agents`, `voltagent/awesome-claude-code-subagents` |
 
 ### 常用操作
 
