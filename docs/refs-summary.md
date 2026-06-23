@@ -10,7 +10,7 @@
 ## 分类说明
 
 - **浏览器自动化与前端调试**：围绕浏览器控制、前端诊断、性能分析、页面抓取与 UI 调试。 代表项目：`ChromeDevTools/chrome-devtools-mcp`、`vercel-labs/agent-browser`
-- **技能集合与市场**：以 skills / plugins 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/claude-plugins-official`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`travisvn/awesome-claude-Skills`、`tw93/Waza`
+- **技能集合与市场**：以 skills / plugins 汇总、分发、导航或精选集合为主，常附带少量示例或插件。 代表项目：`Dimillian/Skills`、`affaan-m/everything-claude-code`、`anthropics/claude-plugins-official`、`anthropics/skills`、`github/awesome-copilot`、`glittercowboy/taches-cc-resources`、`libukai/awesome-agent-Skills`、`lijigang/ljg-skills`（个人认知/内容/写作向）、`travisvn/awesome-claude-Skills`、`tw93/Waza`
 - **LLM 应用模板 / Agent 示例库**：围绕可运行 LLM app、RAG、MCP、语音、多智能体、微调和 Agent Skills 示例。 代表项目：`Shubhamsaboo/awesome-llm-apps`
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`、`frankbria/ralph-claude-code`（单 agent 自主长循环 harness）
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
@@ -54,6 +54,7 @@
 | [`humanlayer/12-factor-agents`](./refs-details/humanlayer/12-factor-agents.md) | 最佳实践 / 知识库 | 面向生产级 LLM 应用的 12-factor agent 工程方法论，强调 prompt/context/tool/state/control flow 的显式所有权。 |
 | [`K-Dense-AI/scientific-agent-skills`](./refs-details/K-Dense-AI/scientific-agent-skills.md) | 科研 / 数据分析 / 领域技能 | 大型科学研究 skill 集合，把科研数据库、科学 Python 包、实验平台、医学/临床工作流、科学写作和可视化整理成多 Agent 可读的能力包。 |
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
+| [`lijigang/ljg-skills`](./refs-details/lijigang/ljg-skills.md) | 技能集合与市场（个人认知 / 内容 / 写作技能集） | 作者 lijigang 的个人 Claude Code 技能集（22 个 `ljg-*` skill + 2 工作流），以认知解剖 / 论文消化 / 内容铸卡 / 中文写作为主轴，org-mode（master）与 Markdown（md 分支）双格式分发，并打包为 plugin / marketplace。 |
 | [`mattpocock/skills`](./refs-details/mattpocock/skills.md) | 研发流程 / Skill 工程 | "小、可组合、可 hack"的 Claude Code skill 集合，核心价值在于 prompt 结构设计（指令-知识分离、Grilling 模式、Vertical Slice 可视化、强制词汇表+Avoid 列表）和工程纪律编码方式（.out-of-scope 知识库、Durability over precision）。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
@@ -106,6 +107,7 @@
 | [`nyldn/claude-octopus`](./refs-details/nyldn/claude-octopus.md) | 15 | [推断] 同步 Claude Code `v2.1.89-101`，引入 15 个 feature flags、PermissionDenied 审计 hook、session auto-titling 与 macOS CI，并继续收敛 review/doctor/可移植性问题。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 73 | [推断] `skills/` + `agents/` 持续扩充（Qdrant / Foundry / LinkedIn / browser investigation / code-tour / whatidid 等），批量修正 agents 的 deprecated tool names，并把 a11y / security / performance instructions 刷到 2025-2026 标准，同时完善 skills 校验与网站一键安装命令。 |
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 13 | [事实] 近 14 天提交标题以依赖升级、README 中新增 Mistral Vibe 配置说明和文档修复为主，未见明显功能型提交。 |
+| [`lijigang/ljg-skills`](./refs-details/lijigang/ljg-skills.md) | 13 | [推断] 主线打磨 `ljg-library`（取景框→意向画面枢轴 + 费曼讲解 + 继刚墨像，迭代至 v2.3.0），并把 `ljg-paper-flow` 工作流改接为 `ljg-paper → ljg-library`；伴随 `ljg-paper`/`ljg-push`/`ljg-book` 同步发布。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 6 | [推断] 发布 `0.0.31`/`0.0.32`/`0.0.33`，重点修复 setter 检测与 catalog resolution、file ignoring、CLI、React Native、Next.js、offline、monorepo 等问题。 |
 | [`vercel-labs/skills`](./refs-details/vercel-labs/skills.md) | 5 | [推断] 发布 `v1.5.0`/`v1.4.9`，改进项目级/全局级更新文案与单 skill update 路径，并增加对 `openclaw` 重复/恶意技能的风险警告。 |
 | [`anthropics/skills`](./refs-details/anthropics/skills.md) | 3 | [推断] 主要更新在 `claude-api` skill：补上 Managed Agents 指南、front-matter，并修复 YAML 渲染。 |

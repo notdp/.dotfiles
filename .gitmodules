@@ -190,3 +190,6 @@
 [submodule "refs/anthropics/claude-plugins-official"]
 	path = refs/anthropics/claude-plugins-official
 	url = https://github.com/anthropics/claude-plugins-official
+[submodule "refs/lijigang/ljg-skills"]
+	path = refs/lijigang/ljg-skills
+	url = https://github.com/lijigang/ljg-skills
