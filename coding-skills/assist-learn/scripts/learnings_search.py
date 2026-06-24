@@ -13,38 +13,12 @@ import argparse
 import sys
 from pathlib import Path
 
-FRONTMATTER_WEIGHT = 3  # a hit in title/tags/module/component counts more than body
+try:
+    from scripts.hooks.memory_score import frontmatter_summary, score_note, split_frontmatter
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from scripts.hooks.memory_score import frontmatter_summary, score_note, split_frontmatter
 
-
-def split_frontmatter(text: str) -> tuple[str, str]:
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return "", text
-    try:
-        end = lines.index("---", 1)
-    except ValueError:
-        return "", text
-    return "\n".join(lines[1:end]), "\n".join(lines[end + 1 :])
-
-
-def frontmatter_summary(frontmatter: str) -> str:
-    keep = ("title", "tags", "module", "component", "problem_type", "date")
-    parts = []
-    for line in frontmatter.splitlines():
-        key = line.split(":", 1)[0].strip().lower()
-        if key in keep and line.strip():
-            parts.append(line.strip())
-    return " | ".join(parts)
-
-
-def score_note(frontmatter: str, body: str, terms: list[str]) -> int:
-    fm = frontmatter.lower()
-    bd = body.lower()
-    score = 0
-    for term in terms:
-        score += fm.count(term) * FRONTMATTER_WEIGHT
-        score += bd.count(term)
-    return score
 
 
 def search(root: Path, terms: list[str], top: int) -> list[tuple[int, Path, str]]:

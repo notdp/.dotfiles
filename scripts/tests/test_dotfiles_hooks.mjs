@@ -11,6 +11,7 @@ import { DotfilesHooksPlugin } from "../opencode/dotfiles_hooks.mjs";
 process.env.CAPSULE_NO_LLM = "1";
 
 const MARKER = "<!-- dotfiles-context-capsule -->";
+const MEMORY_MARKER = "<dotfiles-memory>";
 const hooks = await DotfilesHooksPlugin({ directory: process.cwd() });
 const chatMessage = hooks["chat.message"];
 assert.ok(typeof chatMessage === "function", "plugin must expose chat.message hook");
@@ -42,7 +43,7 @@ function userPart(text) {
 
 // case 3: 已含 marker → 不重复注入(防自激循环)
 {
-  const output = { parts: [userPart(`帮我加个缓存\n\n${MARKER}\n# Scope Alignment Capsule ...`)] };
+  const output = { parts: [userPart(`帮我加个缓存\n\n${MARKER}\n# Scope Alignment Capsule ...\n${MEMORY_MARKER}\nexisting\n</dotfiles-memory>`)] };
   const before = output.parts[0].text;
   await chatMessage({ sessionID: "t3" }, output);
   assert.strictEqual(output.parts[0].text, before, "already-injected text must not double-inject");
@@ -61,6 +62,56 @@ function userPart(text) {
     "scope must precede planning",
   );
   console.log("case4 ok: scope+planning co-occur in scope→planning order");
+}
+
+// case 5: 只有 capsule marker 时，不阻止缺失的 memory segment 追加。
+{
+  process.env.DOTFILES_MEMORY_ENABLED = "1";
+  const output = { parts: [userPart(`memory schema\n\n${MARKER}\n[system] Current time: existing`)] };
+  await chatMessage({ sessionID: "t5" }, output);
+  const text = output.parts[0].text;
+  assert.strictEqual(output.parts.length, 1, "partial marker injection must not add parts");
+  assert.ok(text.includes(MEMORY_MARKER), "missing memory segment appended despite existing capsule marker");
+  assert.strictEqual(text.indexOf(MEMORY_MARKER), text.lastIndexOf(MEMORY_MARKER), "memory segment appended once");
+  console.log("case5 ok: capsule-only marker still allows memory segment");
+  delete process.env.DOTFILES_MEMORY_ENABLED;
+}
+
+// case 6: 只有 memory marker 时，不阻止缺失的 capsule/time segment 追加。
+{
+  const output = { parts: [userPart(`帮我加个缓存\n\n${MEMORY_MARKER}\nexisting\n</dotfiles-memory>`)] };
+  await chatMessage({ sessionID: "t6" }, output);
+  const text = output.parts[0].text;
+  assert.strictEqual(output.parts.length, 1, "partial marker injection must not add parts");
+  assert.ok(text.includes(MARKER), "missing capsule segment appended despite existing memory marker");
+  assert.ok(text.includes("Scope Alignment Capsule"), "capsule content appended");
+  assert.strictEqual(text.indexOf(MEMORY_MARKER), text.lastIndexOf(MEMORY_MARKER), "existing memory not duplicated");
+  console.log("case6 ok: memory-only marker still allows capsule segment");
+}
+
+// case 7: 无 marker 时可一次追加 capsule/time 与 memory，仍不新增 part。
+{
+  process.env.DOTFILES_MEMORY_ENABLED = "1";
+  const output = { parts: [userPart("帮我加个 memory schema 缓存")] };
+  await chatMessage({ sessionID: "t7" }, output);
+  const text = output.parts[0].text;
+  assert.strictEqual(output.parts.length, 1, "combined injection must not add parts");
+  assert.ok(text.includes(MARKER), "capsule marker present");
+  assert.ok(text.includes(MEMORY_MARKER), "memory marker present");
+  console.log("case7 ok: both segments appended without adding parts");
+  delete process.env.DOTFILES_MEMORY_ENABLED;
+}
+
+// case 8: 畸形 memory 开标记不能永久屏蔽完整 memory 段补注入。
+{
+  process.env.DOTFILES_MEMORY_ENABLED = "1";
+  const output = { parts: [userPart(`memory schema\n\n${MEMORY_MARKER}\ntruncated`)] };
+  await chatMessage({ sessionID: "t8" }, output);
+  const text = output.parts[0].text;
+  assert.strictEqual(output.parts.length, 1, "malformed memory marker repair must not add parts");
+  assert.ok(text.includes("</dotfiles-memory>"), "complete memory segment appended when existing marker is malformed");
+  console.log("case8 ok: malformed memory marker does not block repair injection");
+  delete process.env.DOTFILES_MEMORY_ENABLED;
 }
 
 console.log("ALL PASS");

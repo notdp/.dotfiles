@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "coding-skills" / "assist-learn" / "scripts" / "learnings_search.py"
+
+sys.path.insert(0, str(REPO_ROOT))
+from scripts.hooks import memory_score  # noqa: E402
 
 
 class LearningsSearchTests(unittest.TestCase):
@@ -78,6 +82,13 @@ class LearningsSearchTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertNotIn("a.md", result.stdout)
+
+    def test_shared_memory_score_parses_frontmatter_and_weights_it(self) -> None:
+        text = "---\ntitle: hook guard\ntags: [hook, guard]\n---\n\nmentions hook once\n"
+        frontmatter, body = memory_score.split_frontmatter(text)
+
+        self.assertEqual(memory_score.parse_frontmatter(frontmatter)["tags"], "hook, guard")
+        self.assertGreater(memory_score.score_note(frontmatter, body, ["guard"]), memory_score.score_note("", body, ["guard"]))
 
 
 if __name__ == "__main__":
