@@ -21,9 +21,10 @@ function runPythonHook(script, input, cwd, args = []) {
     input: JSON.stringify(input),
     encoding: "utf8",
   };
+  options.env = { ...process.env };
   if (cwd) {
     options.cwd = cwd;
-    options.env = { ...process.env, FACTORY_PROJECT_DIR: cwd };
+    options.env.FACTORY_PROJECT_DIR = cwd;
   }
   const result = spawnSync("python3", [script, ...args], options);
   if (result.error) {

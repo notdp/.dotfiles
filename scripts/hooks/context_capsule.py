@@ -16,10 +16,12 @@ from pathlib import Path
 try:
     from memory_flags import memory_enabled
     from memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from threat_scan import sanitize_for_prompt
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.hooks.memory_flags import memory_enabled
     from scripts.hooks.memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from scripts.hooks.threat_scan import sanitize_for_prompt
 
 
 CRITICAL_OPERATION_ACTION_RE = r"(关掉|停掉|回收|释放|降配|不用了|降成本|停止计费|stop|shutdown|release|destroy|decommission|downsize|cut cost)"
@@ -166,6 +168,9 @@ class DeepseekBudget:
 
 
 def config_root() -> Path:
+    override = os.environ.get("DOTFILES_CONFIG_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
     return Path(__file__).resolve().parents[2]
 
 
@@ -562,6 +567,10 @@ def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
     ]
 
 
+def render_blocked_memory_hit(hit: MemoryHit, sanitized_text: str) -> str:
+    return f"- [BLOCKED] ({hit.age_label}; {hit.path.name}): {sanitized_text}"
+
+
 def render_memory_segment(hits: list[MemoryHit]) -> str:
     if not hits:
         return ""
@@ -573,6 +582,12 @@ def render_memory_segment(hits: list[MemoryHit]) -> str:
         meta = hit.meta
         title = meta.get("title") or hit.path.stem
         keywords = meta.get("keywords") or meta.get("tags") or ""
+        source = f"memory/user/{hit.path.name}"
+        rendered_text = f"{title}\n{keywords}\n{hit.body_excerpt}"
+        sanitized = sanitize_for_prompt(rendered_text, source=source)
+        if sanitized.blocked:
+            lines.append(render_blocked_memory_hit(hit, sanitized.text))
+            continue
         line = f"- {title} ({hit.age_label}; {hit.path.name}): {keywords}".rstrip()
         if hit.body_excerpt:
             line += f" — {hit.body_excerpt}"
