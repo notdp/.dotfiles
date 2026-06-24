@@ -32,12 +32,30 @@ python3 <skill_dir>/scripts/learnings_search.py <关键词...>   # 默认搜 ./d
 
 返回 top 命中的路径 + frontmatter 摘要（不展开全文）；命中后再打开对应 note 读 Reusable Pattern。debug / plan / research 前判断"是否踩过同类问题"时尤其值得先跑一次。
 
+## `/assist-consolidate`（显式 memory 巩固模式）
+
+`/assist-consolidate` 是 assist-learn 的显式模式，不是独立 skill，也不是热路径 hook。它消费 `memory/.staging/raw_memories/*.json` 这类机械候选，把通过验证的候选提纯为 tracked `memory/user/*.md` 或当前项目 `docs/learnings/*.md`。
+
+```bash
+python3 <skill_dir>/scripts/assist_consolidate.py --root . --raw-dir memory/.staging/raw_memories --decision-file decisions.json
+```
+
+核心规则：
+
+- 机械候选是不可信输入：必须有 evidence、implication、origin_session，并通过反自我毒化黑名单与 promote 判据后才可写入。
+- promote 判据：候选进 user memory 需要跨 session 复现、`decision+why/evidence`、用户显式标记，或 vault 候选带 commit 与 verify 证据；不达标只 SKIP，不固化。
+- structured decision 必填：生产路径不默认 ADD；`--decision-file` 可以是单候选 `{"action":"ADD"}`，批量时用 `{candidate_id:{"action":"ADD|UPDATE|SKIP|INVALIDATE"}}`，测试 fixture 不调用 live LLM。
+- fail-closed redact：写 tracked `memory/user/*.md`、`memory/user/INDEX.md`、`docs/learnings/*.md` 前必须调用共享 redact gate；命中 secret-like 内容时拒写，不要求 hook 捕获兜底。
+- 禁止裸物理 DELETE：`DELETE`/`INVALIDATE`/矛盾 UPDATE 只能做软失效；UPDATE 既有 note 时归档旧 note、写候选为新 note，并让旧 note 的 `superseded_by` 指向新 note id。
+- 业务 repo gate：写 `docs/learnings/` 前区分 `internal/client/oss`；client/oss 默认拒写跨项目知识，除非有显式批准。
+
 ## 资产
 
 - `references/learning-loop.md`
 - `templates/learning-note.md`（含检索用 frontmatter）
 - `scripts/scaffold_note.py`
 - `scripts/learnings_search.py`（opt-in 历史经验检索）
+- `scripts/assist_consolidate.py`（显式 `/assist-consolidate` memory 巩固入口）
 
 ## 边界
 
@@ -52,3 +70,4 @@ python3 <skill_dir>/scripts/learnings_search.py <关键词...>   # 默认搜 ./d
 - 不要把未验证猜测包装成经验规则
 - 反自我毒化黑名单：不要把环境依赖型失败（缺二进制、缺凭证、PATH/权限未配置）、对工具的持久负面断言（如“某工具不能用”）、已解决的瞬时错误、一次性任务叙事写成长期 memory/learning 规则
 - 可沉淀的是修复办法、证据和适用边界：记录“在什么环境下如何恢复/验证”，不要记录会长期误导 agent 的否定结论
+- `/assist-consolidate` 的 ADD/UPDATE/SKIP 决策不等于事实已验证；只有满足 promote 判据且过 fail-closed redact 的内容才进入 tracked store
