@@ -4,7 +4,8 @@
 //      所以注入是追加到既有 text part 的 text 字段, 不新增 part(已端到端实测)。
 // 运行: node scripts/tests/test_dotfiles_hooks.mjs
 import assert from "node:assert";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DotfilesHooksPlugin } from "../opencode/dotfiles_hooks.mjs";
@@ -147,6 +148,44 @@ function userPart(text) {
     delete process.env.DOTFILES_MEMORY_ENABLED;
     delete process.env.DOTFILES_CONFIG_ROOT;
   }
+}
+
+// case 10: session.idle 触发 kilo/opencode SQLite memory capture(flag 门控、fail-open)
+{
+  const root = mkdtempSync(join(tmpdir(), "memcap-"));
+  execSync("git init", { cwd: root, stdio: "ignore" });
+  writeFileSync(join(root, ".gitignore"), "/memory/.staging/\n/memory/.local/\n");
+  const db = join(root, "kilo.db");
+  const py = [
+    "import sqlite3, json",
+    `c = sqlite3.connect(${JSON.stringify(db)})`,
+    "c.execute('CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)')",
+    "c.execute('CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)')",
+    "c.execute('INSERT INTO message VALUES (?,?,?,?,?)', ('m0','ses_target',1,1,json.dumps({'role':'user'})))",
+    "c.execute('INSERT INTO part VALUES (?,?,?,?,?,?)', ('p0','m0','ses_target',1,1,json.dumps({'type':'text','text':'remember: prefer lexical memory recall before embeddings for this dotfiles MVP'})))",
+    "c.commit(); c.close()",
+  ].join("; ");
+  execSync(`python3 -c ${JSON.stringify(py)}`, { stdio: "ignore" });
+  const stagingDir = join(root, "memory", ".staging", "raw_memories");
+  const jsonCount = () => (existsSync(stagingDir) ? readdirSync(stagingDir).filter((f) => f.endsWith(".json")).length : 0);
+
+  const idlePlugin = await DotfilesHooksPlugin({ directory: root });
+  const idleEvent = { event: { type: "session.idle", properties: { sessionID: "ses_target" } } };
+  process.env.DOTFILES_MEMORY_KILO_DB = db;
+
+  // flag off → 不捕获(dormant)
+  delete process.env.DOTFILES_MEMORY_ENABLED;
+  await idlePlugin.event(idleEvent);
+  assert.strictEqual(jsonCount(), 0, "flag off → idle must not capture");
+
+  // flag on → 捕获一条候选(node→python→sqlite→file)
+  process.env.DOTFILES_MEMORY_ENABLED = "1";
+  await idlePlugin.event(idleEvent);
+  assert.strictEqual(jsonCount(), 1, "flag on + idle → one sqlite raw candidate captured");
+  console.log("case10 ok: session.idle triggers flag-gated sqlite memory capture");
+
+  delete process.env.DOTFILES_MEMORY_ENABLED;
+  delete process.env.DOTFILES_MEMORY_KILO_DB;
 }
 
 console.log("ALL PASS");
