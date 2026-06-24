@@ -1222,9 +1222,11 @@ def _append_log(workspace: Path, msg: str) -> None:
 def append_metric(workspace: Path, record: dict) -> None:
     """向 <ws>/metrics.jsonl 追加一行结构化事件(机器可读运行流水, append-only)。
     自动补 ts; 喂 `lr.py stats` 出汇总, 也是 stuck 计数的派生来源。纯增量、零回改, 不阻断任何门禁。"""
-    line = json.dumps({"ts": _now(), **record}, ensure_ascii=False)
     p = workspace / "metrics.jsonl"
     with p.open("a", encoding="utf-8") as fh:
+        if p.stat().st_size == 0:
+            fh.write(json.dumps({"_schema": "dotfiles.long_loop.metrics", "_version": 1}, ensure_ascii=False) + "\n")
+        line = json.dumps({"ts": _now(), **record}, ensure_ascii=False)
         fh.write(line + "\n")
 
 

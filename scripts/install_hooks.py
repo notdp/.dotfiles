@@ -376,6 +376,10 @@ def dotfiles_commands_path() -> str:
     return (runtime_root() / "commands").as_posix()
 
 
+def dotfiles_memory_user_path() -> str:
+    return (runtime_root() / "memory" / "user").as_posix()
+
+
 def opencode_plugin_path() -> str:
     return (runtime_root() / "scripts" / "opencode" / "dotfiles_hooks.mjs").as_posix()
 
@@ -654,6 +658,7 @@ def agent_asset_links() -> list[tuple[Path, Path]]:
     agents = Path(dotfiles_agents_path())
     skills = Path(dotfiles_skills_path())
     commands = Path(dotfiles_commands_path())
+    memory_user = Path(dotfiles_memory_user_path())
     opencode_dir = default_opencode_config_dir()
     kilo_dir = default_kilo_config_dir()
     return [
@@ -662,15 +667,19 @@ def agent_asset_links() -> list[tuple[Path, Path]]:
         (home_path() / ".codex" / "AGENTS.md", agents),
         (home_path() / ".codex" / "prompts", commands),
         (home_path() / ".codex" / "skills", skills),
+        (home_path() / ".codex" / "memory" / "user", memory_user),
         (home_path() / ".factory" / "AGENTS.md", agents),
         (home_path() / ".factory" / "commands", commands),
         (home_path() / ".factory" / "skills", skills),
+        (home_path() / ".factory" / "memory" / "user", memory_user),
         (opencode_dir / "AGENTS.md", agents),
         (opencode_dir / "commands", commands),
         (opencode_dir / "skills", skills),
+        (opencode_dir / "memory" / "user", memory_user),
         (kilo_dir / "AGENTS.md", agents),
         (kilo_dir / "commands", commands),
         (kilo_dir / "skills", skills),
+        (kilo_dir / "memory" / "user", memory_user),
     ]
 
 

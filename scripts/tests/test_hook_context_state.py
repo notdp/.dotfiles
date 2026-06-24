@@ -339,8 +339,13 @@ class HookContextStateTests(unittest.TestCase):
 
             result = self.run_wrapper(repo, {"source": "startup"}, "--event", "session-start")
 
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(json.loads(result.stdout)["suppressOutput"])
+
+    def test_context_state_uses_shared_redact_without_local_secret_regex(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("from .redact import URL_RE, redact", source)
+        self.assertNotRegex(source, r"^SECRET_RE\s*=", "context_state.py must not define a divergent SECRET_RE")
 
     def _write_transcript(self, repo: Path, name: str, prompt: str) -> Path:
         transcript = repo / name

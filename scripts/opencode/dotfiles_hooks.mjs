@@ -8,6 +8,8 @@ const COMMAND_GUARD = resolve(REPO_ROOT, "scripts", "hooks", "command_guard.py")
 const STOP_CHECK = resolve(REPO_ROOT, "scripts", "hooks", "stop_check.py");
 const CONTEXT_CAPSULE = resolve(REPO_ROOT, "scripts", "hooks", "context_capsule.py");
 const CAPSULE_MARKER = "<!-- dotfiles-context-capsule -->";
+const MEMORY_MARKER_OPEN = "<dotfiles-memory>";
+const MEMORY_MARKER_CLOSE = "</dotfiles-memory>";
 const NOTIFY_TMUX_TITLE = resolve(REPO_ROOT, "scripts", "notify-tmux-title.sh");
 const IDLE_NOTICE_DEBOUNCE_MS = 2000;
 const COMPLETION_TITLE = "OpenCode task complete";
@@ -19,9 +21,10 @@ function runPythonHook(script, input, cwd, args = []) {
     input: JSON.stringify(input),
     encoding: "utf8",
   };
+  options.env = { ...process.env };
   if (cwd) {
     options.cwd = cwd;
-    options.env = { ...process.env, FACTORY_PROJECT_DIR: cwd };
+    options.env.FACTORY_PROJECT_DIR = cwd;
   }
   const result = spawnSync("python3", [script, ...args], options);
   if (result.error) {
@@ -55,13 +58,21 @@ function injectContextCapsules(output) {
     const textPart = parts.find(
       (part) => part && part.type === "text" && typeof part.text === "string" && part.text.trim(),
     );
-    if (!textPart || textPart.text.includes(CAPSULE_MARKER)) {
+    if (!textPart) {
+      return;
+    }
+    const needsCapsuleSegment = !textPart.text.includes(CAPSULE_MARKER);
+    const needsMemorySegment = !hasCompleteMemorySegment(textPart.text);
+    if (!needsCapsuleSegment && !needsMemorySegment) {
       return;
     }
     const decision = runPythonHook(CONTEXT_CAPSULE, { prompt: textPart.text.trim() }, undefined, ["--event", "prompt"]);
     const context = decision?.hookSpecificOutput?.additionalContext;
     if (typeof context === "string" && context.trim()) {
-      textPart.text = `${textPart.text}\n\n${CAPSULE_MARKER}\n${context}`;
+      const segments = selectMissingContextSegments(context, needsCapsuleSegment, needsMemorySegment);
+      if (segments.length > 0) {
+        textPart.text = `${textPart.text}\n\n${segments.join("\n\n")}`;
+      }
     }
   } catch (error) {
     // hook 铁律: 注入失败绝不能崩主流程, fail-open。
@@ -69,6 +80,43 @@ function injectContextCapsules(output) {
       appendFileSync(process.env.DOTFILES_CAPSULE_LOG, `inject error: ${error?.stack || error}\n`, "utf8");
     }
   }
+}
+
+function selectMissingContextSegments(context, needsCapsuleSegment, needsMemorySegment) {
+  const memorySegment = extractMemorySegment(context);
+  const capsuleSegment = removeMemorySegment(context).trim();
+  const segments = [];
+  if (needsCapsuleSegment && capsuleSegment) {
+    segments.push(`${CAPSULE_MARKER}\n${capsuleSegment}`);
+  }
+  if (needsMemorySegment && memorySegment) {
+    segments.push(memorySegment);
+  }
+  return segments;
+}
+
+function extractMemorySegment(context) {
+  const start = context.indexOf(MEMORY_MARKER_OPEN);
+  const end = context.indexOf(MEMORY_MARKER_CLOSE);
+  if (start === -1 || end === -1 || end < start) {
+    return "";
+  }
+  return context.slice(start, end + MEMORY_MARKER_CLOSE.length).trim();
+}
+
+function hasCompleteMemorySegment(text) {
+  const start = text.indexOf(MEMORY_MARKER_OPEN);
+  const end = text.indexOf(MEMORY_MARKER_CLOSE);
+  return start !== -1 && end !== -1 && end > start;
+}
+
+function removeMemorySegment(context) {
+  const start = context.indexOf(MEMORY_MARKER_OPEN);
+  const end = context.indexOf(MEMORY_MARKER_CLOSE);
+  if (start === -1 || end === -1 || end < start) {
+    return context;
+  }
+  return `${context.slice(0, start)}${context.slice(end + MEMORY_MARKER_CLOSE.length)}`;
 }
 
 function isShellLikeName(value) {

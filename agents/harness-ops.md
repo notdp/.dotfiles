@@ -48,9 +48,9 @@
 | output-styles（替换式系统提示，顶掉默认工程指令） | ✅ | ⚠️ | ❓ | ❓ | oc/kilo：无 outputStyle config 键；但有 plugin 钩子 `experimental.chat.system.transform` 可程序化改写系统提示。harness 现用 `readable-*` skill 追加体裁更安全 |
 | append-system-prompt（追加式系统提示） | ✅ | ✅ | ✅ | ❓ | oc/kilo：`instructions[]`（config 注入文件，always-on 而非 per-invocation flag）；droid：`--append-system-prompt[-file]`（实测 `--help`）；codex：AGENTS.md 注入，专属 flag 未见 |
 | skill 压缩重注入（预算内、最旧先丢） | ✅ | ⚠️ | ❓ | ❓ | oc/kilo：有 compaction（config `{auto,threshold_percent,reserved,preserve_recent_tokens}`）但属 summarize 模型 + `experimental.session.compacting` 定制压缩 prompt，非「skill 重注入预算/最旧先丢」语义 |
-| PreCompact 钩子（压缩前触发） | ✅ | ✅ | ❓ | ❌ | oc/kilo：`experimental.session.compacting`（压缩前，plugin `index.d.ts:271`）+`experimental.compaction.autocontinue`（压缩后）+`session.compacted` 事件；droid：`.factory` 仅接 UserPromptSubmit/Pre·PostToolUse/Stop，无 PreCompact；codex：无明显 hook 体系 |
+| PreCompact 钩子（压缩前触发） | ✅ | ✅ | ❓ | ❓ | oc/kilo：`experimental.session.compacting`（压缩前，plugin `index.d.ts:271`）+`experimental.compaction.autocontinue`（压缩后）+`session.compacted` 事件；droid：`.factory` 仅接 UserPromptSubmit/Pre·PostToolUse/Stop，无 PreCompact；codex：本仓库 `scripts/install_hooks.py` 已生成 `[features] hooks = true` 以及 UserPromptSubmit/PreToolUse/PostToolUse/Stop hook 配置，PreCompact 等价能力未在本 phase 复核 |
 
-小结（2026-06-20 实测）：opencode/kilo 缺的是 CC 那几个**声明式**特性（path-scoped rules、output-styles），但其 **plugin 钩子更通用**（`experimental.chat.system.transform` / `session.compacting` / `chat.messages.transform`），多数能力可经现有 `dotfiles_hooks.mjs` 程序化实现而非声明式；PreCompact 等价（`experimental.session.compacting`）已具备。droid 走 CC 式 hook 生命周期 + `--append-system-prompt`；codex 仅 AGENTS.md + config.toml、无 hook 体系。**这 5 项里真正"CC-only 不可跨"的几乎没有**——主要差异是声明式 vs 插件式，及 droid/codex 的 ❓ 待补测。kilo plugin 即 `import` opencode plugin（同源），故两列合并。
+小结（2026-06-20 实测；codex hook 配置源于 2026-06-24 本仓库复核）：opencode/kilo 缺的是 CC 那几个**声明式**特性（path-scoped rules、output-styles），但其 **plugin 钩子更通用**（`experimental.chat.system.transform` / `session.compacting` / `chat.messages.transform`），多数能力可经现有 `dotfiles_hooks.mjs` 程序化实现而非声明式；PreCompact 等价（`experimental.session.compacting`）已具备。droid 走 CC 式 hook 生命周期 + `--append-system-prompt`；codex 不是“无 hook 体系”：本仓库安装脚本已能渲染 codex hook 配置，具体外部运行时事件完备性仍按 ❓ 登记，避免把未复核细节写成事实。**这 5 项里真正"CC-only 不可跨"的几乎没有**——主要差异是声明式 vs 插件式，及 droid/codex 的 ❓ 待补测。kilo plugin 即 `import` opencode plugin（同源），故两列合并。
 
 登记纪律：
 
@@ -59,4 +59,3 @@
 - ❓ 是待办不是终态：核实后用实测证据替换 ❓ 并注日期。
 - 禁止用未验证猜测填 ✅ / ❌ / ⚠️——那是把推测洗成事实；没核实一律 ❓。
 - 采纳 CC-only 特性的决策：能跨平台 → 实现一次；不能 → 允许 CC-only 差异化，但必须在本矩阵留一行 ❌ / 降级说明，不静默分叉（见记忆 `cc-native-feature-adoption-policy`）。
-

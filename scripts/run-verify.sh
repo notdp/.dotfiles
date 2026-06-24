@@ -86,6 +86,11 @@ if [[ -f scripts/verify_skills.py ]]; then
   run_check "verify_skills" "python3 scripts/verify_skills.py"
 fi
 
+# 本仓库特定：轻量 secret 扫描，只扫当前 dotfiles 仓库并复用共享 redact 规则。
+if [[ -f scripts/hooks/redact.py ]]; then
+  run_check "secret scan (dotfiles)" "python3 scripts/hooks/redact.py scan-repo ."
+fi
+
 # 本仓库特定：subagents 校验
 if [[ -f scripts/verify_agents.py ]]; then
   run_check "verify_agents" "python3 scripts/verify_agents.py"

@@ -238,6 +238,15 @@
       "role": "canonical"
     },
     {
+      "name": "compact-memory",
+      "path": "coding-skills/compact-memory",
+      "domain": "assist",
+      "role": "legacy",
+      "migration": {
+        "state": "deferred"
+      }
+    },
+    {
       "name": "assist-retrospect",
       "path": "coding-skills/assist-retrospect",
       "domain": "assist",

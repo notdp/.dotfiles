@@ -9,6 +9,17 @@ import sys
 from pathlib import Path
 
 
+try:
+    from scripts.hooks.memory_capture import capture_best_effort
+except Exception:
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.hooks.memory_capture import capture_best_effort
+    except Exception:
+        def capture_best_effort(root: Path, hook_input: dict, env: dict[str, str] | None = None):
+            return None
+
+
 VALIDATION_RE = re.compile(
     r"(run-verify\.sh|pytest|python3 -m unittest|npm test|npm run test|npm run lint|npm run typecheck|"
     r"tsc\b|verify_skills\.py|cargo test|go test|## 验证结果|validated \d+ skills)",
@@ -219,6 +230,7 @@ def stop_message(files: list[str], transcript: str) -> str | None:
 def main() -> int:
     root = project_root()
     hook_input = load_input()
+    capture_best_effort(root, hook_input)
     message = stop_message(changed_files(root), transcript_text(hook_input.get("transcript_path")))
     sys.stdout.write(json.dumps({"systemMessage": message} if message else suppress(), ensure_ascii=False) + "\n")
     return 0

@@ -1087,7 +1087,7 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(stuck["consecutive_fail"], 2)
             self.assertIn("STUCK", out)
             metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
-            self.assertEqual(len([m for m in metrics if m["event"] == "verify"]), 2)
+            self.assertEqual(len([m for m in metrics if m.get("event") == "verify"]), 2)
             self.assertEqual(metrics[-1]["fail_streak"], 2)
 
     def test_verify_pass_clears_stuck(self) -> None:

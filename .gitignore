@@ -3,6 +3,8 @@
 __pycache__/
 .long-loop/
 .agent-state/
+/memory/.staging/
+/memory/.local/
 *.review.html
 .aider*
 

@@ -8,8 +8,20 @@ import re
 import subprocess
 import sys
 import urllib.request
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
+from time import monotonic
 from pathlib import Path
+
+try:
+    from memory_flags import memory_enabled
+    from memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from threat_scan import sanitize_for_prompt
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.hooks.memory_flags import memory_enabled
+    from scripts.hooks.memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from scripts.hooks.threat_scan import sanitize_for_prompt
 
 
 CRITICAL_OPERATION_ACTION_RE = r"(关掉|停掉|回收|释放|降配|不用了|降成本|停止计费|stop|shutdown|release|destroy|decommission|downsize|cut cost)"
@@ -82,6 +94,11 @@ CAPSULE_SHORT: dict[str, str] = {
     "operational-task.md": "operational",
 }
 MAX_PROMPT_CONTEXT_CHARS = 2200
+CAPSULE_CONTEXT_FLOOR_CHARS = 1800
+MEMORY_CONTEXT_MAX_CHARS = 400
+MEMORY_MARKER_OPEN = "<dotfiles-memory>"
+MEMORY_MARKER_CLOSE = "</dotfiles-memory>"
+MIN_MEMORY_TRUST = 0.5
 MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做正则 fallback 匹配, 避免尾部粘贴内容撞词(FP 71% 来源)
 
 # deepseek 主路由: 三平台 300 样本实测 F1 54% vs 正则 27%, 跨平台稳(正则 kilo 崩到 30%)。
@@ -89,7 +106,14 @@ MATCH_HEAD_CHARS = 240  # 长 prompt 只用首段做正则 fallback 匹配, 避�
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_TIMEOUT = 6  # 秒; hook timeout 10s, 留余量给 fallback
+DEEPSEEK_TOTAL_BUDGET_SECONDS = 8.0
+DEEPSEEK_QUERY_TIMEOUT = 1.5
 DEEPSEEK_KEYFILE = "~/.config/deepseek/apikey"
+MEMORY_QUERY_SYSTEM = (
+    "你是 memory 检索 query 改写器。把用户 prompt 改写成适合 lexical 搜索的短 query, "
+    "可保留代码名、错误名、工具名和关键词。不要 rerank, 不要过滤。"
+    "只输出 JSON: {\"query\": \"...\"}。"
+)
 DEEPSEEK_SYSTEM = (
     "你是 capsule 路由分类器。判断用户 prompt 理想情况下应注入哪些 context capsule"
     "(给 AI 编程助手的纪律提醒)。\n\n"
@@ -126,7 +150,27 @@ DEEPSEEK_SYSTEM = (
 )
 
 
+@dataclass(frozen=True)
+class MemoryHit:
+    path: Path
+    score: float
+    meta: dict[str, str]
+    age_label: str
+    body_excerpt: str = ""
+
+
+class DeepseekBudget:
+    def __init__(self, seconds: float = DEEPSEEK_TOTAL_BUDGET_SECONDS) -> None:
+        self.deadline = monotonic() + seconds
+
+    def remaining(self) -> float:
+        return max(0.0, self.deadline - monotonic())
+
+
 def config_root() -> Path:
+    override = os.environ.get("DOTFILES_CONFIG_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
     return Path(__file__).resolve().parents[2]
 
 
@@ -176,19 +220,7 @@ def deepseek_api_key() -> str | None:
         return None
 
 
-def heading_to_name() -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    for name, _ in CAPSULE_RULES:
-        heading = capsule_heading(read_capsule(name))
-        if heading:
-            mapping[heading] = name
-    return mapping
-
-
-def classify_with_deepseek(prompt: str) -> set[str] | None:
-    """deepseek 主分类, 返回 capsule 文件名集合; 任何失败返回 None(caller fallback 正则)。"""
-    if os.environ.get("CAPSULE_NO_LLM") or not prompt.strip():
-        return None
+def deepseek_json(system: str, prompt: str, max_tokens: int = 200, timeout: float | None = None) -> dict | None:
     key = deepseek_api_key()
     if not key:
         return None
@@ -196,11 +228,11 @@ def classify_with_deepseek(prompt: str) -> set[str] | None:
         {
             "model": DEEPSEEK_MODEL,
             "messages": [
-                {"role": "system", "content": DEEPSEEK_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": prompt[:2000]},
             ],
             "temperature": 0,
-            "max_tokens": 200,
+            "max_tokens": max_tokens,
             "thinking": {"type": "disabled"},
             "response_format": {"type": "json_object"},
         }
@@ -211,14 +243,50 @@ def classify_with_deepseek(prompt: str) -> set[str] | None:
             data=body,
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=DEEPSEEK_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=DEEPSEEK_TIMEOUT if timeout is None else timeout) as response:
             payload = json.loads(response.read())
         content = payload["choices"][0]["message"]["content"]
-        headings = json.loads(content).get("capsules", [])
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else None
     except Exception:
         return None
+
+
+def heading_to_name() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for name, _ in CAPSULE_RULES:
+        heading = capsule_heading(read_capsule(name))
+        if heading:
+            mapping[heading] = name
+    return mapping
+
+
+def classify_with_deepseek(prompt: str, budget: DeepseekBudget | None = None) -> set[str] | None:
+    """deepseek 主分类, 返回 capsule 文件名集合; 任何失败返回 None(caller fallback 正则)。"""
+    if os.environ.get("CAPSULE_NO_LLM") or not prompt.strip():
+        return None
+    timeout = DEEPSEEK_TIMEOUT if budget is None else min(DEEPSEEK_TIMEOUT, budget.remaining())
+    if timeout <= 0:
+        return None
+    parsed = deepseek_json(DEEPSEEK_SYSTEM, prompt, timeout=timeout)
+    if parsed is None:
+        return None
+    headings = parsed.get("capsules", [])
     name_map = heading_to_name()
     return {name_map[h] for h in headings if isinstance(h, str) and h in name_map}
+
+
+def expand_memory_query(prompt: str, budget: DeepseekBudget | None = None) -> str:
+    if os.environ.get("MEMORY_QUERY_NO_LLM") or not prompt.strip():
+        return prompt
+    timeout = DEEPSEEK_QUERY_TIMEOUT if budget is None else min(DEEPSEEK_QUERY_TIMEOUT, budget.remaining())
+    if timeout <= 0:
+        return prompt
+    parsed = deepseek_json(MEMORY_QUERY_SYSTEM, prompt, max_tokens=120, timeout=timeout)
+    if parsed is None:
+        return prompt
+    query = parsed.get("query")
+    return query.strip() if isinstance(query, str) and query.strip() else prompt
 
 
 def resolve_capsule_names(prompt: str) -> list[str]:
@@ -226,6 +294,16 @@ def resolve_capsule_names(prompt: str) -> list[str]:
     if ROLE_DISPATCH_RE.search(prompt):
         return []  # 编排角色派发提示, 非用户意图, 不注入(也省一次 deepseek 调用)
     selected = classify_with_deepseek(prompt)
+    if selected is None:
+        searchable = prompt_for_matching(prompt)
+        selected = {name for name, pattern in CAPSULE_RULES if pattern.search(searchable)}
+    return [name for name, _ in CAPSULE_RULES if name in selected]
+
+
+def resolve_capsule_names_with_budget(prompt: str, budget: DeepseekBudget) -> list[str]:
+    if ROLE_DISPATCH_RE.search(prompt):
+        return []
+    selected = classify_with_deepseek(prompt, budget)
     if selected is None:
         searchable = prompt_for_matching(prompt)
         selected = {name for name, pattern in CAPSULE_RULES if pattern.search(searchable)}
@@ -261,12 +339,20 @@ def current_time_note() -> str:
 
 def prompt_context(hook_input: dict) -> str:
     prompt = str(hook_input.get("prompt") or "")
-    names = resolve_capsule_names(prompt)
+    budget = DeepseekBudget(float(hook_input.get("_deepseek_budget_remaining", DEEPSEEK_TOTAL_BUDGET_SECONDS)))
+    names = resolve_capsule_names_with_budget(prompt, budget) if memory_enabled() else resolve_capsule_names(prompt)
     capsules = [capsule for name in names for capsule in [read_capsule(name)] if capsule]
     # 时间行独立 prepend, 不占 capsule 的 MAX_PROMPT_CONTEXT_CHARS 截断预算(它短且必要)。
-    context = current_time_note()
-    if capsules:
-        context += "\n\n---\n\n" + join_capsules(capsules)
+    time_note = current_time_note()
+    if not memory_enabled():
+        context = time_note
+        if capsules:
+            context += "\n\n---\n\n" + join_capsules(capsules)
+    else:
+        capsule_context = join_capsules(capsules) if capsules else ""
+        query = prompt if budget.remaining() <= 0 else expand_memory_query(prompt, budget)
+        memory_context = "" if ROLE_DISPATCH_RE.search(prompt) else render_memory_segment(recall_memory_notes(query))
+        context = render_prompt_context(time_note, capsule_context, memory_context)
     # 可观测: 有 capsule 时给用户一行摘要(systemMessage 在 CC/Droid 终端显示, 不进 transcript、不打扰模型)。
     system_message = "↳ capsules: " + ", ".join(CAPSULE_SHORT.get(n, n) for n in names) if names else None
     return json_context("UserPromptSubmit", context, system_message)
@@ -280,6 +366,234 @@ def join_capsules(capsules: list[str]) -> str:
     budget = MAX_PROMPT_CONTEXT_CHARS - (len(separator) * (len(capsules) - 1))
     per_capsule_budget = max(1, budget // len(capsules))
     return separator.join(capsule[:per_capsule_budget].rstrip() for capsule in capsules)[:MAX_PROMPT_CONTEXT_CHARS]
+
+
+def trim_text(text: str, budget: int) -> str:
+    if budget <= 0:
+        return ""
+    if len(text) <= budget:
+        return text
+    return text[:budget].rstrip()
+
+
+def trim_memory_segment(text: str, budget: int) -> str:
+    if budget <= 0 or not text:
+        return ""
+    if len(text) <= budget:
+        return text
+    suffix = "\n" + MEMORY_MARKER_CLOSE
+    prefix_end = text.find("\n", len(MEMORY_MARKER_OPEN))
+    if prefix_end == -1:
+        return trim_text(text, budget)
+    header = text[: prefix_end + 1]
+    available_body = budget - len(header) - len(suffix)
+    if available_body <= 0:
+        return trim_text(text, budget)
+    body = text[prefix_end + 1 :]
+    if MEMORY_MARKER_CLOSE in body:
+        body = body[: body.index(MEMORY_MARKER_CLOSE)]
+    return (header + body[:available_body].rstrip() + suffix)[:budget]
+
+
+def render_prompt_context(time_note: str, capsule_context: str = "", memory_context: str = "") -> str:
+    separator = "\n\n---\n\n"
+    if not capsule_context and not memory_context:
+        return time_note
+    if capsule_context and not memory_context:
+        return trim_text(time_note + separator + capsule_context, MAX_PROMPT_CONTEXT_CHARS)
+    if memory_context and not capsule_context:
+        budget = MAX_PROMPT_CONTEXT_CHARS - len(time_note) - len(separator)
+        return time_note + separator + trim_memory_segment(memory_context, min(MEMORY_CONTEXT_MAX_CHARS, budget))
+
+    fixed = len(time_note) + len(separator) * 2
+    available = MAX_PROMPT_CONTEXT_CHARS - fixed
+    memory_budget = min(MEMORY_CONTEXT_MAX_CHARS, max(0, available - CAPSULE_CONTEXT_FLOOR_CHARS))
+    capsule_budget = max(0, available - memory_budget)
+    return separator.join(
+        [
+            time_note,
+            trim_text(capsule_context, capsule_budget),
+            trim_memory_segment(memory_context, memory_budget),
+        ]
+    )[:MAX_PROMPT_CONTEXT_CHARS]
+
+
+def search_terms(query: str) -> list[str]:
+    terms = re.findall(r"[A-Za-z0-9_./-]+|[\u4e00-\u9fff]{2,}", query.lower())
+    return [term for term in terms if len(term) > 1]
+
+
+def parse_index_rows(index_text: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    headers: list[str] = []
+    for raw_line in index_text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("|") or "---" in line:
+            continue
+        cells = [cell.strip().replace(r"\|", "|") for cell in line.strip("|").split("|")]
+        if cells and cells[0] == "File":
+            headers = [cell.lower().replace(" ", "_") for cell in cells]
+            continue
+        if headers and len(cells) == len(headers):
+            rows.append(dict(zip(headers, cells)))
+    return rows
+
+
+def note_age_label(meta: dict[str, str]) -> str:
+    value = meta.get("last_accessed") or meta.get("created") or meta.get("date") or ""
+    try:
+        then = date.fromisoformat(value[:10])
+    except ValueError:
+        return "age unknown"
+    days = max(0, (date.today() - then).days)
+    return f"age {days}d"
+
+
+def trust_allows(meta: dict[str, str]) -> bool:
+    value = meta.get("trust", "").strip()
+    if not value:
+        return True
+    try:
+        return float(value) >= MIN_MEMORY_TRUST
+    except ValueError:
+        return True
+
+
+def recency_weight(path: Path) -> float:
+    try:
+        age_days = max(0.0, (datetime.now().timestamp() - path.stat().st_mtime) / 86400)
+    except OSError:
+        return 1.0
+    return max(0.5, 1.0 - min(age_days, 365.0) / 730.0)
+
+
+def inactive_memory_status(status: str) -> bool:
+    return status.strip().lower() in {"superseded", "archived", "stale"}
+
+
+def index_search_text(row: dict[str, str], meta: dict[str, str]) -> str:
+    return "\n".join(
+        [
+            row.get("title", ""),
+            row.get("keywords", ""),
+            row.get("problem_type", ""),
+            meta.get("title", ""),
+            meta.get("keywords", ""),
+            meta.get("tags", ""),
+            meta.get("problem_type", ""),
+            meta.get("origin_session", ""),
+            meta.get("applies_to", ""),
+        ]
+    )
+
+
+def read_note_frontmatter(path: Path) -> dict[str, str]:
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            first = handle.readline()
+            if first.strip() != "---":
+                return {}
+            lines = []
+            for line in handle:
+                if line.strip() == "---":
+                    break
+                lines.append(line.rstrip("\n"))
+    except OSError:
+        return {}
+    return parse_frontmatter("\n".join(lines))
+
+
+def read_note_body(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    _frontmatter, body = split_frontmatter(text)
+    return body
+
+
+def bookend_excerpt(body: str, terms: list[str], radius: int = 90) -> str:
+    collapsed = re.sub(r"\s+", " ", body).strip()
+    if not collapsed:
+        return ""
+    lower = collapsed.lower()
+    positions = [lower.find(term.lower()) for term in terms if term and lower.find(term.lower()) >= 0]
+    if not positions:
+        return trim_text(collapsed, radius * 2)
+    pos = min(positions)
+    start = max(0, pos - radius)
+    end = min(len(collapsed), pos + max(len(term) for term in terms if term) + radius)
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(collapsed) else ""
+    return prefix + collapsed[start:end].strip() + suffix
+
+
+def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
+    terms = search_terms(query)
+    if not terms:
+        return []
+    user_dir = config_root() / "memory" / "user"
+    index_path = user_dir / "INDEX.md"
+    try:
+        rows = parse_index_rows(index_path.read_text(encoding="utf-8"))
+    except OSError:
+        return []
+    hits: list[MemoryHit] = []
+    for row in rows:
+        if inactive_memory_status(row.get("status", "active")):
+            continue
+        filename = row.get("file", "").strip()
+        if not filename or "/" in filename or filename == "INDEX.md":
+            continue
+        path = user_dir / filename
+        meta = {**row, **read_note_frontmatter(path)}
+        if inactive_memory_status(meta.get("status", "active")) or not trust_allows(meta):
+            continue
+        lexical = score_note(index_search_text(row, meta), "", terms)
+        if lexical <= 0:
+            continue
+        score = lexical * problem_type_weight(meta.get("problem_type", "")) * recency_weight(path)
+        hits.append(MemoryHit(path=path, score=score, meta=meta, age_label=note_age_label(meta)))
+    hits.sort(key=lambda hit: (-hit.score, hit.path.name))
+    return [
+        MemoryHit(
+            path=hit.path,
+            score=hit.score,
+            meta=hit.meta,
+            age_label=hit.age_label,
+            body_excerpt=bookend_excerpt(read_note_body(hit.path), terms),
+        )
+        for hit in hits[:top]
+    ]
+
+
+def render_blocked_memory_hit(hit: MemoryHit, sanitized_text: str) -> str:
+    return f"- [BLOCKED] ({hit.age_label}; {hit.path.name}): {sanitized_text}"
+
+
+def render_memory_segment(hits: list[MemoryHit]) -> str:
+    if not hits:
+        return ""
+    lines = [
+        MEMORY_MARKER_OPEN,
+        "Dotfiles memory (new memory, not CC native). Verify against current code/conversation first.",
+    ]
+    for hit in hits:
+        meta = hit.meta
+        title = meta.get("title") or hit.path.stem
+        keywords = meta.get("keywords") or meta.get("tags") or ""
+        source = f"memory/user/{hit.path.name}"
+        rendered_text = f"{title}\n{keywords}\n{hit.body_excerpt}"
+        sanitized = sanitize_for_prompt(rendered_text, source=source)
+        if sanitized.blocked:
+            lines.append(render_blocked_memory_hit(hit, sanitized.text))
+            continue
+        line = f"- {title} ({hit.age_label}; {hit.path.name}): {keywords}".rstrip()
+        if hit.body_excerpt:
+            line += f" — {hit.body_excerpt}"
+        lines.append(line)
+    lines.append(MEMORY_MARKER_CLOSE)
+    return "\n".join(lines)
 
 
 def markdown_escape_cell(value: str) -> str:

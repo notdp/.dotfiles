@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    import scan_skills
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import scan_skills
+
 
 ALLOWED_DOMAINS = {"think", "dev", "guard", "assist", "readable", "fe", "web", "ui", "agent", "team", "workflow", "write"}
 ALLOWED_ROLES = {"canonical", "legacy", "brand-exception"}
@@ -548,15 +554,16 @@ def resolve_reference(entry: SkillEntry, context: ValidationContext, relative_pa
     return None
 
 
-def validate_executable_bit(skill_file: Path, resolved: Path) -> None:
+def validate_executable_bit(skill_file: Path, resolved: Path, context: ValidationContext) -> None:
     # 仓库根的可执行脚本（scripts/*.sh、scripts/*.py）必须带执行位
     if resolved.suffix not in {".sh", ".py"}:
         return
     if not resolved.name:
         return
-    # 仅对 repo-root scripts/ 下的脚本校验
-    parts = resolved.parts
-    if "scripts" not in parts:
+    # 仅对 repo-root scripts/ 下的脚本校验；skill-local scripts/ 是普通资产引用。
+    try:
+        resolved.relative_to(context.repo_root / "scripts")
+    except ValueError:
         return
     if not resolved.stat().st_mode & 0o111:
         fail(
@@ -605,7 +612,7 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
         resolved = resolve_reference(entry, context, relative_path)
         if resolved is None:
             fail(f"BROKEN REFERENCE: {skill_file} -> {relative_path}")
-        validate_executable_bit(skill_file, resolved)
+        validate_executable_bit(skill_file, resolved, context)
     warnings = collect_high_risk_capability_warnings(entry, full_text)
     warnings.extend(collect_vague_conditional_warnings(entry, skill_file, content))
     warnings.extend(collect_body_length_warning(entry, skill_file))
@@ -864,6 +871,25 @@ def validate_catalog_coverage(context: ValidationContext, entries: list[SkillEnt
         )
 
 
+def report_security_scan(context: ValidationContext) -> int:
+    findings, scan_warnings = scan_skills.scan_repo_with_warnings(context.repo_root, trust_level="skill")
+    summary = scan_skills.summary_for(findings)
+    for finding in findings[:20]:
+        print(
+            f"SECURITY SCAN WARNING: {finding.source}:{finding.line}:{finding.column} "
+            f"{finding.category} {finding.decision}: {finding.evidence}"
+        )
+    if len(findings) > 20:
+        print(f"SECURITY SCAN WARNING: {len(findings) - 20} additional finding(s) omitted")
+    for warning in scan_warnings:
+        print(f"SECURITY SCAN WARNING: {warning.source}: {warning.message}")
+    print(
+        "security scan summary: "
+        f"total={summary['total_findings']} categories={summary['by_category']} decisions={summary['by_decision']}"
+    )
+    return len(findings) + len(scan_warnings)
+
+
 def main() -> int:
     try:
         repo_root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
@@ -881,6 +907,7 @@ def main() -> int:
         routing_case_count = validate_routing_cases(context, entries, skill_names)
         deprecated_count = validate_deprecated_concepts(context, entries)
         asset_summary = validate_agent_assets(context)
+        report_security_scan(context)
         print(f"validated {len(entries)} skills")
         print(f"validated {routing_case_count} skill routing cases")
         print(f"validated {deprecated_count} deprecated concepts")
