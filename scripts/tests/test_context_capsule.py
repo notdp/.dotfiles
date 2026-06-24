@@ -469,6 +469,18 @@ class MemoryInjectionTests(unittest.TestCase):
                     "keywords": "hook, guard",
                 },
             )
+            self.write_memory_note(
+                user_dir,
+                "refuted.md",
+                {
+                    "title": "hook guard refuted stale",
+                    "date": "2026-06-23",
+                    "problem_type": "decision",
+                    "status": "stale",
+                    "trust": "0.9",
+                    "keywords": "hook, guard",
+                },
+            )
             self.write_index(
                 user_dir,
                 [
@@ -477,6 +489,7 @@ class MemoryInjectionTests(unittest.TestCase):
                     ("archived.md", "hook guard archived", "decision", "archived", "hook, guard", "test"),
                     ("strong.md", "hook guard memory", "decision", "active", "hook, guard, memory", "test"),
                     ("low.md", "hook guard low trust", "decision", "active", "hook, guard", "test"),
+                    ("refuted.md", "hook guard refuted stale", "decision", "stale", "hook, guard", "test"),
                 ],
             )
 

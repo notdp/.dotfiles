@@ -468,7 +468,7 @@ def recency_weight(path: Path) -> float:
 
 
 def inactive_memory_status(status: str) -> bool:
-    return status.strip().lower() in {"superseded", "archived"}
+    return status.strip().lower() in {"superseded", "archived", "stale"}
 
 
 def index_search_text(row: dict[str, str], meta: dict[str, str]) -> str:

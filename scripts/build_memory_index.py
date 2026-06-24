@@ -23,6 +23,7 @@ ALLOWED_FRONTMATTER_FIELDS = {
     "status",
     "valid_from",
     "valid_to",
+    "stale_reason",
     "superseded_by",
     "trust",
     "keywords",
