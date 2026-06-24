@@ -43,6 +43,6 @@
 - Do not format ordinary chat replies, quick status updates, or short final answers as HTML.
 - For large reports or phase/milestone summaries, create a standalone `.html` file that I can open in a browser.
 - Make generated HTML reports pleasant to read: self-contained CSS, clear sections, concise wording, and useful visual hierarchy.
-- In the chat response, briefly summarize in Chinese and provide a clickable report link. CLI renderers differ:
-  - **Claude Code**: use Markdown with `file://`: `[文字](file:///绝对路径)` or `[文字](file://相对路径)`; bare relative links do not open.
-  - **Codex**: do not rely on Markdown `file://` links for reports, and do not emit OSC8 through command stdout. Put a raw OSC8 link directly in the assistant reply body: `ESC]8;;file:///tmp/r.htmlESC\文字ESC]8;;ESC\`, where `ESC` is the real `0x1b` byte. The full target URL must be 70 chars or fewer; if it is longer, first create a short alias such as `ln -sf "$real_path" /tmp/r.html`, then link `file:///tmp/r.html`.
+- In the chat response, briefly summarize in Chinese and provide a clickable report link. Use English action text such as `View Report ↗` or a specific variant like `View Final Plan ↗`. CLI renderers differ:
+  - **Claude Code**: use Markdown with `file://`: `[View Report ↗](file:///绝对路径)` or `[View Report ↗](file://相对路径)`; bare relative links do not open.
+  - **Codex**: do not rely on Markdown `file://` links for reports, and do not emit OSC8 through command stdout. Put a raw OSC8 link directly in the assistant reply body: `ESC]8;;file:///tmp/r.htmlESC\View Report ↗ESC]8;;ESC\`, where `ESC` is the real `0x1b` byte. The full target URL must be 70 chars or fewer; if it is longer, first create a short alias such as `ln -sf "$real_path" /tmp/r.html`, then link `file:///tmp/r.html`.
