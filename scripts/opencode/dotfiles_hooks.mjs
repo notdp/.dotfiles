@@ -7,6 +7,9 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const COMMAND_GUARD = resolve(REPO_ROOT, "scripts", "hooks", "command_guard.py");
 const STOP_CHECK = resolve(REPO_ROOT, "scripts", "hooks", "stop_check.py");
 const CONTEXT_CAPSULE = resolve(REPO_ROOT, "scripts", "hooks", "context_capsule.py");
+const MEMORY_CAPTURE = resolve(REPO_ROOT, "scripts", "hooks", "memory_capture.py");
+// 与 scripts/hooks/memory_flags.py 的 ENABLED_VALUES 保持一致。
+const MEMORY_ENABLED_VALUES = new Set(["1", "true", "yes", "on"]);
 const CAPSULE_MARKER = "<!-- dotfiles-context-capsule -->";
 const MEMORY_MARKER_OPEN = "<dotfiles-memory>";
 const MEMORY_MARKER_CLOSE = "</dotfiles-memory>";
@@ -181,6 +184,27 @@ function runStopCheck(directory) {
   return runPythonHook(STOP_CHECK, {}, directory);
 }
 
+function isMemoryEnabled() {
+  return MEMORY_ENABLED_VALUES.has(String(process.env.DOTFILES_MEMORY_ENABLED || "").trim().toLowerCase());
+}
+
+// session.idle 时把本轮 kilo/opencode 会话喂给 memory_capture(SQLite 读取 → raw 候选)。
+// hook 铁律: flag 门控(默认关=dormant)、fail-open(绝不崩主流程)、非阻塞语义
+// (失败只吞掉, 不抛)。kilo/opencode 共用本 .mjs 分不清平台, 故传 sessionID 让
+// python 侧按 session 在两库里自动定位(capture_sqlite_for_session)。
+function runMemoryCapture(workspace, sessionID) {
+  if (!isMemoryEnabled() || !sessionID) {
+    return;
+  }
+  try {
+    runPythonHook(MEMORY_CAPTURE, {}, workspace, ["--root", workspace, "--sqlite-session", sessionID]);
+  } catch (error) {
+    if (process.env.DOTFILES_MEMORY_CAPTURE_LOG) {
+      appendFileSync(process.env.DOTFILES_MEMORY_CAPTURE_LOG, `capture error: ${error?.stack || error}\n`, "utf8");
+    }
+  }
+}
+
 function appendTextPart(output, text) {
   if (!Array.isArray(output.parts)) {
     output.parts = [];
@@ -256,7 +280,9 @@ export const DotfilesHooksPlugin = async ({ client, directory } = {}) => {
       if (!isIdleEvent(event)) {
         return;
       }
-      await notifyForCompletion(client, workspace, idleSessionID(event));
+      const sessionID = idleSessionID(event);
+      await notifyForCompletion(client, workspace, sessionID);
+      runMemoryCapture(workspace, sessionID);
     },
     // NOTE: 完成播报只绑 `session.idle`/`session.status{idle}`(每轮结束一次)。
     // 不要重新挂 `experimental.text.complete` —— 它按 partID 每段文本输出 fire 一次,

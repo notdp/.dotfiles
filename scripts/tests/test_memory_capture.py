@@ -350,14 +350,19 @@ class MemoryCaptureTests(unittest.TestCase):
             self.assertTrue(json.loads(result.stdout)["suppressOutput"])
 
     def test_opencode_unavailable_capture_is_observable_and_writes_no_candidate(self) -> None:
+        # 行为变更:opencode/kilo 不再硬返回 assistant_text_unavailable,改走 SQLite 捕获
+        # (capture_from_sqlite)。库不存在时仍是【可观测的 unavailable + 不写候选】。
+        # 用临时不存在路径保证确定性,且 immutable 只读不碰用户真实库。
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.init_repo(root)
 
-            result = self.capture.capture_from_platform(root, platform="opencode", session_id="missing-session", env={"DOTFILES_MEMORY_ENABLED": "1"})
+            env = {"DOTFILES_MEMORY_ENABLED": "1", "DOTFILES_MEMORY_OPENCODE_DB": str(root / "nope.db")}
+            result = self.capture.capture_from_platform(root, platform="opencode", session_id="missing-session", env=env)
 
             self.assertEqual(result.status, "unavailable")
-            self.assertIn("assistant_text_unavailable", result.reason)
+            self.assertEqual(result.reason, "sqlite_db_not_found")
+            self.assertNotIn("assistant_text_unavailable", result.reason)
             self.assertFalse(self.raw_dir(root).exists())
 
 

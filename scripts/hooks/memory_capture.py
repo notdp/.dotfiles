@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -361,11 +362,90 @@ def capture_from_hook_input(root: Path, hook_input: dict[str, Any], env: dict[st
     return capture_from_records(root, platform=platform, records=records, origin_session=session_id or path.stem, env=env)
 
 
+def _env_source(env: dict[str, str] | None) -> dict[str, str]:
+    return dict(os.environ) if env is None else env
+
+
+def sqlite_db_path(platform: str, env: dict[str, str] | None = None) -> Path:
+    """安装版 kilo/opencode session 库路径;可经 DOTFILES_MEMORY_<PLATFORM>_DB 覆盖(测试用)。"""
+    override = _env_source(env).get(f"DOTFILES_MEMORY_{platform.upper()}_DB", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".local" / "share" / platform / f"{platform}.db"
+
+
+def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[dict[str, Any]], str]:
+    """immutable 只读(零锁、不碰 live 写)抽指定/最近 session 的 {role,content} 记录。
+
+    安装版 schema = message/part,role 在 message.data JSON、text 在 part.data JSON。
+    role 白名单 / 注入剥离 / redact 由下游 capture_from_records pipeline 统一处理。
+    """
+    con = sqlite3.connect(f"file:{db}?mode=ro&immutable=1", uri=True, timeout=2)
+    try:
+        tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"message", "part"} <= tables:
+            raise RuntimeError("unsupported_sqlite_schema")
+        sid = session_id
+        if not sid:
+            row = con.execute("SELECT session_id FROM message ORDER BY time_created DESC LIMIT 1").fetchone()
+            sid = row[0] if row else ""
+        if not sid:
+            return [], ""
+        rows = con.execute(
+            "SELECT json_extract(m.data,'$.role') AS role, json_extract(p.data,'$.text') AS text "
+            "FROM part p JOIN message m ON p.message_id = m.id "
+            "WHERE m.session_id = ? AND json_extract(p.data,'$.type') = 'text' "
+            "ORDER BY p.time_created",
+            (sid,),
+        ).fetchall()
+        records = [{"role": role, "content": text} for role, text in rows if role and text]
+        return records, sid
+    finally:
+        con.close()
+
+
+def capture_from_sqlite(root: Path, *, platform: str, session_id: str = "", env: dict[str, str] | None = None) -> CaptureResult:
+    """从 kilo/opencode 的 SQLite session 库捕获候选(替代旧的 unavailable 降级)。"""
+    if not memory_enabled(env):
+        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+    db = sqlite_db_path(platform, env)
+    if not db.exists():
+        return CaptureResult(status="unavailable", reason="sqlite_db_not_found")
+    try:
+        records, origin = read_sqlite_session_records(db, session_id)
+    except Exception as exc:  # noqa: BLE001 - 捕获 hook 必须 fail-open,绝不打断会话。
+        return CaptureResult(status="unavailable", reason=f"sqlite_read_failed:{exc.__class__.__name__}")
+    if not records:
+        return CaptureResult(status="unavailable", reason="no_session_records")
+    return capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id or db.stem, env=env)
+
+
+def capture_sqlite_for_session(
+    root: Path, *, session_id: str, env: dict[str, str] | None = None, platforms: tuple[str, ...] = ("opencode", "kilo")
+) -> CaptureResult:
+    """kilo/opencode 共用 .mjs、运行时分不清平台 → 按 session_id 在候选库里定位(session id 唯一)。"""
+    if not memory_enabled(env):
+        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+    if not session_id:
+        return CaptureResult(status="unavailable", reason="no_session_id")
+    for platform in platforms:
+        db = sqlite_db_path(platform, env)
+        if not db.exists():
+            continue
+        try:
+            records, origin = read_sqlite_session_records(db, session_id)
+        except Exception:  # noqa: BLE001 - fail-open:某库读失败不阻断,试下一个。
+            continue
+        if records:
+            return capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id, env=env)
+    return CaptureResult(status="unavailable", reason="session_not_found_in_any_sqlite")
+
+
 def capture_from_platform(root: Path, *, platform: str, session_id: str = "", env: dict[str, str] | None = None) -> CaptureResult:
     if not memory_enabled(env):
         return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
     if platform in {"opencode", "kilo"}:
-        return CaptureResult(status="unavailable", reason="assistant_text_unavailable")
+        return capture_from_sqlite(root, platform=platform, session_id=session_id, env=env)
     return CaptureResult(status="unavailable", reason="platform_capture_unavailable")
 
 
@@ -409,12 +489,18 @@ def main() -> int:
     parser.add_argument("--hook-json", help="Path to hook JSON input, or '-' for stdin")
     parser.add_argument("--platform", choices=("cc", "droid", "codex", "opencode", "kilo"))
     parser.add_argument("--session-id", default="")
+    parser.add_argument("--sqlite-session", default="", help="kilo/opencode 按 session_id 自动定位库捕获(.mjs idle 调用)")
     parser.add_argument("--gc", action="store_true")
     args = parser.parse_args()
     root = args.root.resolve()
     if args.gc:
         removed = gc_raw_memories(root)
         print(json.dumps({"status": "gc", "removed": [str(path) for path in removed]}, ensure_ascii=False))
+        return 0
+    if args.sqlite_session:
+        result = capture_sqlite_for_session(root, session_id=args.sqlite_session)
+        if os.environ.get("DOTFILES_MEMORY_CAPTURE_DEBUG"):
+            print(json.dumps(result_payload(result), ensure_ascii=False))
         return 0
     if args.platform in {"opencode", "kilo"}:
         print(json.dumps(result_payload(capture_from_platform(root, platform=args.platform, session_id=args.session_id)), ensure_ascii=False))
