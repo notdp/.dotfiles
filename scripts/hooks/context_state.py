@@ -12,16 +12,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from .redact import URL_RE, redact
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from redact import URL_RE, redact
+
 
 VALIDATION_RE = re.compile(r"(run-verify\.sh|pytest|npm test|tsc|verify_skills\.py|unittest|pass|failed|ok)", re.I)
 BOUNDARY_DECISION_RE = re.compile(r"Boundary decisions:\s*(.*?)(?:\n\n|\Z)", re.I | re.S)
 BLOCKER_RE = re.compile(r"^\s*(?:\b(?:Blocked|Blocker)\b|阻塞)[:：]\s*(.+)", re.I | re.M)
 MAX_CONTEXT_CHARS = 2000
 STATE_TTL_DAYS = 14
-SECRET_RE = re.compile(
-    r"(?i)(sk-[A-Za-z0-9_-]{8,}|(?:api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+)"
-)
-URL_RE = re.compile(r"https?://[^\s)>'\"]+")
 
 
 def project_root() -> Path:
@@ -85,11 +87,6 @@ def stringify(value: Any) -> str:
             return stringify(value["content"])
         return " ".join(stringify(item) for item in value.values())
     return str(value) if value is not None else ""
-
-
-def redact(text: str) -> str:
-    text = SECRET_RE.sub("[REDACTED_SECRET]", text)
-    return URL_RE.sub("[REDACTED_URL]", text)
 
 
 def transcript_lines(path: str | None, *, max_lines: int = 400) -> list[dict]:

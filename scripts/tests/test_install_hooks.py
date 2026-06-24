@@ -690,21 +690,26 @@ class InstallHooksTests(unittest.TestCase):
                 home / ".codex" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".codex" / "prompts": REPO_ROOT / "commands",
                 home / ".codex" / "skills": REPO_ROOT / "coding-skills",
+                home / ".codex" / "memory" / "user": REPO_ROOT / "memory" / "user",
                 home / ".factory" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".factory" / "commands": REPO_ROOT / "commands",
                 home / ".factory" / "skills": REPO_ROOT / "coding-skills",
+                home / ".factory" / "memory" / "user": REPO_ROOT / "memory" / "user",
                 home / ".config" / "opencode" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".config" / "opencode" / "commands": REPO_ROOT / "commands",
                 home / ".config" / "opencode" / "skills": REPO_ROOT / "coding-skills",
+                home / ".config" / "opencode" / "memory" / "user": REPO_ROOT / "memory" / "user",
                 home / ".config" / "kilo" / "AGENTS.md": REPO_ROOT / "agents" / "AGENTS.md",
                 home / ".config" / "kilo" / "commands": REPO_ROOT / "commands",
                 home / ".config" / "kilo" / "skills": REPO_ROOT / "coding-skills",
+                home / ".config" / "kilo" / "memory" / "user": REPO_ROOT / "memory" / "user",
             }
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for link, target in expected_links.items():
                 self.assertTrue(link.is_symlink(), f"{link} is not a symlink")
                 self.assertEqual(link.resolve(), target.resolve())
+            self.assertFalse((home / ".claude" / "memory" / "user").exists())
 
     def test_agent_assets_apply_requires_yes_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
