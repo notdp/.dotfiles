@@ -193,3 +193,9 @@
 [submodule "refs/lijigang/ljg-skills"]
 	path = refs/lijigang/ljg-skills
 	url = https://github.com/lijigang/ljg-skills
+[submodule "refs/leonxlnx/taste-skill"]
+	path = refs/leonxlnx/taste-skill
+	url = https://github.com/leonxlnx/taste-skill
+[submodule "refs/jakubkrehel/make-interfaces-feel-better"]
+	path = refs/jakubkrehel/make-interfaces-feel-better
+	url = https://github.com/jakubkrehel/make-interfaces-feel-better
