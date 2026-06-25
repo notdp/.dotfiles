@@ -10,8 +10,8 @@ description: 当需要确定性扫描 UI artifact、HTML/CSS/组件代码中的 
 优先运行仓库 scanner：
 
 ```bash
-python3 scripts/scan_ui_artifact.py <scope>
-python3 scripts/scan_ui_artifact.py --format json <scope>
+python3 ${HOME}/.dotfiles/scripts/scan_ui_artifact.py <scope>
+python3 ${HOME}/.dotfiles/scripts/scan_ui_artifact.py --format json <scope>
 ```
 
 没有脚本或目标不在仓库内时，再降级使用下面的 grep 候选清单。
@@ -63,7 +63,7 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 ```
 
 > [!NOTE]
-> 上面两条（标题下划线、正文居中）是手动 rg 项，命中需人工判断；**不**进 `scripts/scan_ui_artifact.py` 的 gating 规则（居中/下划线正则误报率高）。来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A9。
+> 上面两条（标题下划线、正文居中）是手动 rg 项，命中需人工判断；**不**进 `${HOME}/.dotfiles/scripts/scan_ui_artifact.py` 的 gating 规则（居中/下划线正则误报率高）。来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A9。
 
 ## 输出契约
 
@@ -114,7 +114,7 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 ## Verification
 
 - Scanner 变更后运行 `python3 -m unittest scripts.tests.test_scan_ui_artifact -v`。
-- Skill 文档变更后运行 `python3 scripts/verify_skills.py`。
+- Skill 文档变更后运行 `python3 ${HOME}/.dotfiles/scripts/verify_skills.py`。
 - 交付前至少保留一个 JSON 或 Markdown scanner 输出作为 deterministic evidence。
 
 ## 关联技能

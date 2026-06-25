@@ -41,7 +41,7 @@ argument-hint: <source.md> <output.html> [profile]
    2. `<skill_dir>/render_html_artifact.py`，即随本 skill 一起安装的 wrapper。
    3. `<skill_dir>/../../scripts/render_html_artifact.py`，即在 dotfiles 源仓库内开发本 skill 时的 renderer。
 
-   只有这些绝对路径都检查过仍不存在时，才能报告 renderer 缺失；不要因为目标项目没有 `scripts/render_html_artifact.py` 就向用户询问是否临时生成 HTML。
+   只有这些绝对路径都检查过仍不存在时，才能报告 renderer 缺失；不要因为目标项目没有 `${HOME}/.dotfiles/scripts/render_html_artifact.py` 就向用户询问是否临时生成 HTML。
 
 4. 运行已解析的 renderer：
 
@@ -96,7 +96,7 @@ Known gaps:
 ## References
 
 - `references/worker-contract.md` — 隔离 worker 的跨 agent 契约。
-- `scripts/render_html_artifact.py` — Markdown SSOT 到静态 HTML 的确定性 renderer。
+- `${HOME}/.dotfiles/scripts/render_html_artifact.py` — Markdown SSOT 到静态 HTML 的确定性 renderer。
 
 ## Gotchas
 

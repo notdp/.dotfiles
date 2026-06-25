@@ -165,7 +165,7 @@ Return（固定格式卡片集）:
 - 目标读者是跨职能团队、领导层或异步分享场景。
 - 需要交互式筛选、折叠、排序或复制摘要。
 
-HTML 只能作为 presentation companion，不得替代 Markdown 综述。HTML 文件必须引用对应 Markdown source；若两者冲突，以 Markdown source 为准，先更新 Markdown 再刷新 HTML。HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
+HTML 只能作为 presentation companion，不得替代 Markdown 综述。HTML 文件必须引用对应 Markdown source；若两者冲突，以 Markdown source 为准，先更新 Markdown 再刷新 HTML。HTML 生成必须委托 `/readable-html-artifact` 或其 `${HOME}/.dotfiles/scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 
 HTML companion 必须结构化为 TL;DR、流派 / 观点地图、时间线、证据矩阵、分歧点、适用场景、开放问题。复杂综述优先图表化：流派关系用地图，历史演进用 timeline，多源证据用矩阵，玩家 / 工具生态用象限或表格，风险与不确定性用 heatmap；图表数量以降低理解成本为准，不为凑数量堆图。
 

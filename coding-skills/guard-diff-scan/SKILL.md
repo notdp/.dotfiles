@@ -13,7 +13,7 @@ argument-hint: <留空=当前工作树|--staged|路径>
 为什么这样循环：调试残留通常藏在 diff 的新增行里，单靠人工浏览容易漏掉。先用脚本扫模式，再人工复核命中，可以把机械检测和语境判断分开，避免误删有意保留的示例或测试 fixture。
 
 ```
-1. 优先跑 `<dotfiles_root>/scripts/scan_diff_residue.py`（工作树 + 暂存区）
+1. 优先跑 `${HOME}/.dotfiles/scripts/scan_diff_residue.py`（工作树 + 暂存区）
 2. 按固定清单人工复核命中
 3. 输出每条命中 + 建议处理
 4. 全部确认后才 commit
@@ -36,10 +36,10 @@ argument-hint: <留空=当前工作树|--staged|路径>
 ## 工具化扫描
 
 ```bash
-"<dotfiles_root>/scripts/scan_diff_residue.py"
+"${HOME}/.dotfiles/scripts/scan_diff_residue.py"
 ```
 
-不要假设目标项目有 `scripts/scan_diff_residue.py`；该 helper 来自 dotfiles，运行 cwd 才是目标仓库。
+不要假设目标项目有 `${HOME}/.dotfiles/scripts/scan_diff_residue.py`；该 helper 来自 dotfiles，运行 cwd 才是目标仓库。
 
 脚本扫描新增 diff 行和未追踪文件，并默认排除 `refs/**`、Markdown、`scripts/tests/**` 和扫描器自身，避免参考仓库快照与 fixture 产生噪音。脚本结果是第一层过滤，不替代人工判断：文档示例、测试 fixture、故意保留的 TODO 仍需逐条裁决。
 

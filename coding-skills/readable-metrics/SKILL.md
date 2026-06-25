@@ -37,7 +37,7 @@ argument-hint: <指标主题|数据来源|时间范围|目标问题>
 HTML companion 硬约束：
 
 - 引用对应 Markdown source 或对话结论。
-- HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
+- HTML 生成必须委托 `/readable-html-artifact` 或其 `${HOME}/.dotfiles/scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 - 结构化为 TL;DR、核心指标卡、趋势区、对比区、异常 / 风险区、行动区。
 - 优先把可视化信息做成图表：趋势用折线 / sparkline，横向比较用柱状图，构成占比用堆叠 / 分组图，阈值风险用热力图或状态矩阵，明细用可排序表格。
 - 每个图表只回答一个问题，并紧跟一句“这说明什么”。

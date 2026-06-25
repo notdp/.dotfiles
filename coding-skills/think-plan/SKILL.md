@@ -160,7 +160,7 @@ Markdown spec 是审批与实现的 SSOT；在 Droid spec mode 中，`ExitSpecMo
 - 读者包含跨职能团队、评审者或领导层，需要浏览器可读版本。
 - 需要交互式比较方案、调参、复制 prompt / JSON / Markdown。
 
-HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
+HTML companion 只优化审阅和分享，不替代 Markdown spec。HTML 必须引用对应 Markdown source；若实现、验证或 review 发现偏离，先更新 Markdown source，再刷新 HTML。HTML 生成必须委托 `/readable-html-artifact` 或其 `${HOME}/.dotfiles/scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 
 HTML companion 必须结构化为 TL;DR、范围边界、系统 / 文件地图、阶段计划、风险与回滚、验证门、待决问题。复杂 spec 优先图表化：组件关系用架构图，数据流用 flow，状态变化用 state diagram，阶段推进用 timeline，取舍用对比矩阵，风险用 heatmap；图表数量以降低理解成本为准，不为凑数量堆图。
 
@@ -246,7 +246,7 @@ non_goals:
   - "显式排除项 2"
 validation_commands:
   - "python3 -m pytest tests/"
-  - "python3 scripts/verify_skills.py"
+  - "python3 ${HOME}/.dotfiles/scripts/verify_skills.py"
 locked_decisions:
   - "已锁定决策 1"
 derisk_spikes:

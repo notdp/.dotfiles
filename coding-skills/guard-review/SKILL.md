@@ -18,12 +18,12 @@ argument-hint: <分支名|commit-range|--deep|--two-pass|留空=未提交变更>
 
 ### 工具化前置
 
-进入正式审查前，先跑 dotfiles helper 拿一份结构化摘要；不要假设目标项目有 `scripts/collect_diff.py`：
+进入正式审查前，先跑 dotfiles helper 拿一份结构化摘要；不要假设目标项目有 `${HOME}/.dotfiles/scripts/collect_diff.py`：
 
 ```
-python3 "<dotfiles_root>/scripts/collect_diff.py"              # 未提交变更
-python3 "<dotfiles_root>/scripts/collect_diff.py" <branch>     # branch..HEAD
-python3 "<dotfiles_root>/scripts/collect_diff.py" a1b2..HEAD   # commit 范围
+python3 "${HOME}/.dotfiles/scripts/collect_diff.py"              # 未提交变更
+python3 "${HOME}/.dotfiles/scripts/collect_diff.py" <branch>     # branch..HEAD
+python3 "${HOME}/.dotfiles/scripts/collect_diff.py" a1b2..HEAD   # commit 范围
 ```
 
 输出：文件/增删行数表 + Flags（敏感信息疑似、TODO/FIXME/console.log 等）。作为 review 的 overview，不替代人工判断。
@@ -100,7 +100,7 @@ Aspect 选择规则：
 ### 输出格式
 
 ```markdown
-### Diff Overview（来自 scripts/collect_diff.py）
+### Diff Overview（来自 ${HOME}/.dotfiles/scripts/collect_diff.py）
 - 范围: `...`
 - 文件: N
 - +Added / -Removed

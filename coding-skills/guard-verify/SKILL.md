@@ -24,7 +24,7 @@ argument-hint: <交付物|验证范围>
 ## 验证清单
 
 1. **提取可验证交付物** — 先把用户要求拆成 1-N 条“现在应该能够做到什么”，作为后续验收清单
-2. **自动跑 test/build/lint** — 优先用 `scripts/run-verify.sh` 一键探测并运行；不适配时手动跑项目对应命令
+2. **自动跑 test/build/lint** — 优先用 `${HOME}/.dotfiles/scripts/run-verify.sh` 一键探测并运行；不适配时手动跑项目对应命令
 3. **功能验证** — 对每条交付物执行验证命令或操作，确认预期行为
 4. **回归检查** — 确认没有破坏已有功能
 5. **结构性验证** — 若本次改动涉及架构/重构/大 diff，补充说明影响面是否合理、验证护栏是否足够；必要时引用 `/think-quality` 结论
@@ -104,19 +104,19 @@ dry-run: smoke only -- data accuracy not verified
 ## 工具化步骤
 
 ```
-bash "<dotfiles_root>/scripts/run-verify.sh" "<target_repo_root>"
+bash "${HOME}/.dotfiles/scripts/run-verify.sh" "<target_repo_root>"
 ```
 
 - 自动探测 package.json / pyproject.toml / Cargo.toml / Makefile / go.mod 等并运行对应 test / lint / typecheck / build
 - 输出固定 Markdown 表，agent 直接贴进报告作为 Evidence
 - exit code 0=全绿，1=有失败，2=无任何可检测命令（需要手动补）
-- `scripts/run-verify.sh` 来自 dotfiles；目标项目路径作为参数传入
+- `${HOME}/.dotfiles/scripts/run-verify.sh` 来自 dotfiles；目标项目路径作为参数传入
 
 ### Verification: None 强制声明
 
 当出现以下任一情况时，报告状态使用 `verification: none -- structural gap`：
 
-- `scripts/run-verify.sh` 退出码为 `2`（无任何可探测的 test / lint / build 命令）
+- `${HOME}/.dotfiles/scripts/run-verify.sh` 退出码为 `2`（无任何可探测的 test / lint / build 命令）
 - 没有探测到自动化测试入口，且本次也未补 characterization
 - 仅靠"看上去对"或"本地手动跑过一次"作为证据
 
@@ -159,7 +159,7 @@ verification: none -- structural gap
 | 1 | <用户要求 1> | path:line | 行为/逻辑片段 | 调用点 path:line | verified / partial |
 | 2 | <用户要求 2> | ... | ... | ... | ... |
 
-### 自动验证（scripts/run-verify.sh）
+### 自动验证（${HOME}/.dotfiles/scripts/run-verify.sh）
 | Check | Command | Result | Evidence |
 |-------|---------|--------|----------|
 | tests | `...` | pass (Ns) | N passed |

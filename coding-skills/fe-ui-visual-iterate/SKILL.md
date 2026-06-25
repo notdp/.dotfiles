@@ -2,7 +2,7 @@
 name: fe-ui-visual-iterate
 description: 当需要对照参考图反复迭代 UI 视觉效果、或持续对比当前界面与目标样式差异时使用；产出截图证据与固定差异表，驱动到视觉收敛。
 argument-hint: <目标页面 URL|组件名|参考图路径>
-allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*), Bash(scripts/ui-visual-capture.sh:*)
+allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*), Bash(${HOME}/.dotfiles/scripts/ui-visual-capture.sh:*)
 ---
 
 # UI Visual Iterate
@@ -72,13 +72,13 @@ agent-browser install
 优先用 dotfiles helper，并把命令和 stdout Markdown 表原样贴进报告：
 
 ```
-bash "<dotfiles_root>/scripts/ui-visual-capture.sh" <url> [out_dir] \
+bash "${HOME}/.dotfiles/scripts/ui-visual-capture.sh" <url> [out_dir] \
   [--viewport 1280x900] [--selector ".dropdown-panel"] [--wait networkidle] \
   [--profile ~/.xxx] [--state ./auth.json]
 ```
 
 脚本会输出固定 Markdown 表（页面截图 / 元素截图 / DOM snapshot / meta）。把这段表原样贴进本轮报告。
-`scripts/ui-visual-capture.sh` 来自 dotfiles；目标项目只提供 URL、状态文件或输出目录。
+`${HOME}/.dotfiles/scripts/ui-visual-capture.sh` 来自 dotfiles；目标项目只提供 URL、状态文件或输出目录。
 
 如果目标是 `localhost` 且脚本不在当前仓库，直接用 `agent-browser` 明确打开和截图：
 

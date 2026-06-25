@@ -16,15 +16,15 @@ argument-hint: <仓库路径|留空=当前目录>
 
 ## 默认流程
 
-1. 先解析本 skill 的安装目录，运行 `<skill_dir>/scripts/collect_data.sh <目标仓库路径>`
+1. 运行 `${HOME}/.dotfiles/coding-skills/agent-health/scripts/collect_data.sh <目标仓库路径>`
 2. 先读 summary，再看 issues
 3. 需要更细分析时，再让 inspector agents 深挖
 
-不要直接运行目标仓库里的 `scripts/collect_data.sh`；该脚本是本 skill 自带资产，目标仓库只是被审计对象。
+始终用上面的绝对路径调用；该脚本是本 skill 自带资产、不在目标仓库内，`<目标仓库路径>` 只是它的入参——不要把它当成目标仓库 cwd 下的相对脚本来跑。
 
 ## 资产
 
-- `scripts/collect_data.sh`
+- `${HOME}/.dotfiles/coding-skills/agent-health/scripts/collect_data.sh`
 - `agents/inspector-context.md`
 - `agents/inspector-control.md`
 

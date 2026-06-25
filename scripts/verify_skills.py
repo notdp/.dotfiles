@@ -121,6 +121,18 @@ NAME_CASE_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 MACHINE_PATH_PATTERN = re.compile(r"/(?:Users|home)/[A-Za-z0-9][\w.-]*/")
 BODY_LENGTH_WARN_THRESHOLD = 400
 
+# dotfiles helper 引用约定（防 2026-06-25 跨仓库路径解析事故复发）：
+# agent 在别的仓库执行 skill 时，裸 scripts/xxx 会按目标仓库 cwd 解析 → 找不到。
+# 唯一稳健形式是 ${HOME}/.dotfiles/... 绝对路径（agent 的 bash 能展开，不写死用户名）。
+# (a) 不可解析的 <...dotfiles...> 占位符（如旧的 <dotfiles_root>）；不误伤 <skill_dir>/<target_repo_root>。
+DOTFILES_PLACEHOLDER_PATTERN = re.compile(r"<[^>\n]*dotfiles[^>\n]*>")
+# (b) 双引号紧跟 ~/.dotfiles：双引号内 ~ 不展开，命令会失败。
+DOTFILES_QUOTED_TILDE_PATTERN = re.compile(r'"~/\.dotfiles')
+# (c) 裸 scripts/xxx.{sh,py}（未带 ${HOME}/.dotfiles/ 或其它路径前缀）。
+BARE_SCRIPT_REF_PATTERN = re.compile(r"(?<![/.\w$}])scripts/[\w./-]+\.(?:sh|py)\b")
+# (d) ${HOME}/.dotfiles/... 引用：提取尾部路径以做存在性 + 执行位校验。
+DOTFILES_HOME_REF_PATTERN = re.compile(r"\$\{HOME\}/\.dotfiles/([\w./-]+)")
+
 
 class ValidationError(RuntimeError):
     pass
@@ -592,6 +604,50 @@ def collect_high_risk_capability_warnings(entry: SkillEntry, text: str) -> list[
     return warnings
 
 
+def validate_dotfiles_helper_refs(
+    entry: SkillEntry, skill_file: Path, context: ValidationContext, content: str
+) -> list[str]:
+    """强制 dotfiles helper 引用用 ${HOME}/.dotfiles/... 绝对形式。
+
+    防 2026-06-25 事故：占位符 / 裸 scripts 路径在目标仓库 cwd 下解析错位 → 静默失败。
+    (a)(c)(d) 为硬失败，(b) 为软警告。readable-html-artifact 的 <skill_dir>/<target_repo_root>
+    多位置 fallback 链是刻意设计，不被 (a) 误伤（占位符里不含 'dotfiles'）。
+    """
+    warnings: list[str] = []
+    # (a) 不可解析占位符
+    placeholder = DOTFILES_PLACEHOLDER_PATTERN.search(content)
+    if placeholder:
+        fail(
+            f"DOTFILES PLACEHOLDER: {skill_file} 含不可解析占位符 {placeholder.group(0)!r}；"
+            "改用 ${HOME}/.dotfiles/... 绝对形式（agent 的 bash 才能展开）"
+        )
+    # (b) 双引号内 ~/.dotfiles
+    if DOTFILES_QUOTED_TILDE_PATTERN.search(content):
+        warnings.append(
+            f"DOTFILES TILDE WARNING: {skill_file} 双引号内出现 ~/.dotfiles（双引号内 ~ 不展开）；"
+            "改用 ${HOME}/.dotfiles/..."
+        )
+    # (c) 裸 scripts/xxx 指向 dotfiles 脚本（skill-local 或 repo-root）
+    for match in BARE_SCRIPT_REF_PATTERN.finditer(content):
+        rel = match.group(0)
+        if (entry.path / rel).exists() or (context.repo_root / rel).exists():
+            fail(
+                f"BARE SCRIPT REF: {skill_file} -> {rel} 必须写成 ${{HOME}}/.dotfiles/... 绝对形式；"
+                "裸路径在目标仓库 cwd 下解析失败（2026-06-25 事故根因）"
+            )
+    # (d) ${HOME}/.dotfiles/... 引用：存在性对所有引用都查（防 rename rot）；
+    # 执行位只对 repo-root scripts/ 查（对齐 validate_executable_bit；skill-local helper
+    # 常以 python3/bash 调用，不强制 +x）。
+    for tail in sorted(set(DOTFILES_HOME_REF_PATTERN.findall(content))):
+        target = context.repo_root / tail
+        if not target.exists():
+            fail(f"BROKEN DOTFILES REFERENCE: {skill_file} -> ${{HOME}}/.dotfiles/{tail} 不存在")
+        is_repo_root_script = tail.startswith("scripts/")
+        if is_repo_root_script and target.suffix in {".sh", ".py"} and not (target.stat().st_mode & 0o111):
+            fail(f"SCRIPT NOT EXECUTABLE: {skill_file} -> {target}（chmod +x required）")
+    return warnings
+
+
 def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_names: set[str]) -> list[str]:
     skill_file = entry.path / "SKILL.md"
     frontmatter = parse_frontmatter(skill_file)
@@ -607,6 +663,7 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
     full_text = frontmatter["description"] + "\n" + content
     validate_boundary_references(entry, full_text, skill_names)
     validate_no_machine_paths(skill_file, full_text)
+    helper_ref_warnings = validate_dotfiles_helper_refs(entry, skill_file, context, content)
 
     for relative_path in sorted(collect_references(skill_file)):
         resolved = resolve_reference(entry, context, relative_path)
@@ -616,6 +673,7 @@ def validate_skill_entry(context: ValidationContext, entry: SkillEntry, skill_na
     warnings = collect_high_risk_capability_warnings(entry, full_text)
     warnings.extend(collect_vague_conditional_warnings(entry, skill_file, content))
     warnings.extend(collect_body_length_warning(entry, skill_file))
+    warnings.extend(helper_ref_warnings)
     return warnings
 
 
