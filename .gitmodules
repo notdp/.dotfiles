@@ -199,3 +199,6 @@
 [submodule "refs/jakubkrehel/make-interfaces-feel-better"]
 	path = refs/jakubkrehel/make-interfaces-feel-better
 	url = https://github.com/jakubkrehel/make-interfaces-feel-better
+[submodule "refs/gastownhall/beads"]
+	path = refs/gastownhall/beads
+	url = https://github.com/gastownhall/beads
