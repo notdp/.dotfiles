@@ -29,6 +29,8 @@ argument-hint: <直接用自然语言说你想做什么>
 ### ① 写 spec(你直接写)
 **你自己**写 `spec.md` + `qa.md`，不开 planner pane。spec 包含：目标、改动范围、关键接口、验证策略。qa.md 包含自动化验证项（最终变成 verify.sh）和人工验证项。**写完给用户过目，批准后才继续。**
 
+> 若 spec 含**单向门决策**（标识符/主键、存储引擎或核心 schema、API envelope、鉴权模型、数据格式/协议），别顺手取通识默认：按 think-plan §6 One-way-door 摊 ≥2 替代 + 各自反超条件，真正不可逆的跑 `design-divergence-challenger` subagent 再锁。
+
 ### ② scaffold workspace
 前提：在 tmux 里、目标项目 git 仓库内。
 

@@ -58,6 +58,10 @@ RED→GREEN: test3→impl3
 - AGENTS.md 或项目配置中禁用了 TDD
 - 纯配置/文档/样式变更
 
+## 单向门默认值（新增 schema 时）
+
+新增表/实体时顺手定主键、存储引擎、API envelope、鉴权模型——别直接取通识默认（如 UUID 主键），它能过测试恰恰因为测试和你共享同一默认。锁定前按 think-plan §6 One-way-door 摊 ≥2 替代 + 各自反超条件，真不可逆的跑 `design-divergence-challenger` subagent。可逆决策跳过。
+
 ## Spec Contract 消费
 
 如果上游 spec 中存在 `# spec-contract` YAML 块（通常来自 /think-plan），在进入 RED→GREEN 循环前：
