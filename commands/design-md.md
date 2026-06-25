@@ -1,6 +1,6 @@
 ---
 description: 建立、使用、诊断和验证项目 DESIGN.md；降低 UI 美学工作流的认知负担。
-argument-hint: <init|use|critique|verify|help> [页面/路径/目标]
+argument-hint: <init|use|critique|lint|verify|help> [页面/路径/目标]
 ---
 
 # DESIGN.md Workflow
@@ -22,6 +22,7 @@ init -> use -> capture -> critique -> iterate -> verify
 | 已有 UI 但没美感 | 触发 `/fe-ui-critique`，对照截图、代码和 DESIGN.md 找问题 |
 | 新做页面 | 先 `/think-plan` 锁定 DESIGN.md 来源，再 `/fe-ui-design` 实现 |
 | 对照参考图 | 触发 `/fe-ui-visual-iterate`，截图后小步收敛 |
+| 机器校验 DESIGN.md | 跑 `${HOME}/.dotfiles/scripts/lint_design_md.py <DESIGN.md>`：断引用/section 顺序/孤儿 token/WCAG 对比的 token-graph 语义校验（error 才 gate，warning 是候选需看上下文） |
 | 准备交付 | 触发 `/guard-verify`，补截图、overflow、状态覆盖、DESIGN.md adherence 证据 |
 
 ## 状态图

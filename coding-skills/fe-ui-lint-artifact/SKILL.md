@@ -16,6 +16,12 @@ python3 ${HOME}/.dotfiles/scripts/scan_ui_artifact.py --format json <scope>
 
 没有脚本或目标不在仓库内时，再降级使用下面的 grep 候选清单。
 
+> 本 scanner 扫的是 **HTML/CSS/组件文本层** 的 slop。若目标是 **DESIGN.md 视觉契约本身**（token 图语义：断引用 / section 顺序 / 孤儿 token / WCAG 对比），用正交的另一层校验器：
+> ```bash
+> python3 ${HOME}/.dotfiles/scripts/lint_design_md.py <DESIGN.md> [--json]
+> ```
+> 两者互补不重叠：本脚本看渲染产物，`lint_design_md.py` 看契约的 token-graph。
+
 ## 范围
 
 适用于：
@@ -122,3 +128,4 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 - 设计诊断 → `/fe-ui-critique`
 - 生成/修改 UI → `/fe-ui-design`
 - 前端代码审计 → `/fe-audit`
+- DESIGN.md token 图语义校验 → `${HOME}/.dotfiles/scripts/lint_design_md.py`（与本 scanner 正交）

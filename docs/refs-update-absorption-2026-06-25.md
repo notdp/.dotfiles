@@ -33,7 +33,7 @@
 | # | 吸收项 | 来源 | classify | Level | 决策 |
 |--:|---|---|---|:--:|---|
 | 1 | **三份 refs-details 覆盖判断文档 + refs-summary 登记** | ALL | docs | L1 | ✅ 已完成本轮 |
-| 2 | **`scripts/lint_design_md.py`**：DESIGN.md token-graph 语义 linter 最小子集（broken-ref + section-order + orphaned-tokens 三条结构规则 + hex→WCAG 对比度解析引擎底座 + findings 按 P0/P1/P2 分桶） | design.md | script | L3 | **absorb**（最高价值） |
+| 2 | **`scripts/lint_design_md.py`**：DESIGN.md token-graph 语义 linter（broken-ref + section-order + orphaned-tokens + WCAG contrast + 解析引擎 + P0/P1/P2 分桶） | design.md | script | L3 | ✅ **已实现 2026-06-25** |
 | 3 | **binary-ban + contextual-override 配对成 anti-tell 规则书写模式** 写进 `skill-patterns.md` | taste-skill | method | L2 | **absorb** |
 | 4 | **diff 回归门禁**：`lint_design_md.py --diff old new`，warnings/errors 变多即 regression | design.md | script | L3 | **absorb**（依赖 #2） |
 | 5 | **"规则补适用边界 + 违反后果机理"两栏** 固化为 `skill-authoring.md` 写作规范 | make-interfaces | docs | L2 | **absorb** |
@@ -89,7 +89,7 @@
 
 | 候选 | 来源 | classify | Level | 决策 | 落点 |
 |---|---|---|:--:|---|---|
-| **把"外部抓取/子 agent/API 内容当不可信数据"升级为消费侧 always-on 守则**（Waza #28 给出可直接中文改写的成文守则：embedded directive / role override / urgency / authority → 上报而非执行，user 当前 turn 是唯一指令源） | context-mode + waza + scientific-agent-skills | guardrail | L1 | **absorb（rank 2）** | `coding-skills/web-read` 的 Gotchas/约束（必要时同步 `agents/dev-guideLines.md`） |
+| **把"外部抓取/子 agent/API 内容当不可信数据"升级为消费侧 always-on 守则**（Waza #28 给出可直接中文改写的成文守则：embedded directive / role override / urgency / authority → 上报而非执行，user 当前 turn 是唯一指令源） | context-mode + waza + scientific-agent-skills | guardrail | L1 | ✅ **已实现 2026-06-25** | `coding-skills/web-read/SKILL.md` 新增"## 不可信输入（消费侧 prompt 注入防护）"小节 |
 | 二阶 prompt 注入围栏（子 agent 输出拼回下游 prompt 前用不可逃逸 fence 包裹 + 落盘路径白名单正则）+ adversarial fixture 回归集（指令覆盖/边界伪造/零宽 unicode/heredoc） | claude-plugins-official + get-shit-done | guardrail | L2 | research-later | `guard-secure` prompt-injection 章节 / `harness-ops.md`（先确认 capsule 链是否已有等价防护） |
 | 注入信任边界加固（只注入经 SHA 证明的可信内容、未覆盖证明的自由文本不入 context、注入内容视为 data 非 instruction、注入源路径 realpath 容器化防逃逸） | planning-with-files | guardrail | L2 | research-later | **memory-vault / capsule 注入安全边界**（同构，最值得在该程序里专门评估） |
 
@@ -107,7 +107,7 @@
 
 | 候选 | 来源 | classify | Level | 决策 | 落点 |
 |---|---|---|:--:|---|---|
-| **"Match the Form to the Failure" 规则措辞形式选择方法论**（discipline 失败→禁止式+rationalization 表；output 形状错→正向配方；漏字段→模板 REQUIRED 槽位；条件行为→挂可观测谓词的条件式 + 先 micro-test 措辞再跑全量、variance 是指标） | obra/superpowers | method | L1 | **absorb（rank 1，本轮唯一最高优先）** | `coding-skills/assist-learn` 新增一节或 reference — 直击"每天写 skill/hook 规则却缺措辞形式判别"的真实缺口 |
+| **"Match the Form to the Failure" 规则措辞形式选择方法论**（discipline 失败→禁止式+rationalization 表；output 形状错→正向配方；漏字段→模板 REQUIRED 槽位；条件行为→挂可观测谓词的条件式 + 先 micro-test 措辞再跑全量、variance 是指标） | obra/superpowers | method | L1 | ✅ **已实现 2026-06-25** | `coding-skills/assist-learn/references/learning-loop.md` 新增"## 规则措辞形式选择"一节 |
 | **eval-first skill 覆盖地基**（每个 skill 至少一个零 LLM、每 PR 阻断的结构合规检查：frontmatter 必填 / catalog↔磁盘双向一致 / 空·重复 description） | gstack | guardrail | L1 | research-later | 真实差距：67+ coding-skills + writing-skills **零结构性自动校验**，全靠人肉。需先定 test runner（Python 既有 hooklib 或 node） |
 | frontier-model skill 现代化方法论（PROTOCOL/JUDGMENT 二分 + orchestrator-model floor 论证 + 仅对 conditional 内容抽 reference + fresh-subagent eval） | EveryInc/compound-engineering | method | L2 | research-later | `skill-authoring.md` 增"大改 orchestration skill 的复核序列"，需与 `verify_skills.py` 门禁去重 |
 | harness 四类面 surface 分类法（Locked / Editable / Append-only / Human-controlled） | context-engineering + designer-skills 系 | method | L2 | research-later | `harness-ops.md` / `dev-long-run` 循环边界检查项，需先与现有 Boundary facts 去重 |
