@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -533,6 +534,103 @@ class MemoryInjectionTests(unittest.TestCase):
         self.assertIn("needle exact hit", hits[0].body_excerpt)
         self.assertIn("alpha context before", hits[0].body_excerpt)
         self.assertIn("omega context after", hits[0].body_excerpt)
+
+    def test_memory_recall_api_timeout_falls_back_fast_and_reads_cc_native(self) -> None:
+        original_urlopen = cc.urllib.request.urlopen
+        cc.urllib.request.urlopen = lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("closed"))
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp) / "dotfiles"
+                user_dir = root / "memory" / "user"
+                self.write_memory_note(
+                    user_dir,
+                    "cross.md",
+                    {"title": "cross needle", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "needle"},
+                    "cross fallback needle body",
+                )
+                self.write_index(user_dir, [("cross.md", "cross needle", "knowledge", "active", "needle", "test")])
+                cc_root = Path(tmp) / "claude-projects"
+                cc_note = cc_root / "proj-a" / "memory" / "cc.md"
+                cc_note.parent.mkdir(parents=True, exist_ok=True)
+                cc_note.write_text("---\ntitle: cc needle\nstatus: active\n---\n\ncc native needle body\n", encoding="utf-8")
+                os.environ["DOTFILES_CC_MEMORY_ROOT"] = str(cc_root)
+
+                start = time.monotonic()
+                hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=3))
+                elapsed = time.monotonic() - start
+        finally:
+            cc.urllib.request.urlopen = original_urlopen
+
+        self.assertLess(elapsed, 0.35)
+        names = [hit.path.name for hit in hits]
+        self.assertIn("cross.md", names)
+        self.assertIn("cc.md", names)
+
+    def test_memory_recall_api_disabled_or_empty_hits_falls_back(self) -> None:
+        original_urlopen = cc.urllib.request.urlopen
+        responses = [
+            {"disabled": True, "hits": [], "count": 0},
+            {"hits": [], "count": 0},
+        ]
+        try:
+            for payload in responses:
+                with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                    cc.urllib.request.urlopen = lambda *_args, **_kwargs: type(
+                        "Response",
+                        (),
+                        {
+                            "__enter__": lambda self: self,
+                            "__exit__": lambda *a: None,
+                            "read": lambda self, payload=payload: json.dumps(payload).encode("utf-8"),
+                        },
+                    )()
+                    root = Path(tmp)
+                    user_dir = root / "memory" / "user"
+                    self.write_memory_note(
+                        user_dir,
+                        "fallback.md",
+                        {"title": "fallback needle", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "needle"},
+                        "fallback needle body",
+                    )
+                    self.write_index(user_dir, [("fallback.md", "fallback needle", "knowledge", "active", "needle", "test")])
+
+                    hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=1))
+
+                    self.assertEqual([hit.path.name for hit in hits], ["fallback.md"])
+        finally:
+            cc.urllib.request.urlopen = original_urlopen
+
+    def test_memory_recall_timeout_latency_compares_to_baseline(self) -> None:
+        original_urlopen = cc.urllib.request.urlopen
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_dir = root / "memory" / "user"
+            self.write_memory_note(
+                user_dir,
+                "fallback.md",
+                {"title": "fallback needle", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "needle"},
+                "fallback needle body",
+            )
+            self.write_index(user_dir, [("fallback.md", "fallback needle", "knowledge", "active", "needle", "test")])
+
+            baseline_start = time.monotonic()
+            cc.urllib.request.urlopen = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("baseline skip api"))
+            baseline_hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=1))
+            baseline_elapsed = time.monotonic() - baseline_start
+
+            def slow_timeout(*_args, **kwargs):
+                time.sleep(min(float(kwargs.get("timeout") or cc.MEMORY_RECALL_TIMEOUT), 0.05))
+                raise TimeoutError("sleep server")
+
+            cc.urllib.request.urlopen = slow_timeout
+            fallback_start = time.monotonic()
+            fallback_hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=1))
+            fallback_elapsed = time.monotonic() - fallback_start
+            cc.urllib.request.urlopen = original_urlopen
+
+        self.assertEqual([hit.path.name for hit in baseline_hits], ["fallback.md"])
+        self.assertEqual([hit.path.name for hit in fallback_hits], ["fallback.md"])
+        self.assertLess(fallback_elapsed - baseline_elapsed, 0.35)
 
     def test_memory_segment_renders_bookend_excerpt(self) -> None:
         hit = cc.MemoryHit(
