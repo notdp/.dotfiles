@@ -49,8 +49,11 @@ Collectors must ignore header rows for run statistics. Unknown event names are s
 
 ## state.json
 
-`state.json` is a single JSON object. Required fields:
+`state.json` is a single JSON object emitted by two producers, distinguished by the `skill` field. A collector should branch on `skill`; treat a missing `skill` as `dev-long-run` for backward compatibility.
 
+**dev-long-run** (`skill` = `"dev-long-run"` or absent) — multi-phase. Required fields:
+
+- `skill`: string (`"dev-long-run"`; absent in legacy state files, still valid)
 - `state`: string
 - `phase`: string or integer
 - `role_in_flight`: string
@@ -61,6 +64,17 @@ Collectors must ignore header rows for run statistics. Unknown event names are s
 - `slug`: string
 - `dirty_main_at_start`: boolean
 - `in_place`: boolean
+
+**dev-complete** (`skill` = `"dev-complete"`) — single-pass, no phases. Required fields:
+
+- `skill`: string (`"dev-complete"`)
+- `state`: string
+- `slug`: string
+- `repo_root`: string
+- `worktree_path`: string
+- `branch`: string
+
+dev-complete intentionally has no `phase`/`role_in_flight`/`goal`/`dirty_main_at_start`/`in_place`, and emits **no** `metrics.jsonl`; its `verify.json` lives at the workspace root (not under `phases/<id>/`). A collector must treat these as a valid single-pass shape, not as missing-field errors. The validator (`scripts/validate_agentsview_emitted_schema.py`) branches on `skill` accordingly.
 
 ## verify.json
 

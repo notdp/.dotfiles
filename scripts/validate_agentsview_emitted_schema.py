@@ -71,6 +71,22 @@ def _require(data: dict[str, Any], path: Path, fields: dict[str, tuple[type, ...
 
 def validate_state(path: Path) -> None:
     data = _load_json_object(path)
+    # 按 skill 分流:dev-complete 是单 pass(无 phase/role_in_flight 概念),只校验其精简
+    # schema;dev-long-run(skill 缺省或 "dev-long-run")按完整多-phase schema 校验。
+    if data.get("skill") == "dev-complete":
+        _require(
+            data,
+            path,
+            {
+                "skill": (str,),
+                "state": (str,),
+                "slug": (str,),
+                "repo_root": (str,),
+                "worktree_path": (str,),
+                "branch": (str,),
+            },
+        )
+        return
     _require(
         data,
         path,

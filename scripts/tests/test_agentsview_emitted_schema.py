@@ -185,6 +185,49 @@ class AgentsviewEmittedSchemaValidatorTests(unittest.TestCase):
         self.assertEqual(summary["acceptance_files"], 1)
         self.assertEqual(summary["stuck_files"], 2)
 
+    def test_validate_state_accepts_dev_complete_schema(self) -> None:
+        # dev-complete 的 state.json 有 skill="dev-complete",无 phase/role_in_flight/goal/
+        # dirty_main_at_start/in_place(单 pass 无 phase 概念)。契约修订:validator 按 skill
+        # 分流,认 dev-complete 的精简 schema,不再硬 require dev-long-run 专属字段。
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp) / "ws"
+            ws.mkdir(parents=True)
+            self.write_json(
+                ws / "state.json",
+                {
+                    "skill": "dev-complete",
+                    "state": "scaffold",
+                    "slug": "demo",
+                    "repo_root": tmp,
+                    "worktree_path": str(Path(tmp) / "worktree"),
+                    "branch": "feat/demo",
+                    "workspace": str(ws),
+                    "created_at": "2026-06-25T00:00:00+08:00",
+                },
+            )
+            # 不应抛(dev-complete 精简 schema 合法)
+            self.validator.validate_state(ws / "state.json")
+
+    def test_validate_state_still_accepts_dev_long_run_schema(self) -> None:
+        # 回归保护:dev-long-run(skill 缺省或 "dev-long-run")仍按完整 schema 校验。
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = self.make_workspace(Path(tmp))
+            self.validator.validate_state(ws / "state.json")  # 无 skill 字段,向后兼容,不抛
+
+    def test_validate_state_rejects_dev_long_run_missing_required_field(self) -> None:
+        # 回归保护:非 dev-complete 的 state 缺 role_in_flight 仍被拒(分流不放水)。
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp) / "ws"
+            ws.mkdir(parents=True)
+            self.write_json(
+                ws / "state.json",
+                {"state": "develop", "phase": "01", "slug": "x", "branch": "b",
+                 "worktree_path": "w", "goal": "g", "repo_root": "r",
+                 "dirty_main_at_start": False, "in_place": False},
+            )
+            with self.assertRaisesRegex(ValueError, "role_in_flight"):
+                self.validator.validate_state(ws / "state.json")
+
     def test_rejects_malformed_snapshot_with_file_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ws = self.make_workspace(Path(tmp))

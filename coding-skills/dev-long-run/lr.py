@@ -994,6 +994,7 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     (workspace / "ORCHESTRATOR.md").write_text((PROMPTS_DIR / "loop_orchestrator.md").read_text(encoding="utf-8"), encoding="utf-8")
     (workspace / "phases").mkdir()
     state = {
+        "skill": "dev-long-run",
         "state": "scaffold", "phase": 0, "role_in_flight": "agent_orchestrator",
         "worktree_path": str(wt), "branch": branch, "goal": args.goal or name,
         "repo_root": str(repo_root), "slug": slug, "dirty_main_at_start": bool(dirty),
