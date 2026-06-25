@@ -13,5 +13,8 @@ jobs:
           python-version: "3.14"
       - name: Verify skills catalog
         run: python3 scripts/verify_skills.py
+      - name: Garden drift / dead-link check
+        # --skip-symlinks：CI 无 HOME agent-assets 软链；--no-aggregate：verify_skills 已是独立步骤
+        run: python3 scripts/garden_check.py --skip-symlinks --no-aggregate
       - name: Run skills tests
         run: python3 -m unittest discover -s scripts/tests -p "test_*.py"
