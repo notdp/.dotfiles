@@ -13,12 +13,21 @@
 - 重置信号：`lr.py reset-status --workspace <ws> --phase <NN> --role <role>`（把 status 写回 `coding`；**给 coder 发 review 前必跑**，清掉 `done impl` 残留，否则下一次 await 读到 stale done 立即误判）
 - 看存活：`lr.py sessions --workspace <ws>`
 - **phase id 约定**：命令里 `<id>` 一律用**数字** `NN`(如 `03`)。phase 目录是 scaffold 建的全名 `NN_<slug>`(如 `03_campaign_manager_and_admin_permission`)，lr 的 `resolve_phase_dir` 会把数字 id 解析到真目录 —— **你不要手拼 `phases/03`**(那是错位 bug 的根源)，让 lr 解析。
-- **检测 worker 完成:一律用 `lr.py await --workspace <ws> --phase <NN> --role <role> --pane <pane>`**(lr 解析 phase 目录拼出真实 `<role>.status` 路径；默认 timeout 600s、idle-timeout 120s,够长任务再显式调大)。它查机器可读的 status token + **每轮查 pane 死活 + idle 兜底**,按退出码处理:
+- **检测单个 worker 完成:用 `lr.py await --workspace <ws> --phase <NN> --role <role> --pane <pane>`**(lr 解析 phase 目录拼出真实 `<role>.status` 路径；默认 timeout 600s、idle-timeout 120s,够长任务再显式调大)。它查机器可读的 status token + **每轮查 pane 死活 + idle 兜底**,按退出码处理:
   - `0 DONE` → 推进；`2 BLOCKED` → 按 reason escalate；`5 COMPACT` → 关 pane 重开 fresh 读 HANDOFF。
   - `3 DEAD`(pane 没了)→ 重开 fresh 读 HANDOFF 续做,或标 failed。
   - `6 IDLE`(worker 停在就绪输入框却没写 status,**最常见的"假死"**)→ await 已附 pane tail,先看现场:还在跑就说明误判、调大 `--idle-timeout` 再 await;确实停了就 `lr.py send` 重发「请把结论写进你启动时 [PHASE DIR] 给的那个目录下的 `<role>.status` 首行(`done`/`blocked <reason>`),不要把文件名或 = 写进去,也不要自己拼 `phases/<数字>`」再 await 一轮;仍 IDLE → 标 stuck、escalate 用户。
   - `4 TIMEOUT` → 看 await 附的 pane tail 判断:画面在变=真在跑,可再 await 一轮;停住没写 status 按 IDLE 同样处理;反复超时不空转,escalate。
   - **绝不要手写 `sleep(60)` 去 grep prose 字符串 / 抓屏判完成**(那样 coder 早完成你也等不到, 还查不出 pane 死没死)。
+- **并发盯多个 worker:用 `lr.py await-all --workspace <ws>`**。它在 python 内有界轮询所有 `SESSIONS.md` 中 `running` 的 pane，复用 `observe` 的两帧 screen_class 分类；任一 pane 进入可行动状态、全部 done、或 timeout 即返回顶层 JSON：`{verdict, triggering, done_count, total, panes}`。退出码：`0 all_done` / `10 attention` / `4 timeout`。它只上报，不发键、不重启、不写 status。
+- `await-all` 只能在 worker 注册为 running 之后调用；空 running pane 会返回 `all_done`，不要在 launch 尚未写入 `SESSIONS.md` 的窗口抢跑。
+- `await-all` 每轮对 running pane 串行做两帧观察，实际返回延迟约为 `N×OBSERVE_FRAME_GAP+interval`；pane 多时不要把这个延迟误判成卡住。
+- `screen_class` 分流（report-only，人工决定动作）:
+  - `errored` → 看 `tail`，多半是网络/模型错误；按现场重发或 escalate 用户。
+  - `awaiting_input` → worker 卡人工确认；看 `tail` 后人工决定 `lr.py send` 答复或 escalate。
+  - `dispatch_blocked` → worker 运行期没进入 ready；人工判断是否 relaunch。
+  - `blocked`/`compact`/`dead` → 按对应 worker status 或 pane 生死处理：compact 重开 fresh 读 HANDOFF，dead 重开或标 failed，blocked 按 reason escalate。
+  - `working`/`ready_idle`/`unknown` → 不算 await-all 可行动；继续等或按 timeout 后的现场判断处理。
 
 ## 每 phase 循环
 1. 读 `fix_plan.md` 选下一个未完成 phase。
@@ -29,10 +38,14 @@
    lr.py launch --workspace <ws> --role phase_reviewer_a --phase <NN> --mode split-down
    lr.py launch --workspace <ws> --role phase_reviewer_b --phase <NN> --mode split-down
    ```
-   分别等两路 DONE:
+   等两路 reviewer 时先用 `await-all` 做并发感知入口，避免盯 A 时 B 已经 errored/awaiting_input/dead 却没人回来叫你:
+   ```
+   lr.py await-all --workspace <ws>
+   ```
+   返回 `0 all_done` → 两路都已完成；返回 `10 attention` → 读 JSON 的 `triggering` 和每个 pane 的 `screen_class`，按上面的 report-only 分流表处理（如 `errored` 看 tail 重发或 escalate，`awaiting_input` 人工决定是否 `lr.py send`，`dead` 重开或降级）。
+   需要确认某一路是否真的写了 DONE、或只复查单个 pane 时，再用单 pane `await` 定点复查:
    ```
    lr.py await --workspace <ws> --phase <NN> --role phase_reviewer_a --pane <pane_a>
-   lr.py await --workspace <ws> --phase <NN> --role phase_reviewer_b --pane <pane_b>
    ```
    一路 DEAD/TIMEOUT → 降级用另一路,不卡流程。两路完成后关 reviewer pane:
    ```

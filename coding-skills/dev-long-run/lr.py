@@ -78,6 +78,29 @@ DISPATCH_TIMEOUT = 45
 DISPATCH_BLOCKED_EXIT = 7
 OBSERVE_FRAME_GAP = 1.0
 DISPATCH_BLOCKED_MIN_AGE_S = 5.0
+AWAIT_ALL_INTERVAL = 5
+AWAIT_ALL_ATTENTION_EXIT = 10
+AWAIT_ALL_ACTIONABLE_CLASSES = ("errored", "awaiting_input", "dispatch_blocked", "blocked", "dead", "compact")
+
+
+def aggregate_await_all(pane_states: list[dict]) -> dict:
+    total = len(pane_states)
+    done_count = sum(1 for state in pane_states if state.get("screen_class") == "done")
+    triggering = [state.get("pane") for state in pane_states
+                  if state.get("screen_class") in AWAIT_ALL_ACTIONABLE_CLASSES]
+    triggering = [pane for pane in triggering if pane]
+    if total > 0 and done_count == total:
+        verdict = "all_done"
+    elif triggering:
+        verdict = "attention"
+    else:
+        verdict = "waiting"
+    return {
+        "verdict": verdict,
+        "triggering": triggering,
+        "done_count": done_count,
+        "total": total,
+    }
 
 
 def agent_ready(screen: str, backend: str) -> bool:
@@ -1330,15 +1353,12 @@ def _session_age_s(row: dict[str, str], now: datetime | None = None) -> float:
     return max(0.0, (now - seen).total_seconds())
 
 
-def cmd_observe(args: argparse.Namespace) -> int:
-    """只读观察所有 running pane，输出给协调者消费的结构化 JSON。"""
-    workspace = Path(args.workspace).resolve()
+def observe_running_panes(workspace: Path) -> list[dict]:
     sessions_path = workspace / "SESSIONS.md"
     rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
     running = [row for row in rows if row["status"] == "running"]
     if not running:
-        sys.stdout.write("[]\n")
-        return 0
+        return []
 
     live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
     backends = _role_backends(workspace)
@@ -1373,8 +1393,50 @@ def cmd_observe(args: argparse.Namespace) -> int:
             "prompt_shape": classify_prompt_shape(frame2, backend) if screen_class == "awaiting_input" else None,
             "tail": screen_tail(frame2),
         })
+    return out
+
+
+def cmd_observe(args: argparse.Namespace) -> int:
+    """只读观察所有 running pane，输出给协调者消费的结构化 JSON。"""
+    workspace = Path(args.workspace).resolve()
+    out = observe_running_panes(workspace)
     sys.stdout.write(json.dumps(out, ensure_ascii=False) + "\n")
     return 0
+
+
+def _await_all_payload(agg: dict, panes: list[dict], *, verdict: str | None = None) -> dict:
+    return {
+        "verdict": verdict or agg["verdict"],
+        "triggering": agg["triggering"],
+        "done_count": agg["done_count"],
+        "total": agg["total"],
+        "panes": panes,
+    }
+
+
+def cmd_await_all(args: argparse.Namespace) -> int:
+    """有界循环观察所有 running pane；任一可行动、全部 done 或超时即返回 JSON。"""
+    workspace = Path(args.workspace).resolve()
+    deadline = time.monotonic() + args.timeout
+    last_panes: list[dict] = []
+    while time.monotonic() < deadline:
+        panes = observe_running_panes(workspace)
+        last_panes = panes
+        if not panes:
+            payload = _await_all_payload(aggregate_await_all([]), [], verdict="all_done")
+            sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            return 0
+        agg = aggregate_await_all(panes)
+        if agg["verdict"] == "all_done":
+            sys.stdout.write(json.dumps(_await_all_payload(agg, panes), ensure_ascii=False) + "\n")
+            return 0
+        if agg["verdict"] == "attention":
+            sys.stdout.write(json.dumps(_await_all_payload(agg, panes), ensure_ascii=False) + "\n")
+            return AWAIT_ALL_ATTENTION_EXIT
+        time.sleep(args.interval)
+    agg = aggregate_await_all(last_panes)
+    sys.stdout.write(json.dumps(_await_all_payload(agg, last_panes, verdict="timeout"), ensure_ascii=False) + "\n")
+    return 4
 
 
 def cmd_pane_alive(args: argparse.Namespace) -> int:
@@ -1751,6 +1813,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", default=True, help="输出 JSON(默认; 保留给未来兼容)")
     p.add_argument("--once", action="store_true", default=True, help="单次观察(默认; 预留给未来循环接口)")
     p.set_defaults(func=cmd_observe)
+
+    p = sub.add_parser("await-all", help="(orchestrator 调用) 等所有 running pane: 任一可行动/全 done/超时返回 JSON")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--timeout", type=int, default=600, help="有界超时秒数(默认 600)")
+    p.add_argument("--interval", type=int, default=AWAIT_ALL_INTERVAL, help="轮询间隔秒(默认 5)")
+    p.set_defaults(func=cmd_await_all)
 
     p = sub.add_parser("pane-alive", help="exit 0 if pane alive else 1")
     p.add_argument("--pane", required=True)

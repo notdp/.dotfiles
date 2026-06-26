@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -508,6 +509,87 @@ class RuntimeScreenClassificationTests(unittest.TestCase):
     def test_unmatched_frozen_screen_is_unknown(self) -> None:
         screen = "quiet shell prompt"
         self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "unknown")
+
+
+class AwaitAllAggregationTests(unittest.TestCase):
+    def test_all_done_returns_all_done(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "done"},
+            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "done"},
+        ])
+        self.assertEqual(agg["verdict"], "all_done")
+        self.assertEqual(agg["done_count"], 2)
+        self.assertEqual(agg["total"], 2)
+
+    def test_errored_triggers_attention(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "working"},
+            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "errored"},
+        ])
+        self.assertEqual(agg["verdict"], "attention")
+        self.assertEqual(agg["triggering"], ["%2"])
+
+    def test_multiple_actionable_panes_all_trigger(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "errored"},
+            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "working"},
+            {"role": "phase_reviewer_b", "pane": "%3", "screen_class": "dead"},
+        ])
+        self.assertEqual(agg["verdict"], "attention")
+        self.assertEqual(agg["triggering"], ["%1", "%3"])
+
+    def test_actionable_classes_trigger_attention(self) -> None:
+        for cls in ("awaiting_input", "dispatch_blocked", "blocked", "dead", "compact"):
+            with self.subTest(cls=cls):
+                agg = lr.aggregate_await_all([
+                    {"role": "phase_coder", "pane": "%1", "screen_class": cls},
+                ])
+                self.assertEqual(agg["verdict"], "attention")
+                self.assertEqual(agg["triggering"], ["%1"])
+
+    def test_non_actionable_mix_waits(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "working"},
+            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "ready_idle"},
+            {"role": "phase_reviewer_b", "pane": "%3", "screen_class": "unknown"},
+        ])
+        self.assertEqual(agg["verdict"], "waiting")
+        self.assertEqual(agg["triggering"], [])
+
+    def test_ready_idle_alone_is_not_actionable(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "ready_idle"},
+        ])
+        self.assertEqual(agg["verdict"], "waiting")
+
+    def test_empty_list_waits(self) -> None:
+        agg = lr.aggregate_await_all([])
+        self.assertEqual(agg["verdict"], "waiting")
+        self.assertEqual(agg["total"], 0)
+
+
+class LoopOrchestratorPromptTests(unittest.TestCase):
+    def _prompt(self) -> str:
+        return (REPO_ROOT / "coding-skills" / "dev-long-run" / "prompts" / "loop_orchestrator.md").read_text(encoding="utf-8")
+
+    def _section(self, heading: str) -> str:
+        text = self._prompt()
+        start = text.index(heading)
+        next_step = re.search(r"(?m)^\d+\. ", text[start + len(heading):])
+        if not next_step:
+            return text[start:]
+        return text[start:start + len(heading) + next_step.start()]
+
+    def test_dual_review_wait_uses_await_all_entrypoint(self) -> None:
+        section = self._section("4. **双路 review")
+        self.assertIn("lr.py await-all --workspace <ws>", section)
+        self.assertIn("triggering", section)
+        self.assertIn("screen_class", section)
+
+    def test_await_all_notes_registration_and_latency(self) -> None:
+        text = self._prompt()
+        self.assertIn("worker 注册为 running 之后", text)
+        self.assertIn("N×OBSERVE_FRAME_GAP+interval", text)
 
 
 class YamlLoaderTests(unittest.TestCase):
@@ -1214,6 +1296,198 @@ class GateCommandIntegrationTests(unittest.TestCase):
         with redirect_stdout(buf):
             code = lr.main(argv)
         return code, buf.getvalue()
+
+    def _patch_runtime(self, *, live: str = "", captures=None, ticks=None):
+        old_tmux = lr._tmux
+        old_capture = lr.capture_pane
+        old_sleep = lr.time.sleep
+        old_monotonic = lr.time.monotonic
+        capture_iter = iter(captures or [])
+        tick_iter = iter(ticks or [0, 999])
+
+        def fake_tmux(args, capture=False):
+            if args[:2] == ["list-panes", "-aF"]:
+                return live
+            return ""
+
+        def fake_capture(_pane):
+            try:
+                return next(capture_iter)
+            except StopIteration:
+                return captures[-1] if captures else ""
+
+        def fake_monotonic():
+            try:
+                return next(tick_iter)
+            except StopIteration:
+                return ticks[-1] if ticks else 999
+
+        lr._tmux = fake_tmux
+        lr.capture_pane = fake_capture
+        lr.time.sleep = lambda _seconds: None
+        lr.time.monotonic = fake_monotonic
+
+        def restore():
+            lr._tmux = old_tmux
+            lr.capture_pane = old_capture
+            lr.time.sleep = old_sleep
+            lr.time.monotonic = old_monotonic
+
+        return restore
+
+    def test_cmd_await_status_exit_codes(self) -> None:
+        cases = [("done impl\n", 0), ("blocked need input\n", 2), ("compact too long\n", 5)]
+        for status_text, expected in cases:
+            with self.subTest(status=status_text.strip()):
+                with tempfile.TemporaryDirectory() as d:
+                    status = Path(d) / "worker.status"
+                    status.write_text(status_text, encoding="utf-8")
+                    code, _out = self._run(["await", "--status", str(status), "--timeout", "1", "--interval", "1"])
+                    self.assertEqual(code, expected)
+
+    def test_cmd_await_dead_when_pane_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            status = Path(d) / "worker.status"
+            status.write_text("coding\n", encoding="utf-8")
+            restore = self._patch_runtime(live="%7\n", ticks=[0, 1])
+            try:
+                code, out = self._run(["await", "--status", str(status), "--pane", "%42", "--timeout", "10"])
+            finally:
+                restore()
+            self.assertEqual(code, 3)
+            self.assertIn("DEAD %42", out)
+
+    def test_cmd_await_idle_uses_strike_interval_arithmetic(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            status = Path(d) / "worker.status"
+            status.write_text("coding\n", encoding="utf-8")
+            ready = "work complete\nAsk anything\n? for shortcuts"
+            restore = self._patch_runtime(live="%42\n", captures=[ready, ready, ready, ready], ticks=[0, 1, 2, 3, 4])
+            try:
+                code, out = self._run([
+                    "await", "--status", str(status), "--pane", "%42",
+                    "--timeout", "10", "--interval", "2", "--idle-timeout", "4",
+                ])
+            finally:
+                restore()
+            self.assertEqual(code, 6)
+            self.assertIn("~4s", out)
+
+    def test_cmd_await_timeout_when_screen_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            status = Path(d) / "worker.status"
+            status.write_text("coding\n", encoding="utf-8")
+            restore = self._patch_runtime(
+                live="%42\n",
+                captures=["frame 1", "frame 2", "frame 3"],
+                ticks=[0, 0.5, 1.0, 1.5, 2.1],
+            )
+            try:
+                code, out = self._run([
+                    "await", "--status", str(status), "--pane", "%42",
+                    "--timeout", "2", "--interval", "1", "--idle-timeout", "10",
+                ])
+            finally:
+                restore()
+            self.assertEqual(code, 4)
+            self.assertIn("TIMEOUT", out)
+
+    def test_cmd_await_all_all_done(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+                {"role": "phase_reviewer_a", "phase": "02", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            (ws / "phases" / "02" / "phase_coder.status").write_text("done impl\n", encoding="utf-8")
+            (ws / "phases" / "02" / "phase_reviewer_a.status").write_text("done\n", encoding="utf-8")
+            restore = self._patch_runtime(live="%42\n%43\n", captures=["still", "still", "still", "still"], ticks=[0, 1])
+            try:
+                code, out = self._run(["await-all", "--workspace", str(ws), "--timeout", "10", "--interval", "1"])
+            finally:
+                restore()
+            data = json.loads(out)
+            self.assertEqual(code, 0)
+            self.assertEqual(data["verdict"], "all_done")
+            self.assertEqual(data["done_count"], 2)
+
+    def test_cmd_await_all_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+                {"role": "phase_reviewer_a", "phase": "02", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            restore = self._patch_runtime(
+                live="%42\n%43\n",
+                captures=["tokens 1", "tokens 2", "API error: network error", "API error: network error"],
+                ticks=[0, 1],
+            )
+            try:
+                code, out = self._run(["await-all", "--workspace", str(ws), "--timeout", "10", "--interval", "1"])
+            finally:
+                restore()
+            data = json.loads(out)
+            self.assertEqual(code, 10)
+            self.assertEqual(data["verdict"], "attention")
+            self.assertEqual(data["triggering"], ["%43"])
+
+    def test_cmd_await_all_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            restore = self._patch_runtime(live="%42\n", captures=["frame 1", "frame 2", "frame 3", "frame 4"], ticks=[0, 0.5, 1.1])
+            try:
+                code, out = self._run(["await-all", "--workspace", str(ws), "--timeout", "1", "--interval", "1"])
+            finally:
+                restore()
+            data = json.loads(out)
+            self.assertEqual(code, 4)
+            self.assertEqual(data["verdict"], "timeout")
+
+    def test_cmd_await_all_empty_running_panes(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([]), encoding="utf-8")
+            code, out = self._run(["await-all", "--workspace", str(ws)])
+            data = json.loads(out)
+            self.assertEqual(code, 0)
+            self.assertEqual(data["verdict"], "all_done")
+            self.assertEqual(data["panes"], [])
+
+    def test_cmd_await_all_does_not_send_or_write(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            sessions_before = (ws / "SESSIONS.md").read_text(encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            old_send_keys_to_pane = lr.send_keys_to_pane
+            try:
+                restore = self._patch_runtime(live="%42\n", captures=["Do you want to proceed? [y/N]", "Do you want to proceed? [y/N]"], ticks=[0, 1])
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                lr.send_keys_to_pane = lambda *args, **kwargs: sent.append(args)
+                try:
+                    code, _out = self._run(["await-all", "--workspace", str(ws), "--timeout", "10", "--interval", "1"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.send_keys_to_pane = old_send_keys_to_pane
+            self.assertEqual(code, 10)
+            self.assertEqual(sent, [])
+            self.assertEqual((ws / "SESSIONS.md").read_text(encoding="utf-8"), sessions_before)
+
+    def test_await_all_exit_code_contract(self) -> None:
+        self.assertEqual({0, lr.AWAIT_ALL_ATTENTION_EXIT, 4}, {0, 10, 4})
+        self.assertNotIn(lr.AWAIT_ALL_ATTENTION_EXIT, {0, 2, 3, 4, 5, 6, lr.DISPATCH_BLOCKED_EXIT})
 
     def _git_commit(self, ws: Path) -> str:
         """把 ws 变成有一个 commit 的 git 仓库, 返回 HEAD hash(commit 证据门禁用)。"""
