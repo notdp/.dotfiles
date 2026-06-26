@@ -96,6 +96,12 @@ if [[ -f scripts/verify_agents.py ]]; then
   run_check "verify_agents" "python3 scripts/verify_agents.py"
 fi
 
+# 本仓库特定：跨 agent 漂移/死链检测（submodule 对账 / 软链悬挂 / 路由死链）
+# --no-aggregate：verify_skills/verify_agents 上面已单独跑，避免重复
+if [[ -f scripts/garden_check.py ]]; then
+  run_check "garden (drift/dead-link)" "python3 scripts/garden_check.py --no-aggregate"
+fi
+
 # 本仓库特定：opencode/kilo plugin 契约测试(node)
 if [[ -f scripts/tests/test_dotfiles_hooks.mjs ]] && command -v node >/dev/null 2>&1; then
   run_check "tests (plugin mjs)" "node scripts/tests/test_dotfiles_hooks.mjs"

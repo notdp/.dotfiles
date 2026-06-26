@@ -10,11 +10,17 @@ description: 当需要确定性扫描 UI artifact、HTML/CSS/组件代码中的 
 优先运行仓库 scanner：
 
 ```bash
-python3 scripts/scan_ui_artifact.py <scope>
-python3 scripts/scan_ui_artifact.py --format json <scope>
+python3 ${HOME}/.dotfiles/scripts/scan_ui_artifact.py <scope>
+python3 ${HOME}/.dotfiles/scripts/scan_ui_artifact.py --format json <scope>
 ```
 
 没有脚本或目标不在仓库内时，再降级使用下面的 grep 候选清单。
+
+> 本 scanner 扫的是 **HTML/CSS/组件文本层** 的 slop。若目标是 **DESIGN.md 视觉契约本身**（token 图语义：断引用 / section 顺序 / 孤儿 token / WCAG 对比），用正交的另一层校验器：
+> ```bash
+> python3 ${HOME}/.dotfiles/scripts/lint_design_md.py <DESIGN.md> [--json]
+> ```
+> 两者互补不重叠：本脚本看渲染产物，`lint_design_md.py` 看契约的 token-graph。
 
 ## 范围
 
@@ -63,7 +69,7 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 ```
 
 > [!NOTE]
-> 上面两条（标题下划线、正文居中）是手动 rg 项，命中需人工判断；**不**进 `scripts/scan_ui_artifact.py` 的 gating 规则（居中/下划线正则误报率高）。来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A9。
+> 上面两条（标题下划线、正文居中）是手动 rg 项，命中需人工判断；**不**进 `${HOME}/.dotfiles/scripts/scan_ui_artifact.py` 的 gating 规则（居中/下划线正则误报率高）。来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A9。
 
 ## 输出契约
 
@@ -114,7 +120,7 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 ## Verification
 
 - Scanner 变更后运行 `python3 -m unittest scripts.tests.test_scan_ui_artifact -v`。
-- Skill 文档变更后运行 `python3 scripts/verify_skills.py`。
+- Skill 文档变更后运行 `python3 ${HOME}/.dotfiles/scripts/verify_skills.py`。
 - 交付前至少保留一个 JSON 或 Markdown scanner 输出作为 deterministic evidence。
 
 ## 关联技能
@@ -122,3 +128,4 @@ rg 'text-align:\\s*center|\\btext-center\\b' <scope>             # 长正文/段
 - 设计诊断 → `/fe-ui-critique`
 - 生成/修改 UI → `/fe-ui-design`
 - 前端代码审计 → `/fe-audit`
+- DESIGN.md token 图语义校验 → `${HOME}/.dotfiles/scripts/lint_design_md.py`（与本 scanner 正交）

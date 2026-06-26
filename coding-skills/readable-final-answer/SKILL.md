@@ -221,7 +221,7 @@ HTML companion 硬约束：
 - HTML 只负责 presentation：层级、图示、注释、交互、分享。
 - 一旦触发 HTML companion，不要只口头说明或只给 Markdown；若当前上下文禁止写文件或仍在审批/spec mode，先声明批准后生成 HTML；允许写文件后通过 `/readable-html-artifact` 生成 `.html` 文件。
 - HTML 必须引用对应 Markdown source 或对话结论。
-- HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
+- HTML 生成必须委托 `/readable-html-artifact` 或其 `${HOME}/.dotfiles/scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 - HTML 必须结构化：TL;DR、目录 / 导航、关键结论卡片、证据区、风险区、行动区分层清楚，避免把 Markdown 原文整段搬进页面。
 - 复杂内容优先图表化：能用矩阵、时间线、流程图、状态图、对比柱状图、风险热力图、指标卡、证据表说明的内容，不只用段落解释；图表数量以降低理解成本为准，不为凑数量堆图。
 - 批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。

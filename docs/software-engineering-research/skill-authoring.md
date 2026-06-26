@@ -588,8 +588,18 @@ _Avoid_: <近义词 1>、<近义词 2>、<容易混淆的词>
 
 规范：
 
-- 引用路径从仓库根开始写（如 `scripts/preflight.sh`），校验脚本会按 skill-local → repo-root 顺序解析
-- 仓库根的 `.sh` / `.py` 必须 `chmod +x`，`verify_skills.py` 会强制校验
+- **会被 agent 在别的仓库执行的 helper 引用，用 `${HOME}/.dotfiles/scripts/xxx` 绝对形式**，不要用裸 `scripts/xxx`，也不要用占位符 `<dotfiles_root>`：
+  - 裸 `scripts/xxx`：agent 在目标仓库的 bash 里会按 cwd 相对解析，找不到 → 误判"项目脚本不存在"（真实事故，2026-06-25）
+  - `<dotfiles_root>` 占位符：agent 的裸 bash 解析不出来（同 claude-octopus `${CLAUDE_PLUGIN_ROOT}` 只在 hook 上下文可用的坑，CHANGELOG.md:418）
+  - `~/.dotfiles/...`：双引号内 `~` **不展开**（`bash "～/..."` 失败），而现有引用都是带引号的 → 必须用 `${HOME}`
+  - `${HOME}` 锚点：任何用户/机器的 agent bash 都能展开，不写死 `/Users/xxx`；`~/.dotfiles` 本身是软链/约定目录，搬仓库只改锚点
+  - skill 自带脚本（skill-local asset）同理用 `${HOME}/.dotfiles/coding-skills/<skill>/scripts/xxx`，不要用 `<skill_dir>` 占位符（同类脆弱性）。例外：`readable-html-artifact` 的 renderer 用 `<target_repo_root>`→`<skill_dir>`→dev 三级 fallback 链，是为"目标项目可覆盖 + 独立安装"刻意保留的设计
+- **`verify_skills.py` 强制校验（`validate_dotfiles_helper_refs`，CI 阻断）**，防上述事故复发：
+  - (a) `<…dotfiles…>` 占位符 → FAIL（`<skill_dir>`/`<target_repo_root>` 不含 `dotfiles`，不误伤）
+  - (b) 双引号紧跟 `~/.dotfiles` → WARN（双引号内 `~` 不展开）
+  - (c) 裸 `scripts/xxx.{sh,py}` 且该脚本真实存在于 dotfiles（skill-local 或 repo-root）→ FAIL；目标项目自有脚本（dotfiles 里不存在）属合法 bare，不报
+  - (d) `${HOME}/.dotfiles/…` 引用做存在性 + 执行位校验（补回因前缀绕过 `REFERENCE_PATTERN` 负向后顾而丢失的覆盖）
+- 仓库根及 skill-local 的 `.sh` / `.py` 必须 `chmod +x`，`verify_skills.py` 会强制校验
 - 脚本输出尽量用 Markdown 表格，方便 agent 直接贴进最终报告
 - **大脚本/纯执行类默认黑盒调用**：当脚本是大体量、纯执行的工具（几百行 CLI、生成器、扫描器），skill 正文让 agent 先 `--help` 再当 CLI 调，不要求 agent 通读脚本源码，理由是省上下文预算（来源吸收：`docs/refs-absorption-plan-2026-06-02.md` A14，源 awesome-composio webapp-testing）。限定范围：只对"大脚本/纯执行"成立；需要按环境改写逻辑、或要 review 行为的小脚本仍要读，避免与可 review 性冲突
 

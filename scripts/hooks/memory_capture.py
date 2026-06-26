@@ -20,10 +20,12 @@ from typing import Any
 
 try:
     from scripts.hooks.memory_flags import memory_enabled
+    from scripts.hooks.memory_telemetry import append_memory_telemetry
     from scripts.hooks.redact import SecretFoundError, assert_no_secrets, redact
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.hooks.memory_flags import memory_enabled
+    from scripts.hooks.memory_telemetry import append_memory_telemetry
     from scripts.hooks.redact import SecretFoundError, assert_no_secrets, redact
 
 
@@ -78,6 +80,24 @@ class CaptureResult:
     path: Path | None = None
     candidate_id: str = ""
     skipped_reasons: dict[str, int] = field(default_factory=dict)
+
+
+def emit_capture_telemetry(root: Path, result: CaptureResult, *, platform: str = "", duration_ms: int = 0) -> None:
+    append_memory_telemetry(
+        "capture",
+        "memory_capture",
+        {
+            "duration_ms": max(0, duration_ms),
+            "status": result.status,
+            "reason": result.reason,
+            "candidate_count": 1 if result.candidate_id else 0,
+            "candidate_written": result.status == "written",
+            "candidate_id": result.candidate_id,
+            "platform": platform,
+            "skipped_reasons": result.skipped_reasons,
+        },
+        root=root,
+    )
 
 
 def load_json_lines(path: Path) -> list[dict[str, Any]]:
@@ -345,11 +365,14 @@ def capture_from_records(
 
 
 def capture_from_hook_input(root: Path, hook_input: dict[str, Any], env: dict[str, str] | None = None) -> CaptureResult:
+    started = time.monotonic()
+    platform = str(hook_input.get("platform") or hook_input.get("agent") or "cc").lower()
     if os.environ.get("DOTFILES_MEMORY_CAPTURE_FORCE_ERROR"):
         raise RuntimeError("forced memory capture error")
     if not memory_enabled(env):
-        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
-    platform = str(hook_input.get("platform") or hook_input.get("agent") or "cc").lower()
+        result = CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     transcript_path = str(hook_input.get("transcript_path") or "").strip()
     session_id = str(hook_input.get("session_id") or hook_input.get("sessionID") or "").strip()
     path = Path(transcript_path).expanduser() if transcript_path else None
@@ -357,9 +380,13 @@ def capture_from_hook_input(root: Path, hook_input: dict[str, Any], env: dict[st
         rollout = resolve_codex_rollout(session_id) if platform == "codex" else None
         path = rollout
     if not path:
-        return CaptureResult(status="unavailable", reason="transcript_unavailable")
+        result = CaptureResult(status="unavailable", reason="transcript_unavailable")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     records = load_json_lines(path)
-    return capture_from_records(root, platform=platform, records=records, origin_session=session_id or path.stem, env=env)
+    result = capture_from_records(root, platform=platform, records=records, origin_session=session_id or path.stem, env=env)
+    emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+    return result
 
 
 def _env_source(env: dict[str, str] | None) -> dict[str, str]:
@@ -406,28 +433,44 @@ def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[di
 
 def capture_from_sqlite(root: Path, *, platform: str, session_id: str = "", env: dict[str, str] | None = None) -> CaptureResult:
     """从 kilo/opencode 的 SQLite session 库捕获候选(替代旧的 unavailable 降级)。"""
+    started = time.monotonic()
     if not memory_enabled(env):
-        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        result = CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     db = sqlite_db_path(platform, env)
     if not db.exists():
-        return CaptureResult(status="unavailable", reason="sqlite_db_not_found")
+        result = CaptureResult(status="unavailable", reason="sqlite_db_not_found")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     try:
         records, origin = read_sqlite_session_records(db, session_id)
     except Exception as exc:  # noqa: BLE001 - 捕获 hook 必须 fail-open,绝不打断会话。
-        return CaptureResult(status="unavailable", reason=f"sqlite_read_failed:{exc.__class__.__name__}")
+        result = CaptureResult(status="unavailable", reason=f"sqlite_read_failed:{exc.__class__.__name__}")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     if not records:
-        return CaptureResult(status="unavailable", reason="no_session_records")
-    return capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id or db.stem, env=env)
+        result = CaptureResult(status="unavailable", reason="no_session_records")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+        return result
+    result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id or db.stem, env=env)
+    emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+    return result
 
 
 def capture_sqlite_for_session(
     root: Path, *, session_id: str, env: dict[str, str] | None = None, platforms: tuple[str, ...] = ("opencode", "kilo")
 ) -> CaptureResult:
     """kilo/opencode 共用 .mjs、运行时分不清平台 → 按 session_id 在候选库里定位(session id 唯一)。"""
+    started = time.monotonic()
     if not memory_enabled(env):
-        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        result = CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        emit_capture_telemetry(root, result, platform="sqlite", duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     if not session_id:
-        return CaptureResult(status="unavailable", reason="no_session_id")
+        result = CaptureResult(status="unavailable", reason="no_session_id")
+        emit_capture_telemetry(root, result, platform="sqlite", duration_ms=int((time.monotonic() - started) * 1000))
+        return result
     for platform in platforms:
         db = sqlite_db_path(platform, env)
         if not db.exists():
@@ -437,16 +480,24 @@ def capture_sqlite_for_session(
         except Exception:  # noqa: BLE001 - fail-open:某库读失败不阻断,试下一个。
             continue
         if records:
-            return capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id, env=env)
-    return CaptureResult(status="unavailable", reason="session_not_found_in_any_sqlite")
+            result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id, env=env)
+            emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
+            return result
+    result = CaptureResult(status="unavailable", reason="session_not_found_in_any_sqlite")
+    emit_capture_telemetry(root, result, platform="sqlite", duration_ms=int((time.monotonic() - started) * 1000))
+    return result
 
 
 def capture_from_platform(root: Path, *, platform: str, session_id: str = "", env: dict[str, str] | None = None) -> CaptureResult:
     if not memory_enabled(env):
-        return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        result = CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
+        emit_capture_telemetry(root, result, platform=platform, duration_ms=0)
+        return result
     if platform in {"opencode", "kilo"}:
         return capture_from_sqlite(root, platform=platform, session_id=session_id, env=env)
-    return CaptureResult(status="unavailable", reason="platform_capture_unavailable")
+    result = CaptureResult(status="unavailable", reason="platform_capture_unavailable")
+    emit_capture_telemetry(root, result, platform=platform, duration_ms=0)
+    return result
 
 
 def capture_best_effort(root: Path, hook_input: dict[str, Any], env: dict[str, str] | None = None) -> CaptureResult:
@@ -455,7 +506,9 @@ def capture_best_effort(root: Path, hook_input: dict[str, Any], env: dict[str, s
     except Exception as exc:  # noqa: BLE001 - hook side effect must be fail-open.
         if os.environ.get("DOTFILES_MEMORY_CAPTURE_LOG"):
             Path(os.environ["DOTFILES_MEMORY_CAPTURE_LOG"]).expanduser().write_text(f"memory capture failed: {exc}\n", encoding="utf-8")
-        return CaptureResult(status="error", reason=exc.__class__.__name__)
+        result = CaptureResult(status="error", reason=exc.__class__.__name__)
+        emit_capture_telemetry(root, result, platform=str(hook_input.get("platform") or hook_input.get("agent") or "cc").lower(), duration_ms=0)
+        return result
 
 
 def gc_raw_memories(root: Path, ttl_days: int = TTL_DAYS) -> list[Path]:

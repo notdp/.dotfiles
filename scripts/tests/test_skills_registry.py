@@ -427,7 +427,7 @@ class SkillsRegistryTests(unittest.TestCase):
                 )
             )
             (skill_dir / "SKILL.md").write_text(
-                "---\nname: guard-demo\ndescription: 当测试时使用；demo\n---\nRun `scripts/do-thing.sh`\n"
+                "---\nname: guard-demo\ndescription: 当测试时使用；demo\n---\nRun `${HOME}/.dotfiles/scripts/do-thing.sh`\n"
             )
 
             result = subprocess.run(

@@ -124,7 +124,7 @@ HTML companion 硬约束：
 - 引用对应 Markdown source。
 - 保留 Markdown 中的推荐结论，不另起一套相互竞争的结论。
 - 在调研结论变化时，以 Markdown 为准先更新 source，再刷新 HTML。
-- HTML 生成必须委托 `/readable-html-artifact` 或其 `scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
+- HTML 生成必须委托 `/readable-html-artifact` 或其 `${HOME}/.dotfiles/scripts/render_html_artifact.py` renderer；本 skill 不手写、不粘贴完整 HTML。
 - 结构化为结论摘要、方案矩阵、证据地图、风险 / 代价区、推荐路径、开放问题，不把 Markdown 原文整段搬进页面。
 - 复杂调研优先图表化：方案对比用矩阵，权衡用 scorecard，时间演进用 timeline，依赖关系用 flow / graph，风险用 heatmap，证据强弱用表格或卡片；图表数量以降低理解成本为准，不为凑数量堆图。
 - 批准后生成 HTML 时，必须立即打开浏览器预览（macOS 用 `open <file.html>`，其他环境用等价方式）；如果当前环境无法打开 GUI / 浏览器，报告 HTML 路径和未打开原因。

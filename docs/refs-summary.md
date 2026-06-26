@@ -14,7 +14,7 @@
 - **LLM 应用模板 / Agent 示例库**：围绕可运行 LLM app、RAG、MCP、语音、多智能体、微调和 Agent Skills 示例。 代表项目：`Shubhamsaboo/awesome-llm-apps`
 - **多智能体协作与工作流编排**：围绕 agent 角色分工、并行执行、状态同步、团队工作流编排。 代表项目：`Yeachan-Heo/oh-my-claudecode`、`notdp/hive`、`nyldn/claude-octopus`、`frankbria/ralph-claude-code`（单 agent 自主长循环 harness）
 - **上下文 / 记忆管理**：围绕上下文压缩、记忆持久化、检索、session 连续性与 context engineering。 代表项目：`mksglu/context-mode`、`muratcankoylan/Agent-Skills-for-Context-Engineering`
-- **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
+- **前端 UI / 设计系统**：围绕视觉设计、组件模式、设计系统、界面审查与 UI 生成。 代表项目：`google-labs-code/design.md`（DESIGN.md 格式规范 + lint CLI）、`leonxlnx/taste-skill`（anti-slop 审美引擎）、`jakubkrehel/make-interfaces-feel-better`（界面手感微交互规则）、`google-labs-code/stitch-skills`、`nextlevelbuilder/ui-ux-pro-max-skill`、`nexu-io/open-design`、`pbakaus/impeccable`、`vercel-labs/agent-skills`
 - **科研 / 数据分析 / 领域技能**：围绕科学研究、数据分析、科研数据库、领域 Python 包、医学/临床研究与科学写作。 代表项目：`K-Dense-AI/scientific-agent-skills`
 - **AWS / 云 Agent 平台**：围绕 AWS Agent 插件、Bedrock AgentCore、云部署、身份、记忆、网关、观测、评估与 IaC 样例。 代表项目：`awslabs/agent-plugins`、`awslabs/agentcore-samples`
 - **研发流程 / 项目管理**：围绕 spec/planning/execution/verification/ship 等工程流程与项目管理。 代表项目：`addyosmani/agent-skills`、`automazeio/ccpm`、`garrytan/gstack`、`gsd-build/get-shit-done`、`obra/superpowers`
@@ -48,11 +48,14 @@
 | [`garrytan/gstack`](./refs-details/garrytan/gstack.md) | 研发流程 / 多智能体工程工作流 | 面向 Claude Code 及多种 AI 编码代理的工程工作流套件，把产品规划、架构评审、浏览器 QA、代码审查、安全审计、发布部署和跨会话记忆组织成可安装 skill 与本地浏览器运行时。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 技能集合与市场 | GitHub 官方运营的 Copilot 资源集合，统一管理 agents / instructions / skills / hooks / agentic workflows / plugins，并配套 marketplace、网站与 CLI 安装。 |
 | [`glittercowboy/taches-cc-resources`](./refs-details/glittercowboy/taches-cc-resources.md) | 技能集合与市场 | 面向 Claude Code 的资源仓库，主打技能开发、规划分层、MCP 服务生成、调试方法论与 Ralph 自治循环。 |
+| [`google-labs-code/design.md`](./refs-details/google-labs-code/design.md.md) | 前端 UI / 设计系统 | DESIGN.md 视觉契约格式规范（YAML token + markdown rationale）+ agent-first lint/diff/export CLI；本仓库已吸收格式，delta 在 token-graph 语义校验闭环。**vendored 文件非 submodule**。 |
 | [`google-labs-code/stitch-skills`](./refs-details/google-labs-code/stitch-skills.md) | 前端 UI / 设计系统 | 围绕 Stitch MCP 的 Agent Skills 库，用于 UI 设计生成、设计系统提炼、React 转换和演示视频生成。 |
 | [`gsd-build/get-shit-done`](./refs-details/gsd-build/get-shit-done.md) | 研发流程 / 项目管理 | 跨多种 AI 运行时的 spec-driven development / context engineering 系统，覆盖立项、规划、执行、验证、交付全流程。 |
 | [`HughYau/qiushi-skill`](./refs-details/HughYau/qiushi-skill.md) | 行为协议 / 提示工程 | 从毛泽东思想中提炼"实事求是"总原则和九大方法论工具，系统性武装 AI Agent 的分析与决策能力，附带工作流编排和多平台插件。 |
 | [`humanlayer/12-factor-agents`](./refs-details/humanlayer/12-factor-agents.md) | 最佳实践 / 知识库 | 面向生产级 LLM 应用的 12-factor agent 工程方法论，强调 prompt/context/tool/state/control flow 的显式所有权。 |
+| [`jakubkrehel/make-interfaces-feel-better`](./refs-details/jakubkrehel/make-interfaces-feel-better.md) | 前端 UI / 设计系统 | 单 skill：把界面"手感"拆成排版/表面/动画/性能四维，用路由表 + 分文件 progressive disclosure 组织 16 条带精确硬阈值的微交互规则，并把 Before/After 表格化 review 也写成硬约束。 |
 | [`K-Dense-AI/scientific-agent-skills`](./refs-details/K-Dense-AI/scientific-agent-skills.md) | 科研 / 数据分析 / 领域技能 | 大型科学研究 skill 集合，把科研数据库、科学 Python 包、实验平台、医学/临床工作流、科学写作和可视化整理成多 Agent 可读的能力包。 |
+| [`leonxlnx/taste-skill`](./refs-details/leonxlnx/taste-skill.md) | 前端 UI / 设计系统 | 把前端审美拆成确定性的 anti-slop prompt：三数值旋钮 + 带 override 的硬禁令 + 可机械计数的 Pre-Flight 检查表 + canonical 代码骨架，让 agent 把"好看"当可校验合同；附风格 skill 矩阵与 research/laziness 方法论。 |
 | [`libukai/awesome-agent-Skills`](./refs-details/libukai/awesome-agent-Skills.md) | 技能集合与市场 | 以 curated list 为主的技能资源集市，汇总教程、市场、官方项目，并附带少量实作 skill 与插件。 |
 | [`lijigang/ljg-skills`](./refs-details/lijigang/ljg-skills.md) | 技能集合与市场（个人认知 / 内容 / 写作技能集） | 作者 lijigang 的个人 Claude Code 技能集（22 个 `ljg-*` skill + 2 工作流），以认知解剖 / 论文消化 / 内容铸卡 / 中文写作为主轴，org-mode（master）与 Markdown（md 分支）双格式分发，并打包为 plugin / marketplace。 |
 | [`mattpocock/skills`](./refs-details/mattpocock/skills.md) | 研发流程 / Skill 工程 | "小、可组合、可 hack"的 Claude Code skill 集合，核心价值在于 prompt 结构设计（指令-知识分离、Grilling 模式、Vertical Slice 可视化、强制词汇表+Avoid 列表）和工程纪律编码方式（.out-of-scope 知识库、Durability over precision）。 |

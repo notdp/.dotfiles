@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from datetime import date, datetime
 from time import monotonic
@@ -16,11 +17,13 @@ from pathlib import Path
 try:
     from memory_flags import memory_enabled
     from memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from memory_telemetry import append_memory_telemetry
     from threat_scan import sanitize_for_prompt
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.hooks.memory_flags import memory_enabled
     from scripts.hooks.memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from scripts.hooks.memory_telemetry import append_memory_telemetry
     from scripts.hooks.threat_scan import sanitize_for_prompt
 
 
@@ -108,6 +111,8 @@ DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_TIMEOUT = 6  # 秒; hook timeout 10s, 留余量给 fallback
 DEEPSEEK_TOTAL_BUDGET_SECONDS = 8.0
 DEEPSEEK_QUERY_TIMEOUT = 1.5
+MEMORY_RECALL_URL = "http://127.0.0.1:8080/api/v1/memory/recall"
+MEMORY_RECALL_TIMEOUT = 0.3
 DEEPSEEK_KEYFILE = "~/.config/deepseek/apikey"
 MEMORY_QUERY_SYSTEM = (
     "你是 memory 检索 query 改写器。把用户 prompt 改写成适合 lexical 搜索的短 query, "
@@ -337,13 +342,22 @@ def current_time_note() -> str:
     return f"[system] Current time: {datetime.now().astimezone().isoformat(timespec='seconds')}"
 
 
+def emit_context_telemetry(event: str, fields_fn) -> None:
+    try:
+        append_memory_telemetry(event, "context_capsule", fields_fn())
+    except Exception:
+        return
+
+
 def prompt_context(hook_input: dict) -> str:
+    started = monotonic()
     prompt = str(hook_input.get("prompt") or "")
     budget = DeepseekBudget(float(hook_input.get("_deepseek_budget_remaining", DEEPSEEK_TOTAL_BUDGET_SECONDS)))
     names = resolve_capsule_names_with_budget(prompt, budget) if memory_enabled() else resolve_capsule_names(prompt)
     capsules = [capsule for name in names for capsule in [read_capsule(name)] if capsule]
     # 时间行独立 prepend, 不占 capsule 的 MAX_PROMPT_CONTEXT_CHARS 截断预算(它短且必要)。
     time_note = current_time_note()
+    memory_injected = False
     if not memory_enabled():
         context = time_note
         if capsules:
@@ -352,7 +366,19 @@ def prompt_context(hook_input: dict) -> str:
         capsule_context = join_capsules(capsules) if capsules else ""
         query = prompt if budget.remaining() <= 0 else expand_memory_query(prompt, budget)
         memory_context = "" if ROLE_DISPATCH_RE.search(prompt) else render_memory_segment(recall_memory_notes(query))
+        memory_injected = bool(memory_context)
         context = render_prompt_context(time_note, capsule_context, memory_context)
+    emit_context_telemetry(
+        "capsule_route",
+        lambda: {
+            "duration_ms": int((monotonic() - started) * 1000),
+            "capsule_count": len(names),
+            "injected": context != time_note,
+            "memory_injected": memory_injected,
+            "prompt_chars": len(prompt),
+            "context_chars": len(context),
+        },
+    )
     # 可观测: 有 capsule 时给用户一行摘要(systemMessage 在 CC/Droid 终端显示, 不进 transcript、不打扰模型)。
     system_message = "↳ capsules: " + ", ".join(CAPSULE_SHORT.get(n, n) for n in names) if names else None
     return json_context("UserPromptSubmit", context, system_message)
@@ -528,16 +554,93 @@ def bookend_excerpt(body: str, terms: list[str], radius: int = 90) -> str:
     return prefix + collapsed[start:end].strip() + suffix
 
 
+def recall_memory_api(query: str, top: int = 3, timeout: float = MEMORY_RECALL_TIMEOUT) -> list[MemoryHit] | None:
+    payload = json.dumps({"query": query, "top_k": top}).encode("utf-8")
+    request = urllib.request.Request(
+        MEMORY_RECALL_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = json.loads(response.read())
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        return None
+    if not isinstance(body, dict):
+        return None
+    hits = body.get("hits")
+    if body.get("disabled") is True or not isinstance(hits, list) or not hits:
+        return None
+    out: list[MemoryHit] = []
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        path = hit.get("rel_path")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        meta = {
+            "title": str(hit.get("title") or path),
+            "problem_type": str(hit.get("problem_type") or ""),
+            "status": str(hit.get("status") or "active"),
+            "source": str(hit.get("source") or ""),
+        }
+        out.append(
+            MemoryHit(
+                path=Path(path),
+                score=float(hit.get("score") or 0.0),
+                meta=meta,
+                age_label=str(hit.get("date") or "age unknown"),
+                body_excerpt=str(hit.get("excerpt") or ""),
+            )
+        )
+    return out
+
+
+def cc_memory_root() -> Path:
+    override = os.environ.get("DOTFILES_CC_MEMORY_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path.home() / ".claude" / "projects"
+
+
 def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
+    started = monotonic()
     terms = search_terms(query)
     if not terms:
+        emit_context_telemetry(
+            "recall",
+            lambda: {
+                "duration_ms": int((monotonic() - started) * 1000),
+                "route": "empty",
+                "hit_count": 0,
+                "scores": [],
+                "fallback_triggered": False,
+                "fallback_reason": "no_terms",
+            },
+        )
         return []
+    api_hits = recall_memory_api(query, top=top)
+    if api_hits is not None:
+        hits = api_hits[:top]
+        emit_context_telemetry(
+            "recall",
+            lambda: {
+                "duration_ms": int((monotonic() - started) * 1000),
+                "route": "api",
+                "hit_count": len(hits),
+                "scores": [round(hit.score, 4) for hit in hits],
+                "fallback_triggered": False,
+                "fallback_reason": "",
+            },
+        )
+        return hits
     user_dir = config_root() / "memory" / "user"
     index_path = user_dir / "INDEX.md"
     try:
         rows = parse_index_rows(index_path.read_text(encoding="utf-8"))
     except OSError:
-        return []
+        rows = []
     hits: list[MemoryHit] = []
     for row in rows:
         if inactive_memory_status(row.get("status", "active")):
@@ -553,9 +656,33 @@ def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
         if lexical <= 0:
             continue
         score = lexical * problem_type_weight(meta.get("problem_type", "")) * recency_weight(path)
+        if meta.get("source") == "cc-native" or "/memory/" in str(path):
+            source = f"memory/{path.parent.parent.name}/memory/{path.name}" if path.parent.name == "memory" else f"memory/{path.name}"
+        else:
+            source = f"memory/user/{path.name}"
+        meta = {**meta, "source": source}
+        hits.append(MemoryHit(path=path, score=score, meta=meta, age_label=note_age_label(meta)))
+    cc_root = cc_memory_root()
+    try:
+        cc_paths = sorted(cc_root.glob("*/memory/*.md"))
+    except OSError:
+        cc_paths = []
+    for path in cc_paths:
+        if path.name == "MEMORY.md":
+            continue
+        body = read_note_body(path)
+        meta = read_note_frontmatter(path)
+        if inactive_memory_status(meta.get("status", "active")) or not trust_allows(meta):
+            continue
+        lexical = score_note(index_search_text({}, meta), body, terms)
+        if lexical <= 0:
+            continue
+        project = path.parent.parent.name
+        meta = {**meta, "title": meta.get("title") or path.stem, "source": f"memory/{project}/memory/{path.name}"}
+        score = lexical * problem_type_weight(meta.get("problem_type", "")) * recency_weight(path)
         hits.append(MemoryHit(path=path, score=score, meta=meta, age_label=note_age_label(meta)))
     hits.sort(key=lambda hit: (-hit.score, hit.path.name))
-    return [
+    out = [
         MemoryHit(
             path=hit.path,
             score=hit.score,
@@ -565,6 +692,18 @@ def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
         )
         for hit in hits[:top]
     ]
+    emit_context_telemetry(
+        "recall",
+        lambda: {
+            "duration_ms": int((monotonic() - started) * 1000),
+            "route": "lexical_fallback" if out else "empty",
+            "hit_count": len(out),
+            "scores": [round(hit.score, 4) for hit in out],
+            "fallback_triggered": True,
+            "fallback_reason": "api_unavailable_or_empty",
+        },
+    )
+    return out
 
 
 def render_blocked_memory_hit(hit: MemoryHit, sanitized_text: str) -> str:
@@ -582,7 +721,7 @@ def render_memory_segment(hits: list[MemoryHit]) -> str:
         meta = hit.meta
         title = meta.get("title") or hit.path.stem
         keywords = meta.get("keywords") or meta.get("tags") or ""
-        source = f"memory/user/{hit.path.name}"
+        source = meta.get("source") or f"memory/user/{hit.path.name}"
         rendered_text = f"{title}\n{keywords}\n{hit.body_excerpt}"
         sanitized = sanitize_for_prompt(rendered_text, source=source)
         if sanitized.blocked:

@@ -46,6 +46,7 @@ argument-hint: <项目名|改动范围|当前 Phase>
 | **备份 / 恢复演练在 test 做**，不是 prod | prod 第一次恢复 = 第一次发现备份坏掉 |
 | **每个 Phase 必须有回滚剧本**（不只是 git revert，包括数据 / schema / 灰度开关） | 出事时手忙脚乱 |
 | **业务侧可见成果** 是每个 Phase 的退出条件 | 技术完成 ≠ 交付完成 |
+| **不可逆设计默认值**（主键/标识符、存储引擎或核心 schema、API envelope、鉴权模型、数据格式/协议）锁定前必须摊 ≥2 替代 + 各自反超条件；真不可逆的跑 `design-divergence-challenger` subagent（详见 think-plan §6 One-way-door） | 顺手取通识默认（如 UUID 主键），小系统不显、规模上来才暴露（无法顺序检索/索引局部性差），且此时已难回退 |
 
 例外只允许一类：**纯文档改动**（spec、盘点文档、README 等），不走 test。
 schema 改一行、lint 规则调整、feature flag 默认值改动——**都不算例外**。

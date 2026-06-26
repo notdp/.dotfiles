@@ -109,7 +109,7 @@ class VerifySkillsAssetTests(unittest.TestCase):
                 "description: Use when a demo workflow is needed.\n"
                 "---\n"
                 "# Demo\n"
-                "Reference scripts/helper.py for implementation details.\n",
+                "Reference ${HOME}/.dotfiles/coding-skills/dev-demo/scripts/helper.py for implementation details.\n",
                 encoding="utf-8",
             )
 
