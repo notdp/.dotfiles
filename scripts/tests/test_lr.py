@@ -420,6 +420,96 @@ class LaunchDispatchClassificationTests(unittest.TestCase):
         self.assertIn("command not found: kilo", tail or "")
 
 
+class RuntimeScreenClassificationTests(unittest.TestCase):
+    def test_screen_frozen_requires_identical_previous_frame(self) -> None:
+        self.assertTrue(lr.screen_frozen("same", "same"))
+        self.assertFalse(lr.screen_frozen("now", "before"))
+        self.assertFalse(lr.screen_frozen("now", None))
+
+    def test_strip_footer_chrome_removes_known_footer_without_body_loss(self) -> None:
+        screen = "important body\nwork result\nbypass permissions on\n? for shortcuts"
+        stripped = lr.strip_footer_chrome(screen, "claude_cli")
+        self.assertIn("important body", stripped)
+        self.assertIn("work result", stripped)
+        self.assertNotIn("bypass permissions", stripped)
+        self.assertNotIn("? for shortcuts", stripped)
+
+    def test_classify_prompt_shape_variants(self) -> None:
+        self.assertEqual(lr.classify_prompt_shape("Proceed? [y/N]", "kilo"), "binary_yn")
+        self.assertEqual(lr.classify_prompt_shape("1. Yes\n2. No", "kilo"), "numbered")
+        self.assertEqual(lr.classify_prompt_shape("❯ 选择这个选项", "claude_cli"), "arrow_select")
+        self.assertEqual(lr.classify_prompt_shape("Describe the plan:\n> ", "kilo"), "free_text")
+        self.assertEqual(lr.classify_prompt_shape("Apply this yes to all?", "kilo"), "yes_to_all")
+        self.assertEqual(lr.classify_prompt_shape("no prompt here", "kilo"), "unknown")
+
+    def test_status_done_wins_and_only_status_marks_done(self) -> None:
+        self.assertEqual(lr.classify_screen("API error", None, "kilo", "done", 0), "done")
+        self.assertNotEqual(lr.classify_screen("done", "done", "kilo", None, 0), "done")
+
+    def test_frozen_backend_error_in_tail_is_errored(self) -> None:
+        screen = "working\nAPI error: network error"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "errored")
+
+    def test_unfrozen_error_screen_is_working(self) -> None:
+        prev = "line 1\nAPI error: network error"
+        screen = "line 2\nAPI error: network error"
+        self.assertEqual(lr.classify_screen(screen, prev, "kilo", None, 0), "working")
+
+    def test_error_in_middle_not_tail_is_not_errored(self) -> None:
+        screen = "Error: from old logs\n" + "\n".join(f"line {i}" for i in range(20))
+        self.assertNotEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "errored")
+
+    def test_frozen_confirmation_tail_is_awaiting_input(self) -> None:
+        screen = "Need confirmation\nDo you want to proceed? [y/N]"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", "coding", 0), "awaiting_input")
+
+    def test_confirmation_with_footer_is_awaiting_input_not_ready_idle(self) -> None:
+        screen = "Do you want to proceed? [y/N]\nbypass permissions on\n? for shortcuts"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", "coding", 0), "awaiting_input")
+
+    def test_frozen_ready_box_is_ready_idle_without_confirmation_glyph(self) -> None:
+        screen = "All done\nAsk anything\n? for shortcuts"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "ready_idle")
+
+    def test_claude_footer_only_ready_box_is_ready_idle(self) -> None:
+        screen = "work complete\nbypass permissions on\n? for shortcuts"
+        self.assertEqual(lr.classify_screen(screen, screen, "claude_cli", None, 0), "ready_idle")
+
+    def test_dispatch_blocked_requires_frozen_stale_statusless_screen(self) -> None:
+        prev = "Would you like to update?"
+        screen = "Would you like to update? [Y/n]"
+        self.assertEqual(lr.classify_screen(screen, prev, "kilo", None, 60), "working")
+        self.assertNotEqual(lr.classify_screen(screen, screen, "kilo", None, 1), "dispatch_blocked")
+        self.assertNotEqual(lr.classify_screen(screen, screen, "kilo", "coding", 60), "dispatch_blocked")
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 60), "dispatch_blocked")
+
+    def test_session_age_uses_last_seen(self) -> None:
+        row = {"started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:10Z"}
+        now = lr.datetime.fromisoformat("2026-06-26T00:00:20+00:00")
+        self.assertEqual(lr._session_age_s(row, now), 10.0)
+
+    def test_failed_tail_does_not_mask_ready_idle(self) -> None:
+        screen = "Tests FAILED earlier\nAsk anything\n? for shortcuts"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "ready_idle")
+
+    def test_confirmation_with_error_words_stays_awaiting_input(self) -> None:
+        screen = "Command failed, retry? [y/N]"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "awaiting_input")
+        self.assertEqual(lr.classify_prompt_shape(screen, "kilo"), "binary_yn")
+
+    def test_free_text_shape_does_not_trigger_awaiting_input(self) -> None:
+        screen = "shell output:\n> "
+        self.assertEqual(lr.classify_prompt_shape(screen, "kilo"), "free_text")
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "unknown")
+
+    def test_changed_screen_is_working(self) -> None:
+        self.assertEqual(lr.classify_screen("token 2", "token 1", "kilo", None, 0), "working")
+
+    def test_unmatched_frozen_screen_is_unknown(self) -> None:
+        screen = "quiet shell prompt"
+        self.assertEqual(lr.classify_screen(screen, screen, "kilo", None, 0), "unknown")
+
+
 class YamlLoaderTests(unittest.TestCase):
     def test_loads_generated_config_and_passes_validate(self) -> None:
         cfg = lr.load_yaml(lr.default_config_yaml("demo"))
@@ -1293,6 +1383,126 @@ class GateCommandIntegrationTests(unittest.TestCase):
             code, out = self._run(["stats", "--workspace", str(ws)])
             self.assertEqual(code, 0)
             self.assertIn("尚无", out)
+
+    def test_observe_reports_running_pane_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+                {"role": "phase_reviewer_a", "phase": "02", "pane_id": "%43", "started_at": "t", "last_seen": "t", "status": "closed"},
+            ]), encoding="utf-8")
+            (ws / "phases" / "02" / "phase_coder.status").write_text("coding\n", encoding="utf-8")
+
+            old_tmux = lr._tmux
+            old_capture = lr.capture_pane
+            old_sleep = lr.time.sleep
+            try:
+                lr._tmux = lambda args, capture=False: "%42\n" if args[:2] == ["list-panes", "-aF"] else ""
+                lr.capture_pane = lambda _pane: "Do you want to proceed? [y/N]"
+                lr.time.sleep = lambda _seconds: None
+                code, out = self._run(["observe", "--workspace", str(ws)])
+            finally:
+                lr._tmux = old_tmux
+                lr.capture_pane = old_capture
+                lr.time.sleep = old_sleep
+
+            self.assertEqual(code, 0)
+            rows = json.loads(out)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(set(rows[0]), {"role", "pane", "alive", "screen_class", "status_state", "prompt_shape", "tail"})
+            self.assertEqual(rows[0]["role"], "phase_coder")
+            self.assertEqual(rows[0]["pane"], "%42")
+            self.assertTrue(rows[0]["alive"])
+            self.assertEqual(rows[0]["screen_class"], "awaiting_input")
+            self.assertEqual(rows[0]["status_state"], "coding")
+            self.assertEqual(rows[0]["prompt_shape"], "binary_yn")
+            self.assertIn("[y/N]", rows[0]["tail"])
+
+    def test_observe_empty_sessions_outputs_empty_json_array(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([]), encoding="utf-8")
+            old_tmux = lr._tmux
+            try:
+                lr._tmux = lambda args, capture=False: ""
+                code, out = self._run(["observe", "--workspace", str(ws)])
+            finally:
+                lr._tmux = old_tmux
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(out), [])
+
+    def test_observe_passes_session_age_to_dispatch_classification(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:00Z", "status": "running"},
+            ]), encoding="utf-8")
+
+            old_tmux = lr._tmux
+            old_capture = lr.capture_pane
+            old_sleep = lr.time.sleep
+            old_datetime = lr.datetime
+            class FrozenDatetime(lr.datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls.fromisoformat("2026-06-26T00:00:10+00:00")
+
+            try:
+                lr._tmux = lambda args, capture=False: "%42\n" if args[:2] == ["list-panes", "-aF"] else ""
+                lr.capture_pane = lambda _pane: "Would you like to update? [Y/n]"
+                lr.time.sleep = lambda _seconds: None
+                lr.datetime = FrozenDatetime
+                code, out = self._run(["observe", "--workspace", str(ws)])
+            finally:
+                lr._tmux = old_tmux
+                lr.capture_pane = old_capture
+                lr.time.sleep = old_sleep
+                lr.datetime = old_datetime
+
+            self.assertEqual(code, 0)
+            rows = json.loads(out)
+            self.assertEqual(rows[0]["screen_class"], "dispatch_blocked")
+
+    def test_observe_does_not_send_keys_or_write_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            sessions_before = (ws / "SESSIONS.md").read_text(encoding="utf-8")
+            sent = []
+
+            old_tmux = lr._tmux
+            old_capture = lr.capture_pane
+            old_send_to_pane = lr.send_to_pane
+            old_send_keys_to_pane = lr.send_keys_to_pane
+            old_sleep = lr.time.sleep
+            try:
+                def fake_tmux(args, capture=False):
+                    if args[:2] == ["list-panes", "-aF"]:
+                        return "%42\n"
+                    if "send-keys" in args:
+                        sent.append(args)
+                    return ""
+
+                lr._tmux = fake_tmux
+                lr.capture_pane = lambda _pane: "Ask anything\n? for shortcuts"
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                lr.send_keys_to_pane = lambda *args, **kwargs: sent.append(args)
+                lr.time.sleep = lambda _seconds: None
+                code, _out = self._run(["observe", "--workspace", str(ws)])
+            finally:
+                lr._tmux = old_tmux
+                lr.capture_pane = old_capture
+                lr.send_to_pane = old_send_to_pane
+                lr.send_keys_to_pane = old_send_keys_to_pane
+                lr.time.sleep = old_sleep
+
+            self.assertEqual(code, 0)
+            self.assertEqual(sent, [])
+            self.assertEqual((ws / "SESSIONS.md").read_text(encoding="utf-8"), sessions_before)
 
 
 class DcLrApiContractTests(unittest.TestCase):

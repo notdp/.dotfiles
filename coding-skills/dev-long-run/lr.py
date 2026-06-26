@@ -58,12 +58,26 @@ READY_MARKERS = {
     "kilo": ("Ask anything", "? for shortcuts"),
     "claude_cli": ("bypass permissions", "? for shortcuts"),
 }
+ERROR_MARKERS = {
+    "kilo": ("API error", "rate limit", "network error", "ECONNRESET", "request failed"),
+    "claude_cli": ("API Error", "rate limit", "overloaded_error", "Connection error"),
+    "droid": (),
+    "codex": (),
+}
+CONFIRM_MARKERS = {
+    "kilo": ("[y/N]", "(y/n)", "Do you want to proceed", "Approve", "1. Yes"),
+    "claude_cli": ("Do you want to proceed", "❯ 1. Yes", "[y/n]"),
+    "droid": (),
+    "codex": (),
+}
 SAFE_LAUNCH_BOXES = [
     {"name": "omzsh_update", "all_of": ("Would you like to update", "[Y/n]"), "keys": ("n", "Enter")},
     {"name": "claude_trust", "any_of": ("trust this folder", "Is this a project"), "keys": ("Enter",)},
 ]
 DISPATCH_TIMEOUT = 45
 DISPATCH_BLOCKED_EXIT = 7
+OBSERVE_FRAME_GAP = 1.0
+DISPATCH_BLOCKED_MIN_AGE_S = 5.0
 
 
 def agent_ready(screen: str, backend: str) -> bool:
@@ -99,6 +113,84 @@ def classify_launch(screen: str, backend: str) -> str:
 
 def screen_tail(screen: str, n: int = 15) -> str:
     return "\n".join(screen.splitlines()[-n:])
+
+
+def screen_frozen(screen: str, prev_screen: str | None) -> bool:
+    """两帧逐字相同才算冻结；首帧不轻易判成可行动静态状态。"""
+    return prev_screen is not None and screen == prev_screen
+
+
+FOOTER_CHROME_MARKERS = {
+    "kilo": ("? for shortcuts",),
+    "claude_cli": ("bypass permissions", "? for shortcuts"),
+}
+
+
+def strip_footer_chrome(screen: str, backend: str) -> str:
+    """去掉 TUI 常驻页脚行，避免 footer ready/chrome 标记污染运行期分类。"""
+    markers = FOOTER_CHROME_MARKERS.get(backend, ())
+    lines = screen.splitlines()
+    while lines and any(marker in lines[-1] for marker in markers):
+        lines.pop()
+    return "\n".join(lines)
+
+
+def classify_prompt_shape(screen: str, backend: str) -> str:
+    tail = screen_tail(screen)
+    low = tail.lower()
+    if "yes to all" in low:
+        return "yes_to_all"
+    if re.search(r"\[(?:y/n|y/N|Y/n|Y/N)\]|\([yY]/[nN]\)", tail):
+        return "binary_yn"
+    if re.search(r"(?m)^\s*1\.\s+\S+.*\n\s*2\.\s+\S+", tail):
+        return "numbered"
+    if _has_marker(tail, CONFIRM_MARKERS.get(backend, ())) and "yes" in low and "no" in low:
+        return "binary_yn"
+    if "❯" in tail:
+        return "arrow_select"
+    if re.search(r"(?m)(:\s*$|>\s*$)", tail):
+        return "free_text"
+    return "unknown"
+
+
+def _has_marker(text: str, markers: tuple[str, ...]) -> bool:
+    return any(marker in text for marker in markers)
+
+
+def _has_confirm_marker(text: str, backend: str) -> bool:
+    shape = classify_prompt_shape(text, backend)
+    return _has_marker(text, CONFIRM_MARKERS.get(backend, ())) or shape in {
+        "binary_yn", "numbered", "arrow_select", "yes_to_all"
+    }
+
+
+def classify_screen(screen: str, prev_screen: str | None, backend: str,
+                    status_state: str | None, age_s: float) -> str:
+    """运行期 pane 屏幕分类；done/blocked/compact 只信 status_state。"""
+    if status_state in {"done", "blocked", "compact"}:
+        return status_state
+    if not screen_frozen(screen, prev_screen):
+        return "working"
+    if status_state is None and age_s >= DISPATCH_BLOCKED_MIN_AGE_S and match_safe_launch_box(screen):
+        return "dispatch_blocked"
+
+    tail = screen_tail(screen)
+    has_confirm = _has_confirm_marker(tail, backend)
+    if has_confirm and status_state != "done":
+        return "awaiting_input"
+    idle = pane_looks_idle(screen)
+
+    backend_errors = ERROR_MARKERS.get(backend, ())
+    if _has_marker(tail, backend_errors):
+        return "errored"
+    if idle:
+        return "ready_idle"
+    if _FAIL_LINE_RE.search(tail) and not has_confirm:
+        return "errored"
+    without_footer = strip_footer_chrome(screen, backend)
+    if pane_looks_idle(without_footer) and not has_confirm:
+        return "ready_idle"
+    return "unknown"
 
 
 def is_dual_review_config(roles: dict) -> bool:
@@ -1204,6 +1296,87 @@ def cmd_sessions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _role_backends(workspace: Path) -> dict[str, str]:
+    config_path = workspace / "config.yaml"
+    if not config_path.exists():
+        return {}
+    config = load_yaml(config_path.read_text(encoding="utf-8"))
+    roles = config.get("roles", {}) if isinstance(config, dict) else {}
+    return {role: cfg.get("backend", "custom") for role, cfg in roles.items() if isinstance(cfg, dict)}
+
+
+def _status_state_for_observe(workspace: Path, row: dict[str, str]) -> str | None:
+    role = row["role"]
+    phase = row["phase"]
+    if role.startswith("phase_"):
+        status_path = resolve_phase_dir(workspace, phase) / f"{role}.status"
+    else:
+        status_path = workspace / f"{role}.status"
+    if not status_path.exists():
+        return None
+    state, _detail = parse_worker_status(status_path.read_text(encoding="utf-8"))
+    return None if state == "unknown" else state
+
+
+def _session_age_s(row: dict[str, str], now: datetime | None = None) -> float:
+    ts = row.get("last_seen") or row.get("started_at") or ""
+    try:
+        seen = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    now = now or datetime.now(timezone.utc)
+    if seen.tzinfo is None:
+        seen = seen.replace(tzinfo=timezone.utc)
+    return max(0.0, (now - seen).total_seconds())
+
+
+def cmd_observe(args: argparse.Namespace) -> int:
+    """只读观察所有 running pane，输出给协调者消费的结构化 JSON。"""
+    workspace = Path(args.workspace).resolve()
+    sessions_path = workspace / "SESSIONS.md"
+    rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
+    running = [row for row in rows if row["status"] == "running"]
+    if not running:
+        sys.stdout.write("[]\n")
+        return 0
+
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    backends = _role_backends(workspace)
+    out = []
+    for row in running:
+        role = row["role"]
+        pane = row["pane_id"]
+        alive = pane_is_alive(live, pane)
+        if not alive:
+            out.append({
+                "role": role,
+                "pane": pane,
+                "alive": False,
+                "screen_class": "dead",
+                "status_state": _status_state_for_observe(workspace, row),
+                "prompt_shape": None,
+                "tail": "",
+            })
+            continue
+        frame1 = capture_pane(pane)
+        time.sleep(OBSERVE_FRAME_GAP)
+        frame2 = capture_pane(pane)
+        backend = backends.get(role, "custom")
+        status_state = _status_state_for_observe(workspace, row)
+        screen_class = classify_screen(frame2, frame1, backend, status_state, _session_age_s(row))
+        out.append({
+            "role": role,
+            "pane": pane,
+            "alive": True,
+            "screen_class": screen_class,
+            "status_state": status_state,
+            "prompt_shape": classify_prompt_shape(frame2, backend) if screen_class == "awaiting_input" else None,
+            "tail": screen_tail(frame2),
+        })
+    sys.stdout.write(json.dumps(out, ensure_ascii=False) + "\n")
+    return 0
+
+
 def cmd_pane_alive(args: argparse.Namespace) -> int:
     live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
     return 0 if pane_is_alive(live, args.pane) else 1
@@ -1572,6 +1745,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sessions", help="打印 SESSIONS.md + pane 存活")
     p.add_argument("--workspace", required=True)
     p.set_defaults(func=cmd_sessions)
+
+    p = sub.add_parser("observe", help="只读观察所有 running pane, 输出 JSON 分类")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--json", action="store_true", default=True, help="输出 JSON(默认; 保留给未来兼容)")
+    p.add_argument("--once", action="store_true", default=True, help="单次观察(默认; 预留给未来循环接口)")
+    p.set_defaults(func=cmd_observe)
 
     p = sub.add_parser("pane-alive", help="exit 0 if pane alive else 1")
     p.add_argument("--pane", required=True)
