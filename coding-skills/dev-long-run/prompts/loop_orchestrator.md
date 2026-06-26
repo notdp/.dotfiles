@@ -22,12 +22,11 @@
 - **并发盯多个 worker:用 `lr.py await-all --workspace <ws>`**。它在 python 内有界轮询所有 `SESSIONS.md` 中 `running` 的 pane，复用 `observe` 的两帧 screen_class 分类；任一 pane 进入可行动状态、全部 done、或 timeout 即返回顶层 JSON：`{verdict, triggering, done_count, total, panes}`。退出码：`0 all_done` / `10 attention` / `4 timeout`。它只上报，不发键、不重启、不写 status。
 - `await-all` 只能在 worker 注册为 running 之后调用；空 running pane 会返回 `all_done`，不要在 launch 尚未写入 `SESSIONS.md` 的窗口抢跑。
 - `await-all` 每轮对 running pane 串行做两帧观察，实际返回延迟约为 `N×OBSERVE_FRAME_GAP+interval`；pane 多时不要把这个延迟误判成卡住。
-- `screen_class` 分流（report-only，人工决定动作）:
-  - `errored` → 看 `tail`，多半是网络/模型错误；按现场重发或 escalate 用户。
-  - `awaiting_input` → worker 卡人工确认；看 `tail` 后人工决定 `lr.py send` 答复或 escalate。
-  - `dispatch_blocked` → worker 运行期没进入 ready；人工判断是否 relaunch。
+- `await-all` 返回 `10 attention` 后，先看 JSON 的 `triggering` pane 与对应 `screen_class`，再分流：
+  - `ready_idle(久)`/`dispatch_blocked`/`errored` → 先跑 `lr.py remediate --workspace <ws> --pane <pane>`。退出 `0` 表示已自动补救，继续 `await-all`；退出 `11` 表示需人工，读它打印的 reason/tail 再决定打回、重开或 escalate。remediate 有 `MAX_AUTO_REMEDIATE` 上限，超限会报 `intervention_loop`；不要绕过上限硬刷。
+  - `awaiting_input` → **不要指望 remediate 自动答确认**（即使误调也只会 exit 11）。看 `tail` 后人工决定 `lr.py send` 答复或 escalate；自动答确认属于后续 P5，不在当前协议内。
   - `blocked`/`compact`/`dead` → 按对应 worker status 或 pane 生死处理：compact 重开 fresh 读 HANDOFF，dead 重开或标 failed，blocked 按 reason escalate。
-  - `working`/`ready_idle`/`unknown` → 不算 await-all 可行动；继续等或按 timeout 后的现场判断处理。
+  - `working`/`unknown` → 不算 await-all 可行动；继续等或按 timeout 后的现场判断处理。
 
 ## 每 phase 循环
 1. 读 `fix_plan.md` 选下一个未完成 phase。
@@ -42,7 +41,7 @@
    ```
    lr.py await-all --workspace <ws>
    ```
-   返回 `0 all_done` → 两路都已完成；返回 `10 attention` → 读 JSON 的 `triggering` 和每个 pane 的 `screen_class`，按上面的 report-only 分流表处理（如 `errored` 看 tail 重发或 escalate，`awaiting_input` 人工决定是否 `lr.py send`，`dead` 重开或降级）。
+   返回 `0 all_done` → 两路都已完成；返回 `10 attention` → 读 JSON 的 `triggering` 和每个 pane 的 `screen_class`，按上面的分流表处理（type(a) 先 `lr.py remediate`；`awaiting_input` 人工决定是否 `lr.py send`；`dead` 重开或降级）。
    需要确认某一路是否真的写了 DONE、或只复查单个 pane 时，再用单 pane `await` 定点复查:
    ```
    lr.py await --workspace <ws> --phase <NN> --role phase_reviewer_a --pane <pane_a>

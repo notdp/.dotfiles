@@ -547,25 +547,113 @@ class AwaitAllAggregationTests(unittest.TestCase):
                 self.assertEqual(agg["verdict"], "attention")
                 self.assertEqual(agg["triggering"], ["%1"])
 
-    def test_non_actionable_mix_waits(self) -> None:
+    def test_remediable_ready_idle_triggers_attention(self) -> None:
         agg = lr.aggregate_await_all([
             {"role": "phase_coder", "pane": "%1", "screen_class": "working"},
-            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "ready_idle"},
+            {"role": "phase_reviewer_a", "pane": "%2", "screen_class": "ready_idle", "age_s": lr.READY_IDLE_REMEDIATE_MIN_AGE_S},
             {"role": "phase_reviewer_b", "pane": "%3", "screen_class": "unknown"},
+        ])
+        self.assertEqual(agg["verdict"], "attention")
+        self.assertEqual(agg["triggering"], ["%2"])
+
+    def test_ready_idle_alone_is_actionable_for_remediation(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "ready_idle", "age_s": lr.READY_IDLE_REMEDIATE_MIN_AGE_S},
+        ])
+        self.assertEqual(agg["verdict"], "attention")
+        self.assertEqual(agg["triggering"], ["%1"])
+
+    def test_recent_ready_idle_waits(self) -> None:
+        agg = lr.aggregate_await_all([
+            {"role": "phase_coder", "pane": "%1", "screen_class": "ready_idle", "age_s": 0},
         ])
         self.assertEqual(agg["verdict"], "waiting")
         self.assertEqual(agg["triggering"], [])
-
-    def test_ready_idle_alone_is_not_actionable(self) -> None:
-        agg = lr.aggregate_await_all([
-            {"role": "phase_coder", "pane": "%1", "screen_class": "ready_idle"},
-        ])
-        self.assertEqual(agg["verdict"], "waiting")
 
     def test_empty_list_waits(self) -> None:
         agg = lr.aggregate_await_all([])
         self.assertEqual(agg["verdict"], "waiting")
         self.assertEqual(agg["total"], 0)
+
+
+class RemediationPlanningTests(unittest.TestCase):
+    def test_transient_error_markers(self) -> None:
+        for screen in ("rate limit", "network error", "ECONNRESET", "overloaded"):
+            with self.subTest(screen=screen):
+                self.assertTrue(lr.is_transient_error(screen, "kilo"))
+
+    def test_non_transient_error_markers(self) -> None:
+        for screen in ("AssertionError: bad value", "SyntaxError: invalid", "API error: model not found", ""):
+            with self.subTest(screen=screen):
+                self.assertFalse(lr.is_transient_error(screen, "kilo"))
+
+    def test_ready_idle_resends_status_prompt(self) -> None:
+        plan = lr.plan_remediation("ready_idle", "Ask anything", "kilo", 0, age_s=lr.READY_IDLE_REMEDIATE_MIN_AGE_S)
+        self.assertEqual(plan["action"], "resend_status_prompt")
+
+    def test_ready_idle_must_be_stale_before_remediation(self) -> None:
+        plan = lr.plan_remediation("ready_idle", "Ask anything", "kilo", 0, age_s=0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "ready_idle_not_stale")
+
+    def test_dispatch_blocked_known_safe_box_resolves(self) -> None:
+        plan = lr.plan_remediation(
+            "dispatch_blocked",
+            "[oh-my-zsh] Would you like to update? [Y/n]",
+            "kilo",
+            0,
+        )
+        self.assertEqual(plan["action"], "resolve_safe_box")
+
+    def test_dispatch_blocked_unknown_box_escalates(self) -> None:
+        plan = lr.plan_remediation("dispatch_blocked", "blocked on unknown prompt", "kilo", 0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "unsafe_dispatch_block")
+
+    def test_errored_transient_and_idle_retries(self) -> None:
+        screen = "API error: network error\nAsk anything\n? for shortcuts"
+        plan = lr.plan_remediation("errored", screen, "kilo", 0)
+        self.assertEqual(plan["action"], "retry_errored")
+
+    def test_errored_non_transient_escalates(self) -> None:
+        plan = lr.plan_remediation("errored", "AssertionError: expected true", "kilo", 0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "non_transient_error")
+
+    def test_generic_api_error_with_idle_is_non_transient(self) -> None:
+        screen = "API error: model not found\nAsk anything\n? for shortcuts"
+        plan = lr.plan_remediation("errored", screen, "kilo", 0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "non_transient_error")
+
+    def test_errored_transient_without_idle_escalates(self) -> None:
+        plan = lr.plan_remediation("errored", "API error: network error", "kilo", 0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "worker_not_idle")
+
+    def test_awaiting_input_always_escalates_for_p5(self) -> None:
+        plan = lr.plan_remediation("awaiting_input", "Proceed? [y/N]", "kilo", 0)
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "confirmation_needs_p5")
+
+    def test_retry_budget_escalates_intervention_loop(self) -> None:
+        plan = lr.plan_remediation(
+            "ready_idle", "Ask anything", "kilo", lr.MAX_AUTO_REMEDIATE,
+            age_s=lr.READY_IDLE_REMEDIATE_MIN_AGE_S,
+        )
+        self.assertEqual(plan["action"], "escalate")
+        self.assertEqual(plan["reason"], "intervention_loop")
+
+    def test_non_remediable_classes_escalate(self) -> None:
+        for screen_class in ("working", "unknown"):
+            with self.subTest(screen_class=screen_class):
+                plan = lr.plan_remediation(screen_class, "", "kilo", 0)
+                self.assertEqual(plan["action"], "escalate")
+                self.assertEqual(plan["reason"], "non_remediable_class")
+
+    def test_remediate_exit_code_contract(self) -> None:
+        self.assertEqual(lr.REMEDIATE_ESCALATE_EXIT, 11)
+        self.assertNotIn(lr.REMEDIATE_ESCALATE_EXIT, {0, 2, 3, 4, 5, 6, lr.DISPATCH_BLOCKED_EXIT, 10})
 
 
 class LoopOrchestratorPromptTests(unittest.TestCase):
@@ -1684,7 +1772,7 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             rows = json.loads(out)
             self.assertEqual(len(rows), 1)
-            self.assertEqual(set(rows[0]), {"role", "pane", "alive", "screen_class", "status_state", "prompt_shape", "tail"})
+            self.assertEqual(set(rows[0]), {"role", "pane", "alive", "screen_class", "status_state", "age_s", "prompt_shape", "tail"})
             self.assertEqual(rows[0]["role"], "phase_coder")
             self.assertEqual(rows[0]["pane"], "%42")
             self.assertTrue(rows[0]["alive"])
@@ -1777,6 +1865,237 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(sent, [])
             self.assertEqual((ws / "SESSIONS.md").read_text(encoding="utf-8"), sessions_before)
+
+    def test_cmd_remediate_ready_idle_resends_status_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:00Z", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            old_datetime = lr.datetime
+            class FrozenDatetime(lr.datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls.fromisoformat("2026-06-26T00:02:00+00:00")
+
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["All done\nAsk anything\n? for shortcuts"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.datetime = FrozenDatetime
+                lr.send_to_pane = lambda pane, text, enter=True: sent.append((pane, text, enter))
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.datetime = old_datetime
+
+            self.assertEqual(code, 0)
+            self.assertIn("REMEDIATED resend_status_prompt", out)
+            self.assertEqual(sent, [("%42", lr.STATUS_REPROMPT, True)])
+            counts = json.loads((ws / "remediate.json").read_text(encoding="utf-8"))
+            self.assertEqual(counts["%42"], 1)
+            metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
+            self.assertEqual(metrics[-1]["event"], "remediate")
+            self.assertEqual(metrics[-1]["action"], "resend_status_prompt")
+            self.assertEqual(metrics[-1]["attempt"], 1)
+
+    def test_cmd_remediate_recent_ready_idle_escalates_without_send(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:00Z", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            old_datetime = lr.datetime
+            class FrozenDatetime(lr.datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls.fromisoformat("2026-06-26T00:00:01+00:00")
+
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["All done\nAsk anything\n? for shortcuts"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.datetime = FrozenDatetime
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.datetime = old_datetime
+
+            self.assertEqual(code, lr.REMEDIATE_ESCALATE_EXIT)
+            self.assertIn("ready_idle_not_stale", out)
+            self.assertEqual(sent, [])
+
+    def test_cmd_remediate_budget_exceeded_does_not_send(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            (ws / "remediate.json").write_text(json.dumps({"%42": lr.MAX_AUTO_REMEDIATE}), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["All done\nAsk anything\n? for shortcuts"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+
+            self.assertEqual(code, lr.REMEDIATE_ESCALATE_EXIT)
+            self.assertIn("intervention_loop", out)
+            self.assertEqual(sent, [])
+            self.assertEqual(json.loads((ws / "remediate.json").read_text(encoding="utf-8"))["%42"], lr.MAX_AUTO_REMEDIATE)
+
+    def test_cmd_remediate_awaiting_input_never_sends(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            old_send_keys_to_pane = lr.send_keys_to_pane
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["Proceed? [y/N]"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(("text", args))
+                lr.send_keys_to_pane = lambda *args, **kwargs: sent.append(("keys", args))
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.send_keys_to_pane = old_send_keys_to_pane
+
+            self.assertEqual(code, lr.REMEDIATE_ESCALATE_EXIT)
+            self.assertIn("confirmation_needs_p5", out)
+            self.assertEqual(sent, [])
+
+    def test_cmd_remediate_unregistered_pane_escalates(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            try:
+                restore = self._patch_runtime(live="%42\n", captures=["Ask anything"] * 2, ticks=[0, 1])
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+            self.assertEqual(code, lr.REMEDIATE_ESCALATE_EXIT)
+            self.assertIn("unregistered_pane", out)
+            self.assertEqual(sent, [])
+
+    def test_cmd_remediate_dispatch_blocked_resolves_safe_box_and_marks_running(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:00Z", "status": "dispatch_blocked"},
+            ]), encoding="utf-8")
+            sent_keys = []
+            sent_text = []
+            old_send_keys = lr.send_keys_to_pane
+            old_send_to_pane = lr.send_to_pane
+            old_datetime = lr.datetime
+            class FrozenDatetime(lr.datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls.fromisoformat("2026-06-26T00:02:00+00:00")
+
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["[oh-my-zsh] Would you like to update? [Y/n]"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.datetime = FrozenDatetime
+                lr.send_keys_to_pane = lambda pane, keys: sent_keys.append((pane, keys))
+                lr.send_to_pane = lambda pane, text, enter=True: sent_text.append((pane, text, enter))
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_keys_to_pane = old_send_keys
+                lr.send_to_pane = old_send_to_pane
+                lr.datetime = old_datetime
+
+            self.assertEqual(code, 0)
+            self.assertIn("REMEDIATED resolve_safe_box", out)
+            self.assertEqual(sent_keys, [("%42", ("n", "Enter"))])
+            self.assertEqual(sent_text, [("%42", "kilo -m cliproxy/gpt-5.5", True)])
+            rows = lr.parse_sessions((ws / "SESSIONS.md").read_text(encoding="utf-8"))
+            self.assertEqual(rows[0]["status"], "running")
+            metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
+            self.assertEqual(metrics[-1]["action"], "resolve_safe_box")
+            self.assertEqual(metrics[-1]["attempt"], 1)
+
+    def test_cmd_remediate_transient_error_sends_retry_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "2026-06-26T00:00:00Z", "last_seen": "2026-06-26T00:00:00Z", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["API error: network error\nAsk anything\n? for shortcuts"] * 2,
+                    ticks=[0, 1],
+                )
+                lr.send_to_pane = lambda pane, text, enter=True: sent.append((pane, text, enter))
+                try:
+                    code, out = self._run(["remediate", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+
+            self.assertEqual(code, 0)
+            self.assertIn("REMEDIATED retry_errored", out)
+            self.assertEqual(sent, [("%42", lr.ERROR_RETRY_PROMPT, True)])
+            counts = json.loads((ws / "remediate.json").read_text(encoding="utf-8"))
+            self.assertEqual(counts["%42"], 1)
+            metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
+            self.assertEqual(metrics[-1]["action"], "retry_errored")
+            self.assertEqual(metrics[-1]["attempt"], 1)
 
 
 class DcLrApiContractTests(unittest.TestCase):
