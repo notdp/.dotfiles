@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 
@@ -35,6 +36,18 @@ class MemoryCaptureTests(unittest.TestCase):
 
     def raw_dir(self, root: Path) -> Path:
         return root / "memory" / ".staging" / "raw_memories"
+
+    def telemetry_path(self, root: Path) -> Path:
+        return root / "memory_telemetry.jsonl"
+
+    def read_telemetry_rows(self, root: Path) -> list[dict[str, Any]]:
+        path = self.telemetry_path(root)
+        if not path.exists():
+            return []
+        rows = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            rows.append(json.loads(line))
+        return rows
 
     def memory_transcript(self, path: Path) -> None:
         path.write_text(
@@ -264,6 +277,63 @@ class MemoryCaptureTests(unittest.TestCase):
             self.assertEqual(result.status, "skipped")
             self.assertIn("secret", result.reason)
             self.assertFalse(self.raw_dir(root).exists())
+
+    def test_capture_emits_local_telemetry_without_raw_body_leakage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            transcript = root / "session.jsonl"
+            self.memory_transcript(transcript)
+            env = {
+                "DOTFILES_MEMORY_ENABLED": "1",
+                "DOTFILES_MEMORY_TELEMETRY_PATH": str(self.telemetry_path(root)),
+            }
+
+            with patch.dict(os.environ, {"DOTFILES_MEMORY_TELEMETRY_PATH": str(self.telemetry_path(root))}):
+                result = self.capture.capture_from_hook_input(
+                    root,
+                    {"hook_event_name": "Stop", "transcript_path": str(transcript), "session_id": "s1", "platform": "cc"},
+                    env=env,
+                )
+
+            self.assertEqual(result.status, "written")
+            rows = self.read_telemetry_rows(root)
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row["schema"], "dotfiles.memory.telemetry.v1")
+            self.assertEqual(row["event"], "capture")
+            self.assertEqual(row["status"], "written")
+            self.assertEqual(row["candidate_count"], 1)
+            self.assertTrue(row["candidate_written"])
+            self.assertEqual(row["platform"], "cc")
+            self.assertIn("duration_ms", row)
+            self.assertNotIn("remember: prefer lexical memory recall before embeddings", json.dumps(row))
+
+    def test_capture_telemetry_fail_open_when_path_unwritable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            transcript = root / "session.jsonl"
+            self.memory_transcript(transcript)
+            telemetry_dir = root / "blocked"
+            telemetry_dir.mkdir()
+            telemetry_dir.chmod(0o500)
+            env = {
+                "DOTFILES_MEMORY_ENABLED": "1",
+                "DOTFILES_MEMORY_TELEMETRY_PATH": str(telemetry_dir / "memory_telemetry.jsonl"),
+            }
+
+            with patch.dict(os.environ, {"DOTFILES_MEMORY_TELEMETRY_PATH": str(telemetry_dir / "memory_telemetry.jsonl")}):
+                result = self.capture.capture_from_hook_input(
+                    root,
+                    {"hook_event_name": "Stop", "transcript_path": str(transcript), "session_id": "s1", "platform": "cc"},
+                    env=env,
+                )
+
+            telemetry_dir.chmod(0o700)
+            self.assertEqual(result.status, "written")
+            self.assertTrue(self.raw_dir(root).exists())
+            self.assertFalse((telemetry_dir / "memory_telemetry.jsonl").exists())
 
     def run_stop_check(self, root: Path, transcript: Path, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "FACTORY_PROJECT_DIR": str(root), **(extra_env or {})}

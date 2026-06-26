@@ -8,6 +8,7 @@ __pycache__/
 # memory/user 是敏感的跨 agent 记忆,本仓库为 PUBLIC fork,绝不上传远端。
 # 物理文件留原地(各 agent 软链指向它),改用 memory/user 内的 local-only git repo 做历史/回退。
 /memory/user/
+/memory_telemetry.jsonl
 *.review.html
 .aider*
 
