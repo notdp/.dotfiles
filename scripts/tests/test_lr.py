@@ -656,6 +656,121 @@ class RemediationPlanningTests(unittest.TestCase):
         self.assertNotIn(lr.REMEDIATE_ESCALATE_EXIT, {0, 2, 3, 4, 5, 6, lr.DISPATCH_BLOCKED_EXIT, 10})
 
 
+class ShadowAnswerPureFunctionTests(unittest.TestCase):
+    def test_extract_pending_action_high_for_single_box_command(self) -> None:
+        screen = "Approve command?\n`cat config.yaml`\nProceed? [y/N]"
+        self.assertEqual(lr.extract_pending_action(screen, "kilo"), ("cat config.yaml", "high"))
+
+    def test_extract_pending_action_low_for_shell_chain(self) -> None:
+        action, confidence = lr.extract_pending_action("Run `rm x && git push`? [y/N]", "kilo")
+        self.assertEqual(action, "rm x && git push")
+        self.assertEqual(confidence, "low")
+
+    def test_extract_pending_action_low_for_ansi_truncated_or_natural_language(self) -> None:
+        cases = [
+            "Run `\x1b[31mcat secret\x1b[0m`? [y/N]",
+            "Run `cat long/path\\`? [y/N]",
+            "Do you want me to proceed with the migration? [y/N]",
+        ]
+        for screen in cases:
+            with self.subTest(screen=screen):
+                self.assertEqual(lr.extract_pending_action(screen, "kilo")[1], "low")
+
+    def test_extract_pending_action_none_when_absent(self) -> None:
+        self.assertEqual(lr.extract_pending_action("Proceed? [y/N]", "kilo"), (None, "low"))
+
+    def test_extract_pending_action_does_not_promote_scrollback_history(self) -> None:
+        screen = "previous output\ncat sub/f\nDo you want me to proceed with the migration? [y/N]"
+        self.assertEqual(lr.extract_pending_action(screen, "kilo"), (None, "low"))
+
+    def test_readonly_sandbox_allowlist_is_positive_only(self) -> None:
+        for action in ("cat a", "ls sub", "git status --short", "grep x file"):
+            with self.subTest(action=action):
+                self.assertTrue(lr.in_readonly_sandbox_allowlist(action))
+        for action in ("rm a", "git push origin main", "dropdb prod", "unknowncmd a"):
+            with self.subTest(action=action):
+                self.assertFalse(lr.in_readonly_sandbox_allowlist(action))
+
+    def test_escapes_worktree_path_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            wt = Path(d) / "wt"
+            wt.mkdir()
+            (wt / "sub").mkdir()
+            (wt / "sub" / "f").write_text("x", encoding="utf-8")
+            outside = Path(d) / "outside"
+            outside.mkdir()
+            (outside / "secret").write_text("x", encoding="utf-8")
+            (wt / "link").symlink_to(outside / "secret")
+            self.assertFalse(lr.escapes_worktree(f"cat {wt}/sub/f", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat ../outside/secret", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat /etc/passwd", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat $VAR", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat *.py", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat $(pwd)/x", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("cat link", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("git push", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("dropdb prod", str(wt), False))
+            self.assertTrue(lr.escapes_worktree("rm sub/f", str(wt), True))
+
+    def _decision(self, **overrides) -> dict:
+        base = {
+            "screen": "Run `cat sub/f`? [y/N]",
+            "prev_screen": "Run `cat sub/f`? [y/N]",
+            "backend": "kilo",
+            "status_state": "coding",
+            "action": "cat sub/f",
+            "confidence": "high",
+            "worktree_path": "/tmp/wt",
+            "in_place": False,
+            "guard_decision": None,
+            "intervene_count": 0,
+            "repeat_count": 0,
+            "human_active": False,
+        }
+        base.update(overrides)
+        return lr.decide_confirm_answer(**base)
+
+    def test_decide_confirm_answer_all_gates_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            wt = Path(d) / "wt"
+            (wt / "sub").mkdir(parents=True)
+            (wt / "sub" / "f").write_text("x", encoding="utf-8")
+            decision = self._decision(worktree_path=str(wt))
+            self.assertEqual(decision["would_decision"], "would_auto_answer")
+
+    def test_decide_confirm_answer_must_escalate_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            wt = Path(d) / "wt"
+            (wt / "sub").mkdir(parents=True)
+            (wt / "sub" / "f").write_text("x", encoding="utf-8")
+            cases = [
+                ("non_closed_shape", {"screen": "1. Yes\n2. No"}),
+                ("low_confidence", {"confidence": "low"}),
+                ("not_in_allowlist", {"action": "rm sub/f"}),
+                ("guard_deny", {"guard_decision": type("D", (), {"kind": "deny", "reason": "x"})()}),
+                ("guard_warn", {"guard_decision": type("W", (), {"kind": "warn", "reason": "x"})()}),
+                ("escapes_worktree", {"action": "cat /etc/x"}),
+                ("budget_exceeded", {"intervene_count": lr.MAX_AUTO_INTERVENE}),
+                ("repeat_loop", {"repeat_count": lr.MAX_REPEAT}),
+                ("human_active", {"human_active": True}),
+            ]
+            for reason, kwargs in cases:
+                with self.subTest(reason=reason):
+                    decision = self._decision(worktree_path=str(wt), **kwargs)
+                    self.assertEqual(decision["would_decision"], "escalate")
+                    self.assertEqual(decision["reason"], reason)
+
+    def test_decide_confirm_answer_dangerous_actions_escalate(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            wt = Path(d) / "wt"
+            wt.mkdir()
+            dangerous = ["git push origin main", "rm -rf /", "dropdb prod"]
+            for action in dangerous:
+                with self.subTest(action=action):
+                    decision = self._decision(action=action, worktree_path=str(wt))
+                    self.assertEqual(decision["would_decision"], "escalate")
+
+
 class LoopOrchestratorPromptTests(unittest.TestCase):
     def _prompt(self) -> str:
         return (REPO_ROOT / "coding-skills" / "dev-long-run" / "prompts" / "loop_orchestrator.md").read_text(encoding="utf-8")
@@ -2019,6 +2134,121 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, lr.REMEDIATE_ESCALATE_EXIT)
             self.assertIn("unregistered_pane", out)
             self.assertEqual(sent, [])
+
+    def test_cmd_shadow_answer_safe_readonly_records_would_auto_answer_without_send(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            wt = Path(d) / "worktree"
+            (wt / "sub").mkdir(parents=True)
+            (wt / "sub" / "f").write_text("x", encoding="utf-8")
+            (ws / "state.json").write_text(json.dumps({"worktree_path": str(wt), "in_place": False}), encoding="utf-8")
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            tmux_send = []
+            old_send_to_pane = lr.send_to_pane
+            old_send_keys_to_pane = lr.send_keys_to_pane
+            old_human = lr._human_active_for_pane
+            old_tmux = lr._tmux
+            try:
+                restore = self._patch_runtime(
+                    live="%42\n",
+                    captures=["Run `cat sub/f`? [y/N]", "Run `cat sub/f`? [y/N]"],
+                    ticks=[0, 1],
+                )
+                patched_tmux = lr._tmux
+
+                def spy_tmux(args, capture=False):
+                    if args and args[0] in {"send-keys", "paste-buffer", "load-buffer"}:
+                        tmux_send.append(args)
+                    return patched_tmux(args, capture=capture)
+
+                lr._tmux = spy_tmux
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(("text", args))
+                lr.send_keys_to_pane = lambda *args, **kwargs: sent.append(("keys", args))
+                lr._human_active_for_pane = lambda _pane: False
+                try:
+                    code, out = self._run(["shadow-answer", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.send_keys_to_pane = old_send_keys_to_pane
+                lr._human_active_for_pane = old_human
+                lr._tmux = old_tmux
+
+            data = json.loads(out)
+            self.assertEqual(code, 0)
+            self.assertEqual(data["would_decision"], "would_auto_answer")
+            self.assertEqual(data["action"], "cat sub/f")
+            self.assertEqual(sent, [])
+            self.assertEqual(tmux_send, [])
+            metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
+            self.assertEqual(metrics[-1]["event"], "shadow_answer")
+            self.assertEqual(metrics[-1]["would_decision"], "would_auto_answer")
+            shadow = json.loads((ws / "shadow.json").read_text(encoding="utf-8"))
+            self.assertEqual(shadow["panes"]["%42"]["intervene_count"], 1)
+
+    def test_cmd_shadow_answer_guard_deny_escalates_without_send(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            wt = Path(d) / "worktree"
+            wt.mkdir()
+            (ws / "state.json").write_text(json.dumps({"worktree_path": str(wt), "in_place": False}), encoding="utf-8")
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            sent = []
+            old_send_to_pane = lr.send_to_pane
+            old_send_keys_to_pane = lr.send_keys_to_pane
+            old_human = lr._human_active_for_pane
+            try:
+                restore = self._patch_runtime(live="%42\n", captures=["Run `rm -rf /`? [y/N]"] * 2, ticks=[0, 1])
+                lr.send_to_pane = lambda *args, **kwargs: sent.append(args)
+                lr.send_keys_to_pane = lambda *args, **kwargs: sent.append(args)
+                lr._human_active_for_pane = lambda _pane: False
+                try:
+                    code, out = self._run(["shadow-answer", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr.send_to_pane = old_send_to_pane
+                lr.send_keys_to_pane = old_send_keys_to_pane
+                lr._human_active_for_pane = old_human
+
+            data = json.loads(out)
+            self.assertEqual(code, 0)
+            self.assertEqual(data["would_decision"], "escalate")
+            self.assertEqual(data["reason"], "guard_deny")
+            self.assertEqual(sent, [])
+
+    def test_cmd_shadow_answer_not_awaiting_and_unregistered_escalate(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            ws = self._ws(Path(d))
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([]), encoding="utf-8")
+            code, out = self._run(["shadow-answer", "--workspace", str(ws), "--pane", "%42"])
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(out)["reason"], "unregistered_pane")
+
+            (ws / "config.yaml").write_text(lr.default_config_yaml("demo"), encoding="utf-8")
+            (ws / "SESSIONS.md").write_text(lr.render_sessions([
+                {"role": "phase_coder", "phase": "02", "pane_id": "%42", "started_at": "t", "last_seen": "t", "status": "running"},
+            ]), encoding="utf-8")
+            old_human = lr._human_active_for_pane
+            try:
+                restore = self._patch_runtime(live="%42\n", captures=["working", "working"], ticks=[0, 1])
+                lr._human_active_for_pane = lambda _pane: False
+                try:
+                    code, out = self._run(["shadow-answer", "--workspace", str(ws), "--pane", "%42"])
+                finally:
+                    restore()
+            finally:
+                lr._human_active_for_pane = old_human
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(out)["reason"], "not_awaiting_input")
 
     def test_cmd_remediate_dispatch_blocked_resolves_safe_box_and_marks_running(self) -> None:
         with tempfile.TemporaryDirectory() as d:
