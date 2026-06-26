@@ -54,6 +54,51 @@ REQUIRED_ROLES_LEGACY = (
     "phase_reviewer",
 )
 REVIEWER_SUFFIXES = ("_a", "_b")
+READY_MARKERS = {
+    "kilo": ("Ask anything", "? for shortcuts"),
+    "claude_cli": ("bypass permissions", "? for shortcuts"),
+}
+SAFE_LAUNCH_BOXES = [
+    {"name": "omzsh_update", "all_of": ("Would you like to update", "[Y/n]"), "keys": ("n", "Enter")},
+    {"name": "claude_trust", "any_of": ("trust this folder", "Is this a project"), "keys": ("Enter",)},
+]
+DISPATCH_TIMEOUT = 45
+DISPATCH_BLOCKED_EXIT = 7
+
+
+def agent_ready(screen: str, backend: str) -> bool:
+    """Whether a launch screen shows the backend's prompt-ready marker.
+    Unknown backends keep the historical best-effort behavior: treat as ready."""
+    markers = READY_MARKERS.get(backend)
+    if markers is None:
+        return True
+    return any(marker in screen for marker in markers)
+
+
+def match_safe_launch_box(screen: str) -> tuple[str, tuple[str, ...]] | None:
+    """Match launch-time prompts that are safe to answer automatically."""
+    for box in SAFE_LAUNCH_BOXES:
+        all_of = box.get("all_of")
+        any_of = box.get("any_of")
+        if all_of and not all(token in screen for token in all_of):
+            continue
+        if any_of and not any(token in screen for token in any_of):
+            continue
+        return str(box["name"]), tuple(box["keys"])
+    return None
+
+
+def classify_launch(screen: str, backend: str) -> str:
+    if agent_ready(screen, backend):
+        return "ready"
+    match = match_safe_launch_box(screen)
+    if match:
+        return f"safe_box:{match[0]}"
+    return "pending"
+
+
+def screen_tail(screen: str, n: int = 15) -> str:
+    return "\n".join(screen.splitlines()[-n:])
 
 
 def is_dual_review_config(roles: dict) -> bool:
@@ -568,6 +613,11 @@ def launch_command(role_cfg: dict) -> str | None:
     raise ValueError(f"launch undefined for backend {role_cfg['backend']!r}")
 
 
+def launch_resend_after_box(role_cfg: dict, command: str | None) -> dict[str, str] | None:
+    resend_cmd = role_cfg.get("cmd") if role_cfg["backend"] == "claude_cli" else command
+    return {"omzsh_update": resend_cmd} if resend_cmd else None
+
+
 # ---------------------------------------------------------------------------
 # state.json
 # ---------------------------------------------------------------------------
@@ -630,29 +680,43 @@ def send_to_pane(pane: str, text: str, enter: bool = True) -> None:
     subprocess.run(["tmux", "delete-buffer", "-b", buf], capture_output=True)
 
 
-def consume_claude_trust(pane: str, timeout_s: int = 20) -> bool:
-    """claude 首次进目录的 trust 对话框: 检测到则发 Enter 接受(spec step1 finding)。"""
-    for _ in range(timeout_s):
-        time.sleep(1)
-        screen = capture_pane(pane)
-        if "trust this folder" in screen or "Is this a project" in screen:
-            _tmux(["send-keys", "-t", pane, "Enter"])
-            time.sleep(1)
-            return True
-        if "bypass permissions" in screen or "? for shortcuts" in screen:
-            return False  # 已就绪, 无对话框
-    return False
+def send_keys_to_pane(pane: str, keys: tuple[str, ...]) -> None:
+    for key in keys:
+        _tmux(["send-keys", "-t", pane, key])
+        time.sleep(0.4)
 
 
-def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
-    """轮询 kilo TUI 直到出现就绪标识,防止 prompt 在 TUI 加载完前抢跑丢失。"""
-    for _ in range(timeout_s):
-        time.sleep(1)
-        screen = capture_pane(pane)
-        if "Ask anything" in screen or "? for shortcuts" in screen:
-            return True
-    sys.stderr.write(f"WARN: kilo pane {pane} 未在 {timeout_s}s 内就绪,仍尝试发送\n")
-    return False
+def verify_dispatch(
+    pane: str,
+    backend: str,
+    timeout_s: int = DISPATCH_TIMEOUT,
+    recover_budget: int = 2,
+    interval_s: float = 1,
+    resend_after_box: dict[str, str] | None = None,
+) -> tuple[str, str | None]:
+    """Wait until the launched agent is ready, or return blocked with pane tail."""
+    deadline = time.monotonic() + timeout_s
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = capture_pane(pane)
+        state = classify_launch(last_screen, backend)
+        if state == "ready":
+            return "ready", None
+        if state.startswith("safe_box:"):
+            if recover_budget <= 0:
+                return "blocked", screen_tail(last_screen)
+            match = match_safe_launch_box(last_screen)
+            if match is None:
+                return "blocked", screen_tail(last_screen)
+            _box_name, keys = match
+            send_keys_to_pane(pane, keys)
+            if resend_after_box and _box_name in resend_after_box:
+                time.sleep(1)
+                send_to_pane(pane, resend_after_box[_box_name])
+            recover_budget -= 1
+            continue
+        time.sleep(interval_s)
+    return "blocked", screen_tail(last_screen or capture_pane(pane))
 
 
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
@@ -772,9 +836,9 @@ def _role_intro(role: str, phase: str, workspace: Path, brief: str | None) -> st
     return "\n".join(p for p in parts if p)
 
 
-def launch_role(workspace: Path, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> str:
+def launch_role(workspace: Path, role: str, role_cfg: dict, phase: str, mode: str, brief: str | None = None) -> tuple[str, str, str | None]:
     """在用户当前 tmux window split 出一个 role pane(就在当前 tab,不新建 session/tab),
-    注入初始 prompt, 注册 SESSIONS.md。返回 pane_id。
+    确认 agent 就绪后注入初始 prompt, 注册 SESSIONS.md。返回 (pane_id, status, tail)。
     phase_coder 走 fresh-per-phase(L6 反转): 先关上一个 coder pane 再开新的。"""
     if not os.environ.get("TMUX"):
         raise RuntimeError("不在 tmux 里 — worker pane 必须在用户当前 tmux window 内 split;请先在 tmux 中运行")
@@ -800,14 +864,16 @@ def launch_role(workspace: Path, role: str, role_cfg: dict, phase: str, mode: st
     time.sleep(1)
     if role_cfg["backend"] == "claude_cli":
         send_to_pane(pane, role_cfg["cmd"])
-        consume_claude_trust(pane)
-    elif role_cfg["backend"] == "kilo":
-        wait_kilo_ready(pane)
-    else:
+    elif role_cfg["backend"] not in READY_MARKERS:
         time.sleep(1)
+    resend_after_box = launch_resend_after_box(role_cfg, command)
+    status, tail = verify_dispatch(pane, role_cfg["backend"], resend_after_box=resend_after_box)
+    if status == "blocked":
+        _register(workspace, role, phase, pane, status="dispatch_blocked")
+        return pane, "dispatch_blocked", tail
     send_to_pane(pane, intro)
     _register(workspace, role, phase, pane)
-    return pane
+    return pane, "running", None
 
 
 def _register(workspace: Path, role: str, phase: str, pane: str, status: str = "running") -> None:
@@ -1048,7 +1114,13 @@ def cmd_launch(args: argparse.Namespace) -> int:
         sys.stderr.write(f"unknown role {args.role}\n")
         return 1
     mode = args.mode or ("split-down" if "reviewer" in args.role else "split-right")
-    pane = launch_role(workspace, args.role, config["roles"][args.role], args.phase, mode, brief=args.brief)
+    pane, status, tail = launch_role(workspace, args.role, config["roles"][args.role], args.phase, mode, brief=args.brief)
+    if status == "dispatch_blocked":
+        sys.stdout.write(f"DISPATCH_BLOCKED role={args.role} pane={pane}\n")
+        if tail:
+            sys.stdout.write("--- pane tail ---\n")
+            sys.stdout.write(tail + "\n")
+        return DISPATCH_BLOCKED_EXIT
     sys.stdout.write(pane + "\n")
     return 0
 

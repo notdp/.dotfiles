@@ -315,6 +315,111 @@ class PaneIdleTests(unittest.TestCase):
         self.assertEqual(lr.update_idle(screen, screen, 3), 0)
 
 
+class LaunchDispatchClassificationTests(unittest.TestCase):
+    def test_agent_ready_for_known_backend_markers(self) -> None:
+        self.assertTrue(lr.agent_ready("Ask anything", "kilo"))
+        self.assertTrue(lr.agent_ready("? for shortcuts", "kilo"))
+        self.assertTrue(lr.agent_ready("bypass permissions", "claude_cli"))
+
+    def test_agent_ready_rejects_missing_known_backend_marker(self) -> None:
+        self.assertFalse(lr.agent_ready("Editing file...", "kilo"))
+
+    def test_agent_ready_unknown_backend_preserves_best_effort_behavior(self) -> None:
+        self.assertTrue(lr.agent_ready("anything", "droid"))
+
+    def test_match_safe_launch_box_omzsh_update(self) -> None:
+        self.assertEqual(
+            lr.match_safe_launch_box("[oh-my-zsh] Would you like to update? [Y/n]"),
+            ("omzsh_update", ("n", "Enter")),
+        )
+
+    def test_match_safe_launch_box_claude_trust(self) -> None:
+        self.assertEqual(
+            lr.match_safe_launch_box("Do you trust this folder?"),
+            ("claude_trust", ("Enter",)),
+        )
+
+    def test_match_safe_launch_box_ready_screen_is_none(self) -> None:
+        self.assertIsNone(lr.match_safe_launch_box("Ask anything ... ? for shortcuts"))
+
+    def test_match_safe_launch_box_fail_closed_for_partial_omzsh(self) -> None:
+        self.assertIsNone(lr.match_safe_launch_box("Would you like to update"))
+
+    def test_match_safe_launch_box_rejects_command_not_found(self) -> None:
+        self.assertIsNone(lr.match_safe_launch_box("command not found: kilo"))
+
+    def test_classify_launch_ready(self) -> None:
+        self.assertEqual(lr.classify_launch("Ask anything", "kilo"), "ready")
+
+    def test_classify_launch_safe_box(self) -> None:
+        self.assertEqual(
+            lr.classify_launch("[oh-my-zsh] Would you like to update? [Y/n]", "kilo"),
+            "safe_box:omzsh_update",
+        )
+
+    def test_classify_launch_pending(self) -> None:
+        self.assertEqual(lr.classify_launch("loading...", "kilo"), "pending")
+
+    def test_classify_launch_ready_wins_over_box(self) -> None:
+        screen = "Ask anything\n[oh-my-zsh] Would you like to update? [Y/n]"
+        self.assertEqual(lr.classify_launch(screen, "kilo"), "ready")
+
+    def test_dispatch_blocked_exit_code_does_not_collide_with_await(self) -> None:
+        self.assertEqual(lr.DISPATCH_BLOCKED_EXIT, 7)
+        self.assertNotIn(lr.DISPATCH_BLOCKED_EXIT, {0, 2, 3, 4, 5, 6})
+
+    def test_verify_dispatch_recovers_omzsh_and_resends_command(self) -> None:
+        screens = [
+            "[oh-my-zsh] Would you like to update? [Y/n]",
+            "Ask anything",
+        ]
+        sent_keys = []
+        sent_text = []
+        old_capture = lr.capture_pane
+        old_send_keys = lr.send_keys_to_pane
+        old_send_to_pane = lr.send_to_pane
+        old_sleep = lr.time.sleep
+        try:
+            lr.capture_pane = lambda _pane: screens.pop(0) if screens else "Ask anything"
+            lr.send_keys_to_pane = lambda _pane, keys: sent_keys.append(keys)
+            lr.send_to_pane = lambda _pane, text: sent_text.append(text)
+            lr.time.sleep = lambda _seconds: None
+            status, tail = lr.verify_dispatch(
+                "%1", "kilo", timeout_s=1, interval_s=0, resend_after_box={"omzsh_update": "kilo -m m"}
+            )
+        finally:
+            lr.capture_pane = old_capture
+            lr.send_keys_to_pane = old_send_keys
+            lr.send_to_pane = old_send_to_pane
+            lr.time.sleep = old_sleep
+        self.assertEqual((status, tail), ("ready", None))
+        self.assertEqual(sent_keys, [("n", "Enter")])
+        self.assertEqual(sent_text, ["kilo -m m"])
+
+    def test_verify_dispatch_blocks_on_timeout_with_tail(self) -> None:
+        old_capture = lr.capture_pane
+        old_sleep = lr.time.sleep
+        old_monotonic = lr.time.monotonic
+        ticks = iter([0, 0.5, 2])
+        captures = []
+        try:
+            def fake_capture(_pane):
+                captures.append(_pane)
+                return "line1\nline2\ncommand not found: kilo"
+
+            lr.capture_pane = fake_capture
+            lr.time.sleep = lambda _seconds: None
+            lr.time.monotonic = lambda: next(ticks)
+            status, tail = lr.verify_dispatch("%1", "kilo", timeout_s=1, interval_s=0)
+        finally:
+            lr.capture_pane = old_capture
+            lr.time.sleep = old_sleep
+            lr.time.monotonic = old_monotonic
+        self.assertEqual(status, "blocked")
+        self.assertGreaterEqual(len(captures), 1)
+        self.assertIn("command not found: kilo", tail or "")
+
+
 class YamlLoaderTests(unittest.TestCase):
     def test_loads_generated_config_and_passes_validate(self) -> None:
         cfg = lr.load_yaml(lr.default_config_yaml("demo"))
@@ -489,6 +594,75 @@ class LaunchCommandTests(unittest.TestCase):
     def test_claude_cli_returns_none_for_interactive_shell(self) -> None:
         cmd = lr.launch_command({"backend": "claude_cli", "cmd": "claude --dangerously-skip-permissions"})
         self.assertIsNone(cmd)
+
+    def test_kilo_resend_uses_launch_command(self) -> None:
+        role_cfg = {"backend": "kilo", "model": "cliproxy/gpt-5.5"}
+        self.assertEqual(
+            lr.launch_resend_after_box(role_cfg, lr.launch_command(role_cfg)),
+            {"omzsh_update": "kilo -m cliproxy/gpt-5.5"},
+        )
+
+    def test_claude_resend_uses_interactive_cmd(self) -> None:
+        role_cfg = {"backend": "claude_cli", "cmd": "claude --dangerously-skip-permissions"}
+        self.assertEqual(
+            lr.launch_resend_after_box(role_cfg, lr.launch_command(role_cfg)),
+            {"omzsh_update": "claude --dangerously-skip-permissions"},
+        )
+
+    def test_no_command_backend_has_no_resend(self) -> None:
+        self.assertIsNone(lr.launch_resend_after_box({"backend": "custom"}, None))
+
+
+class LaunchRoleGlueTests(unittest.TestCase):
+    def test_kilo_launch_resends_start_command_after_safe_box_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp) / "ws"
+            worktree = Path(tmp) / "worktree"
+            ws.mkdir()
+            worktree.mkdir()
+            (ws / "state.json").write_text(json.dumps({"worktree_path": str(worktree)}), encoding="utf-8")
+
+            captured = []
+            old_env = dict(lr.os.environ)
+            old_tmux = lr._tmux
+            old_send_to_pane = lr.send_to_pane
+            old_verify_dispatch = lr.verify_dispatch
+            try:
+                lr.os.environ["TMUX"] = "1"
+                lr.os.environ["TMUX_PANE"] = "%0"
+
+                def fake_tmux(args, capture=False):
+                    if args[0] == "split-window":
+                        return "%9"
+                    if args[:2] == ["list-panes", "-aF"]:
+                        return "%9\n"
+                    return ""
+
+                def fake_verify_dispatch(pane, backend, timeout_s=lr.DISPATCH_TIMEOUT,
+                                         recover_budget=2, interval_s=1, resend_after_box=None):
+                    captured.append((pane, backend, resend_after_box))
+                    return "ready", None
+
+                lr._tmux = fake_tmux
+                lr.send_to_pane = lambda _pane, _text, enter=True: None
+                lr.verify_dispatch = fake_verify_dispatch
+                lr.launch_role(
+                    ws,
+                    "scaffold_orchestrator",
+                    {"backend": "kilo", "model": "cliproxy/gpt-5.5"},
+                    "0",
+                    "split-right",
+                )
+            finally:
+                lr.os.environ.clear()
+                lr.os.environ.update(old_env)
+                lr._tmux = old_tmux
+                lr.send_to_pane = old_send_to_pane
+                lr.verify_dispatch = old_verify_dispatch
+
+        self.assertEqual(captured, [
+            ("%9", "kilo", {"omzsh_update": "kilo -m cliproxy/gpt-5.5"})
+        ])
 
 
 class VerifySummaryTests(unittest.TestCase):
