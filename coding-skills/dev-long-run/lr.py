@@ -303,6 +303,18 @@ def decide_confirm_answer(*, screen, prev_screen, backend, status_state, action,
     prompt_shape = _shadow_prompt_shape(screen, backend)
     if prompt_shape not in CLOSED_PROMPT_SHAPES:
         return {"would_decision": "escalate", "reason": "non_closed_shape", "prompt_shape": prompt_shape}
+    # omzsh_update: 已知 shell 框, 无 argv 可抽 → 不走命令门(高置信/guard/白名单/逃逸),
+    # 答案是注册安全键(n=拒更新, 可逆)。仍守操作型门: 预算/重复/人在 pane。
+    if prompt_shape == "omzsh_update":
+        if int(intervene_count or 0) >= MAX_AUTO_INTERVENE:
+            return {"would_decision": "escalate", "reason": "budget_exceeded", "prompt_shape": prompt_shape}
+        if int(repeat_count or 0) >= MAX_REPEAT:
+            return {"would_decision": "escalate", "reason": "repeat_loop", "prompt_shape": prompt_shape}
+        if human_active:
+            return {"would_decision": "escalate", "reason": "human_active", "prompt_shape": prompt_shape}
+        match = match_safe_launch_box(screen)
+        keys = list(match[1]) if match else ["n", "Enter"]
+        return {"would_decision": "would_auto_answer", "reason": "omzsh_safe_box", "prompt_shape": prompt_shape, "keys": keys}
     if confidence != "high" or not action:
         return {"would_decision": "escalate", "reason": "low_confidence", "prompt_shape": prompt_shape}
     guard_kind = _guard_kind(guard_decision)
@@ -1018,7 +1030,13 @@ def launch_command(role_cfg: dict) -> str | None:
     claude_cli → None(走默认交互 zsh, 再 send-keys cfg['cmd'], 以拿 .zshrc 的 token)。"""
     backend = role_cfg["backend"]
     if backend == "kilo":
-        return f"kilo -m {shlex.quote(role_cfg['model'])}"
+        cmd = f"kilo -m {shlex.quote(role_cfg['model'])}"
+        # autonomy 接到 kilo 权限: off → 不加 flag(交互/依 kilo 全局配置); 其余 →
+        # --dangerously-skip-permissions(自动批准但尊重显式 deny, 比 --auto[approve all] 安全)。
+        # 前台 TUI 命令也接受该 flag(已验证 yargs 不拒, 非 headless 专属)。
+        if role_cfg.get("autonomy", "off") != "off":
+            cmd += " --dangerously-skip-permissions"
+        return cmd
     if backend == "claude_cli":
         return None  # 交互 zsh pane, cmd 通过 send-keys 注入(见 launch_role)
     if backend == "custom":
