@@ -8,6 +8,7 @@
 ## 必写产出
 - 业务代码（在 worktree 里，分支 = `state.json.branch`，**绝不在 main 上**）
 - **`<workspace>/verify.sh`**（**必须在 `done impl` 前写好并本地跑过**）：按 qa.md 的自动化验证项逐条实现。可直接 `bash verify.sh` 跑、失败要让脚本非 0 退出(用 `set -e` 或显式判断)。orchestrator 会用 `dc.py verify` **真跑它**写 `verify.json`，这是完成门禁认的唯一证据 —— **测试写了不跑 = 没写**。
+  - **改了共享模块要连带跑依赖它的测试**：如改 `coding-skills/dev-long-run/lr.py` 或 `scripts/hooks/command_guard.py`，verify.sh 除了本模块测试，还要跑 `scripts.tests.test_dc`（dc.py import lr）——只跑 `test_lr` 漏过跨模块回归（实战踩过：删 lr 函数炸了 dc.py launch）。
 - 收到 review 后写 `<workspace>/ack.md`：
   - `## Findings`：逐项 `[agree]/[disagree + 理由]`
   - `## Blocker Resolutions`(机器可读，门禁要读)：

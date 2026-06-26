@@ -1133,6 +1133,17 @@ class ParseReviewBlockersTests(unittest.TestCase):
         self.assertEqual(lr.parse_review_blockers(text),
                          [("B1", "drops field"), ("B2", "race")])
 
+    def test_ignores_inline_blocker_mention_in_prose(self) -> None:
+        # 散文里内联提到 [blocker]（如「全文不出现 [blocker] 标记」）不该被当成真 blocker
+        # → 否则 reviewer 一写这句就误触发门禁（P1/P2 实战踩过）。
+        text = "（无 blocker；按 reviewer 合同，全文不出现 `[blocker]` 字面标记。）\n"
+        self.assertEqual(lr.parse_review_blockers(text), [])
+
+    def test_list_item_blocker_still_counts(self) -> None:
+        # 列表项格式的真 blocker（行首带 - 标记）仍要计数
+        text = "- [blocker B1] real issue\n- [should] minor\n"
+        self.assertEqual(lr.parse_review_blockers(text), [("B1", "real issue")])
+
 
 ACK_SAMPLE = """# Phase 02 Review Ack
 
