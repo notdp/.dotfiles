@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -352,6 +353,15 @@ class MemoryInjectionTests(unittest.TestCase):
         finally:
             cc.config_root = original
 
+    def telemetry_path(self, root: Path) -> Path:
+        return root / "memory_telemetry.jsonl"
+
+    def read_telemetry_rows(self, root: Path) -> list[dict[str, Any]]:
+        path = self.telemetry_path(root)
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
     def test_memory_flag_off_keeps_prompt_context_byte_equivalent(self) -> None:
         original_time = cc.current_time_note
         cc.current_time_note = lambda: "[system] Current time: fixed"
@@ -493,6 +503,7 @@ class MemoryInjectionTests(unittest.TestCase):
                     ("refuted.md", "hook guard refuted stale", "decision", "stale", "hook, guard", "test"),
                 ],
             )
+            os.environ["DOTFILES_CC_MEMORY_ROOT"] = str(Path(tmp) / "empty-cc-projects")
 
             hits = self.with_config_root(root, lambda: cc.recall_memory_notes("hook guard", top=3))
 
@@ -758,6 +769,169 @@ class MemoryInjectionTests(unittest.TestCase):
             cc.classify_with_deepseek = original_classify
             cc.expand_memory_query = original_expand
         self.assertNotIn("Traceback", output)
+
+    def test_prompt_context_emits_capsule_route_telemetry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_dir = root / "memory" / "user"
+            self.write_memory_note(
+                user_dir,
+                "alpha.md",
+                {"title": "alpha note", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "alpha"},
+                "alpha needle body",
+            )
+            self.write_index(user_dir, [("alpha.md", "alpha note", "knowledge", "active", "alpha", "test")])
+            os.environ["DOTFILES_MEMORY_ENABLED"] = "1"
+            os.environ["MEMORY_QUERY_NO_LLM"] = "1"
+            with tempfile.TemporaryDirectory() as telemetry_tmp:
+                telemetry_file = Path(telemetry_tmp) / "memory_telemetry.jsonl"
+                original_path = os.environ.get("DOTFILES_MEMORY_TELEMETRY_PATH")
+                os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = str(telemetry_file)
+                try:
+                    output = self.with_config_root(root, lambda: cc.prompt_context({"prompt": "alpha"}))
+                    rows = self.read_telemetry_rows(Path(telemetry_tmp))
+                finally:
+                    if original_path is None:
+                        os.environ.pop("DOTFILES_MEMORY_TELEMETRY_PATH", None)
+                    else:
+                        os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = original_path
+
+        payload = json.loads(output)
+        self.assertIn("hookSpecificOutput", payload)
+        self.assertGreaterEqual(len(rows), 1)
+        route = next(row for row in rows if row["event"] == "capsule_route")
+        self.assertEqual(route["event"], "capsule_route")
+        self.assertIn("duration_ms", route)
+        self.assertIn("context_chars", route)
+        self.assertNotIn("alpha needle body", json.dumps(rows[0]))
+
+    def test_recall_memory_notes_records_api_fallback_and_scores(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_dir = root / "memory" / "user"
+            self.write_memory_note(
+                user_dir,
+                "fallback.md",
+                {"title": "fallback needle", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "needle"},
+                "fallback needle body",
+            )
+            self.write_index(user_dir, [("fallback.md", "fallback needle", "knowledge", "active", "needle", "test")])
+            original_urlopen = cc.urllib.request.urlopen
+            original_path = os.environ.get("DOTFILES_MEMORY_TELEMETRY_PATH")
+            try:
+                cc.urllib.request.urlopen = lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("boom"))
+                with tempfile.TemporaryDirectory() as telemetry_tmp:
+                    os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = str(Path(telemetry_tmp) / "memory_telemetry.jsonl")
+                    hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=1))
+                    rows = self.read_telemetry_rows(Path(telemetry_tmp))
+            finally:
+                cc.urllib.request.urlopen = original_urlopen
+                if original_path is None:
+                    os.environ.pop("DOTFILES_MEMORY_TELEMETRY_PATH", None)
+                else:
+                    os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = original_path
+
+        self.assertEqual([hit.path.name for hit in hits], ["fallback.md"])
+        self.assertGreaterEqual(len(rows), 1)
+        recall = rows[0]
+        self.assertEqual(recall["event"], "recall")
+        self.assertTrue(recall["fallback_triggered"])
+        self.assertGreaterEqual(recall["hit_count"], 1)
+        self.assertIn("scores", recall)
+
+    def test_recall_memory_notes_records_api_hit_telemetry(self) -> None:
+        original_api = cc.recall_memory_api
+        original_path = os.environ.get("DOTFILES_MEMORY_TELEMETRY_PATH")
+        try:
+            cc.recall_memory_api = lambda _query, top=3: [
+                cc.MemoryHit(
+                    path=Path("memory/user/api.md"),
+                    score=0.81234,
+                    meta={"title": "api hit", "problem_type": "knowledge", "status": "active"},
+                    age_label="age 1d",
+                    body_excerpt="api excerpt",
+                )
+            ]
+            with tempfile.TemporaryDirectory() as telemetry_tmp:
+                os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = str(Path(telemetry_tmp) / "memory_telemetry.jsonl")
+                hits = cc.recall_memory_notes("api needle", top=1)
+                rows = self.read_telemetry_rows(Path(telemetry_tmp))
+        finally:
+            cc.recall_memory_api = original_api
+            if original_path is None:
+                os.environ.pop("DOTFILES_MEMORY_TELEMETRY_PATH", None)
+            else:
+                os.environ["DOTFILES_MEMORY_TELEMETRY_PATH"] = original_path
+
+        self.assertEqual([hit.path.name for hit in hits], ["api.md"])
+        recall = next(row for row in rows if row["event"] == "recall")
+        self.assertEqual(recall["route"], "api")
+        self.assertFalse(recall["fallback_triggered"])
+        self.assertEqual(recall["hit_count"], 1)
+        self.assertEqual(recall["scores"], [0.8123])
+
+    def test_prompt_context_telemetry_append_failure_is_fail_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            os.environ["DOTFILES_MEMORY_ENABLED"] = "0"
+            original_time = cc.current_time_note
+            original_append = cc.append_memory_telemetry
+            cc.current_time_note = lambda: "[system] Current time: fixed"
+            try:
+                baseline = self.with_config_root(root, lambda: cc.prompt_context({"prompt": "plain prompt"}))
+                cc.append_memory_telemetry = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("blocked"))
+                output = self.with_config_root(root, lambda: cc.prompt_context({"prompt": "plain prompt"}))
+            finally:
+                cc.current_time_note = original_time
+                cc.append_memory_telemetry = original_append
+
+        self.assertEqual(json.loads(output), json.loads(baseline))
+
+    def test_recall_memory_notes_telemetry_append_failure_is_fail_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_dir = root / "memory" / "user"
+            self.write_memory_note(
+                user_dir,
+                "fallback.md",
+                {"title": "fallback needle", "date": "2026-06-23", "problem_type": "knowledge", "status": "active", "keywords": "needle"},
+                "fallback needle body",
+            )
+            self.write_index(user_dir, [("fallback.md", "fallback needle", "knowledge", "active", "needle", "test")])
+
+            original_api = cc.recall_memory_api
+            original_append = cc.append_memory_telemetry
+            cc.recall_memory_api = lambda *_args, **_kwargs: None
+            cc.append_memory_telemetry = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("blocked"))
+            try:
+                hits = self.with_config_root(root, lambda: cc.recall_memory_notes("needle", top=1))
+            finally:
+                cc.recall_memory_api = original_api
+                cc.append_memory_telemetry = original_append
+
+        self.assertEqual([hit.path.name for hit in hits], ["fallback.md"])
+
+    def test_recall_memory_notes_telemetry_field_construction_failure_is_fail_open(self) -> None:
+        class BadScore:
+            def __round__(self, _digits: int) -> float:
+                raise RuntimeError("bad score")
+
+        original_api = cc.recall_memory_api
+        try:
+            cc.recall_memory_api = lambda _query, top=3: [
+                cc.MemoryHit(
+                    path=Path("memory/user/bad.md"),
+                    score=BadScore(),
+                    meta={"title": "bad score", "problem_type": "knowledge", "status": "active"},
+                    age_label="age 1d",
+                    body_excerpt="bad score excerpt",
+                )
+            ]
+            hits = cc.recall_memory_notes("bad score", top=1)
+        finally:
+            cc.recall_memory_api = original_api
+
+        self.assertEqual([hit.path.name for hit in hits], ["bad.md"])
 
 
 class DeepseekRoutingTests(unittest.TestCase):

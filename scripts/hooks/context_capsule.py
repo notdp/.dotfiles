@@ -17,11 +17,13 @@ from pathlib import Path
 try:
     from memory_flags import memory_enabled
     from memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from memory_telemetry import append_memory_telemetry
     from threat_scan import sanitize_for_prompt
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.hooks.memory_flags import memory_enabled
     from scripts.hooks.memory_score import parse_frontmatter, problem_type_weight, score_note, split_frontmatter
+    from scripts.hooks.memory_telemetry import append_memory_telemetry
     from scripts.hooks.threat_scan import sanitize_for_prompt
 
 
@@ -340,13 +342,22 @@ def current_time_note() -> str:
     return f"[system] Current time: {datetime.now().astimezone().isoformat(timespec='seconds')}"
 
 
+def emit_context_telemetry(event: str, fields_fn) -> None:
+    try:
+        append_memory_telemetry(event, "context_capsule", fields_fn())
+    except Exception:
+        return
+
+
 def prompt_context(hook_input: dict) -> str:
+    started = monotonic()
     prompt = str(hook_input.get("prompt") or "")
     budget = DeepseekBudget(float(hook_input.get("_deepseek_budget_remaining", DEEPSEEK_TOTAL_BUDGET_SECONDS)))
     names = resolve_capsule_names_with_budget(prompt, budget) if memory_enabled() else resolve_capsule_names(prompt)
     capsules = [capsule for name in names for capsule in [read_capsule(name)] if capsule]
     # 时间行独立 prepend, 不占 capsule 的 MAX_PROMPT_CONTEXT_CHARS 截断预算(它短且必要)。
     time_note = current_time_note()
+    memory_injected = False
     if not memory_enabled():
         context = time_note
         if capsules:
@@ -355,7 +366,19 @@ def prompt_context(hook_input: dict) -> str:
         capsule_context = join_capsules(capsules) if capsules else ""
         query = prompt if budget.remaining() <= 0 else expand_memory_query(prompt, budget)
         memory_context = "" if ROLE_DISPATCH_RE.search(prompt) else render_memory_segment(recall_memory_notes(query))
+        memory_injected = bool(memory_context)
         context = render_prompt_context(time_note, capsule_context, memory_context)
+    emit_context_telemetry(
+        "capsule_route",
+        lambda: {
+            "duration_ms": int((monotonic() - started) * 1000),
+            "capsule_count": len(names),
+            "injected": context != time_note,
+            "memory_injected": memory_injected,
+            "prompt_chars": len(prompt),
+            "context_chars": len(context),
+        },
+    )
     # 可观测: 有 capsule 时给用户一行摘要(systemMessage 在 CC/Droid 终端显示, 不进 transcript、不打扰模型)。
     system_message = "↳ capsules: " + ", ".join(CAPSULE_SHORT.get(n, n) for n in names) if names else None
     return json_context("UserPromptSubmit", context, system_message)
@@ -582,12 +605,36 @@ def cc_memory_root() -> Path:
 
 
 def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
+    started = monotonic()
     terms = search_terms(query)
     if not terms:
+        emit_context_telemetry(
+            "recall",
+            lambda: {
+                "duration_ms": int((monotonic() - started) * 1000),
+                "route": "empty",
+                "hit_count": 0,
+                "scores": [],
+                "fallback_triggered": False,
+                "fallback_reason": "no_terms",
+            },
+        )
         return []
     api_hits = recall_memory_api(query, top=top)
     if api_hits is not None:
-        return api_hits[:top]
+        hits = api_hits[:top]
+        emit_context_telemetry(
+            "recall",
+            lambda: {
+                "duration_ms": int((monotonic() - started) * 1000),
+                "route": "api",
+                "hit_count": len(hits),
+                "scores": [round(hit.score, 4) for hit in hits],
+                "fallback_triggered": False,
+                "fallback_reason": "",
+            },
+        )
+        return hits
     user_dir = config_root() / "memory" / "user"
     index_path = user_dir / "INDEX.md"
     try:
@@ -635,7 +682,7 @@ def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
         score = lexical * problem_type_weight(meta.get("problem_type", "")) * recency_weight(path)
         hits.append(MemoryHit(path=path, score=score, meta=meta, age_label=note_age_label(meta)))
     hits.sort(key=lambda hit: (-hit.score, hit.path.name))
-    return [
+    out = [
         MemoryHit(
             path=hit.path,
             score=hit.score,
@@ -645,6 +692,18 @@ def recall_memory_notes(query: str, top: int = 3) -> list[MemoryHit]:
         )
         for hit in hits[:top]
     ]
+    emit_context_telemetry(
+        "recall",
+        lambda: {
+            "duration_ms": int((monotonic() - started) * 1000),
+            "route": "lexical_fallback" if out else "empty",
+            "hit_count": len(out),
+            "scores": [round(hit.score, 4) for hit in out],
+            "fallback_triggered": True,
+            "fallback_reason": "api_unavailable_or_empty",
+        },
+    )
+    return out
 
 
 def render_blocked_memory_hit(hit: MemoryHit, sanitized_text: str) -> str:
