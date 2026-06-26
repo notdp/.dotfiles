@@ -163,14 +163,18 @@ function maybeCommandFromPermission(input) {
 
 function applyCommandGuard(command, output) {
   const decision = runCommandGuard(command);
-  // Fail CLOSED: 一个跑不起来的 guard 绝不能放命令过去(注入类 capsule/memory 按设计 fail-open,
-  // 命令护栏不复用该策略)。
+  // Guard OUTAGE (it could not RUN — python3 missing / crash / bad JSON): fail OPEN.
+  // command_guard 是 advisory / defense-in-depth(见 command_guard.py 顶注),不是硬边界;
+  // 它自己挂掉时不该把 agent 整个锁死(那比它防的风险更糟,且 agent 无法跑命令去自救)。
+  // 但要 LOUD 告警,让"护栏当前形同关闭"被立刻看见并修复。注入类 hook 也是这套 fail-open 哲学。
   if (decision.hookError) {
-    const reason = `command guard 未能运行(${decision.systemMessage || "unknown error"})；出于安全先拒绝该命令。修好 guard 后重试，或人工确认后手动执行。`;
-    appendGuardReason(output, reason);
-    throw new Error(reason);
+    const warn = `⚠️ command guard 未能运行(${decision.systemMessage || "unknown error"})——本条命令未经检查即放行。命令护栏当前形同关闭，请尽快修复。`;
+    try { process.stderr.write(warn + "\n"); } catch {}
+    appendGuardReason(output, warn);
+    return;
   }
   const hookOutput = decision.hookSpecificOutput || {};
+  // Guard RAN and decided DENY: a real detection — fail CLOSED (block).
   if (hookOutput.permissionDecision === "deny") {
     const reason = hookOutput.permissionDecisionReason || "Command denied by dotfiles command guard.";
     appendGuardReason(output, reason);
@@ -183,8 +187,13 @@ function applyCommandGuard(command, output) {
 
 function applyPermissionGuard(command, output) {
   const decision = runCommandGuard(command);
-  // Fail CLOSED on guard runtime failure, 与 applyCommandGuard 一致。
-  if (decision.hookError || decision.hookSpecificOutput?.permissionDecision === "deny") {
+  // Guard outage: fail OPEN (don't block the permission flow), but warn loudly.
+  if (decision.hookError) {
+    try { process.stderr.write(`⚠️ command guard 未能运行；本次 permission 未经检查即放行。\n`); } catch {}
+    return;
+  }
+  // Guard ran and said deny: block.
+  if (decision.hookSpecificOutput?.permissionDecision === "deny") {
     output.status = "deny";
   }
 }
