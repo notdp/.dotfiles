@@ -760,6 +760,29 @@ class ShadowAnswerPureFunctionTests(unittest.TestCase):
                     self.assertEqual(decision["would_decision"], "escalate")
                     self.assertEqual(decision["reason"], reason)
 
+    def test_decide_confirm_answer_omzsh_box_would_auto_answer_n(self) -> None:
+        # omzsh_update 死路修复: 无 argv 框, 绕过命令门(故意 action=None+confidence=low),
+        # 答安全键 n=拒更新; 仍 shadow-only(decide 只算不发)。
+        screen = "[oh-my-zsh] Would you like to update? [Y/n]"
+        decision = self._decision(screen=screen, prev_screen=screen, action=None, confidence="low")
+        self.assertEqual(decision["would_decision"], "would_auto_answer")
+        self.assertEqual(decision["reason"], "omzsh_safe_box")
+        self.assertEqual(decision["prompt_shape"], "omzsh_update")
+        self.assertEqual(decision["keys"], ["n", "Enter"])
+
+    def test_decide_confirm_answer_omzsh_respects_operational_gates(self) -> None:
+        screen = "[oh-my-zsh] Would you like to update? [Y/n]"
+        for reason, kwargs in [
+            ("budget_exceeded", {"intervene_count": lr.MAX_AUTO_INTERVENE}),
+            ("repeat_loop", {"repeat_count": lr.MAX_REPEAT}),
+            ("human_active", {"human_active": True}),
+        ]:
+            with self.subTest(reason=reason):
+                decision = self._decision(screen=screen, prev_screen=screen, action=None,
+                                          confidence="low", **kwargs)
+                self.assertEqual(decision["would_decision"], "escalate")
+                self.assertEqual(decision["reason"], reason)
+
     def test_decide_confirm_answer_dangerous_actions_escalate(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             wt = Path(d) / "wt"
@@ -965,6 +988,22 @@ class LaunchCommandTests(unittest.TestCase):
         # L19: 不注入 variant
         cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5"})
         self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5")
+
+    def test_kilo_autonomy_missing_defaults_off_no_flag(self) -> None:
+        cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5"})
+        self.assertNotIn("--dangerously-skip-permissions", cmd)
+
+    def test_kilo_autonomy_off_no_skip_flag(self) -> None:
+        cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "off"})
+        self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5")
+
+    def test_kilo_autonomy_high_adds_skip_permissions(self) -> None:
+        cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "high"})
+        self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5 --dangerously-skip-permissions")
+
+    def test_kilo_autonomy_medium_adds_skip_permissions(self) -> None:
+        cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "medium"})
+        self.assertIn("--dangerously-skip-permissions", cmd)
 
     def test_claude_cli_returns_none_for_interactive_shell(self) -> None:
         cmd = lr.launch_command({"backend": "claude_cli", "cmd": "claude --dangerously-skip-permissions"})
@@ -2288,7 +2327,8 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("REMEDIATED resolve_safe_box", out)
             self.assertEqual(sent_keys, [("%42", ("n", "Enter"))])
-            self.assertEqual(sent_text, [("%42", "kilo -m cliproxy/gpt-5.5", True)])
+            # coder autonomy=high → resend 的 launch_command 带 --dangerously-skip-permissions
+            self.assertEqual(sent_text, [("%42", "kilo -m cliproxy/gpt-5.5 --dangerously-skip-permissions", True)])
             rows = lr.parse_sessions((ws / "SESSIONS.md").read_text(encoding="utf-8"))
             self.assertEqual(rows[0]["status"], "running")
             metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
