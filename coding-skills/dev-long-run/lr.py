@@ -756,11 +756,15 @@ def parse_review_blockers(review_text: str) -> list[tuple[str | None, str]]:
     """抽出 review.md 里 `[blocker <ID>]` / `[blocker]` 条目 → (id, 描述) 列表。
     reviewer 契约要求顺序编号 `[blocker B1]`(见 phase_reviewer.md): 带 ID 时门禁按 ID
     对账——同一 ID 重复提及不重复计数、ack 缺哪条报哪条、多写 [fixed] 行凑数也对不上;
-    无 ID(历史 review)回落计数对账。`[should]`/`[nit]` 不算 blocker。"""
+    无 ID(历史 review)回落计数对账。`[should]`/`[nit]` 不算 blocker。
+
+    只认**行首**(剥 `#`/`-`/`*` 列表标记后)的 blocker 标记 —— 真 blocker 都写成标题/
+    列表项(`### [blocker B1]` / `- [blocker]`)。散文里**内联**提到的 `[blocker]`
+    (如 reviewer 写「全文不出现 `[blocker]` 标记」)不算,否则误触发门禁(实战踩过)。"""
     out: list[tuple[str | None, str]] = []
     for raw in review_text.splitlines():
-        desc = raw.strip().lstrip("#").strip()
-        match = _BLOCKER_TAG.search(desc)
+        desc = raw.strip().lstrip("#").strip().lstrip("-*").strip()
+        match = _BLOCKER_TAG.match(desc)  # 锚定行首, 非 .search(整行任意位置)
         if match:
             out.append((match.group(1), desc[match.end():].strip()))
     return out
