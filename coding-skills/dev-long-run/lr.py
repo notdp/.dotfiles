@@ -80,14 +80,31 @@ OBSERVE_FRAME_GAP = 1.0
 DISPATCH_BLOCKED_MIN_AGE_S = 5.0
 AWAIT_ALL_INTERVAL = 5
 AWAIT_ALL_ATTENTION_EXIT = 10
-AWAIT_ALL_ACTIONABLE_CLASSES = ("errored", "awaiting_input", "dispatch_blocked", "blocked", "dead", "compact")
+AWAIT_ALL_ACTIONABLE_CLASSES = ("ready_idle", "errored", "awaiting_input", "dispatch_blocked", "blocked", "dead", "compact")
+REMEDIABLE_CLASSES = ("ready_idle", "dispatch_blocked", "errored")
+MAX_AUTO_REMEDIATE = 3
+ERROR_RETRY_TRANSIENT = {
+    "rate limit",
+    "network error",
+    "overloaded",
+    "overloaded_error",
+    "econnreset",
+    "connection error",
+    "timeout",
+    "temporarily unavailable",
+}
+READY_IDLE_REMEDIATE_MIN_AGE_S = DISPATCH_BLOCKED_MIN_AGE_S
+REMEDIATE_EXIT = 0
+REMEDIATE_ESCALATE_EXIT = 11
+STATUS_REPROMPT = "请把结论写进你启动时 [PHASE DIR] 给的目录下 <role>.status 首行(done / blocked <reason>)，不要写文件名或 =。"
+ERROR_RETRY_PROMPT = "上一步瞬时报错(网络/限流)，请重试上一步骤。"
 
 
 def aggregate_await_all(pane_states: list[dict]) -> dict:
     total = len(pane_states)
     done_count = sum(1 for state in pane_states if state.get("screen_class") == "done")
     triggering = [state.get("pane") for state in pane_states
-                  if state.get("screen_class") in AWAIT_ALL_ACTIONABLE_CLASSES]
+                  if _pane_state_actionable(state)]
     triggering = [pane for pane in triggering if pane]
     if total > 0 and done_count == total:
         verdict = "all_done"
@@ -101,6 +118,13 @@ def aggregate_await_all(pane_states: list[dict]) -> dict:
         "done_count": done_count,
         "total": total,
     }
+
+
+def _pane_state_actionable(state: dict) -> bool:
+    screen_class = state.get("screen_class")
+    if screen_class == "ready_idle":
+        return float(state.get("age_s", 0) or 0) >= READY_IDLE_REMEDIATE_MIN_AGE_S
+    return screen_class in AWAIT_ALL_ACTIONABLE_CLASSES
 
 
 def agent_ready(screen: str, backend: str) -> bool:
@@ -214,6 +238,42 @@ def classify_screen(screen: str, prev_screen: str | None, backend: str,
     if pane_looks_idle(without_footer) and not has_confirm:
         return "ready_idle"
     return "unknown"
+
+
+def is_transient_error(screen: str, backend: str) -> bool:
+    """报错屏是否含可重试瞬态标记；语义/断言/语法错误不自动重试。"""
+    if not screen:
+        return False
+    low = screen.lower()
+    semantic_errors = ("assertionerror", "syntaxerror")
+    if any(marker in low for marker in semantic_errors):
+        return False
+    return any(marker in low for marker in ERROR_RETRY_TRANSIENT)
+
+
+def plan_remediation(screen_class: str, screen: str, backend: str, retry_count: int, age_s: float = 0) -> dict:
+    """纯函数：按 P4 type(a) 边界决定是否可幂等自动补救。"""
+    if screen_class == "awaiting_input":
+        return {"action": "escalate", "reason": "confirmation_needs_p5"}
+    if retry_count >= MAX_AUTO_REMEDIATE:
+        return {"action": "escalate", "reason": "intervention_loop"}
+    if screen_class not in REMEDIABLE_CLASSES:
+        return {"action": "escalate", "reason": "non_remediable_class"}
+    if screen_class == "ready_idle":
+        if age_s < READY_IDLE_REMEDIATE_MIN_AGE_S:
+            return {"action": "escalate", "reason": "ready_idle_not_stale"}
+        return {"action": "resend_status_prompt", "reason": "missing_status"}
+    if screen_class == "dispatch_blocked":
+        if match_safe_launch_box(screen):
+            return {"action": "resolve_safe_box", "reason": "safe_launch_box"}
+        return {"action": "escalate", "reason": "unsafe_dispatch_block"}
+    if screen_class == "errored":
+        if not is_transient_error(screen, backend):
+            return {"action": "escalate", "reason": "non_transient_error"}
+        if not pane_looks_idle(screen):
+            return {"action": "escalate", "reason": "worker_not_idle"}
+        return {"action": "retry_errored", "reason": "transient_error"}
+    return {"action": "escalate", "reason": "non_remediable_class"}
 
 
 def is_dual_review_config(roles: dict) -> bool:
@@ -1374,6 +1434,7 @@ def observe_running_panes(workspace: Path) -> list[dict]:
                 "alive": False,
                 "screen_class": "dead",
                 "status_state": _status_state_for_observe(workspace, row),
+                "age_s": _session_age_s(row),
                 "prompt_shape": None,
                 "tail": "",
             })
@@ -1383,17 +1444,176 @@ def observe_running_panes(workspace: Path) -> list[dict]:
         frame2 = capture_pane(pane)
         backend = backends.get(role, "custom")
         status_state = _status_state_for_observe(workspace, row)
-        screen_class = classify_screen(frame2, frame1, backend, status_state, _session_age_s(row))
+        age_s = _session_age_s(row)
+        screen_class = classify_screen(frame2, frame1, backend, status_state, age_s)
         out.append({
             "role": role,
             "pane": pane,
             "alive": True,
             "screen_class": screen_class,
             "status_state": status_state,
+            "age_s": age_s,
             "prompt_shape": classify_prompt_shape(frame2, backend) if screen_class == "awaiting_input" else None,
             "tail": screen_tail(frame2),
         })
     return out
+
+
+def _read_remediate_counts(workspace: Path) -> dict[str, int]:
+    path = workspace / "remediate.json"
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): int(v) for k, v in data.items()}
+
+
+def _write_remediate_counts(workspace: Path, counts: dict[str, int]) -> None:
+    (workspace / "remediate.json").write_text(
+        json.dumps(counts, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _set_session_status(workspace: Path, pane: str, status: str) -> None:
+    sessions_path = workspace / "SESSIONS.md"
+    rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
+    changed = False
+    now = _now()
+    for row in rows:
+        if row["pane_id"] == pane and row["status"] != status:
+            row["status"] = status
+            row["last_seen"] = now
+            changed = True
+    if changed:
+        sessions_path.write_text(render_sessions(rows), encoding="utf-8")
+
+
+def _session_for_pane(workspace: Path, pane: str) -> dict[str, str] | None:
+    sessions_path = workspace / "SESSIONS.md"
+    rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
+    for row in rows:
+        if row["pane_id"] == pane:
+            return row
+    return None
+
+
+def _observe_one_pane(workspace: Path, row: dict[str, str]) -> dict:
+    pane = row["pane_id"]
+    backends = _role_backends(workspace)
+    backend = backends.get(row["role"], "custom")
+    age_s = _session_age_s(row)
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    if not pane_is_alive(live, pane):
+        return {
+            "role": row["role"],
+            "pane": pane,
+            "alive": False,
+            "backend": backend,
+            "age_s": age_s,
+            "screen": "",
+            "screen_class": "dead",
+            "tail": "",
+        }
+    frame1 = capture_pane(pane)
+    time.sleep(OBSERVE_FRAME_GAP)
+    frame2 = capture_pane(pane)
+    status_state = _status_state_for_observe(workspace, row)
+    screen_class = classify_screen(frame2, frame1, backend, status_state, age_s)
+    return {
+        "role": row["role"],
+        "pane": pane,
+        "alive": True,
+        "backend": backend,
+        "age_s": age_s,
+        "screen": frame2,
+        "screen_class": screen_class,
+        "tail": screen_tail(frame2),
+    }
+
+
+def _role_config(workspace: Path, role: str) -> dict:
+    config_path = workspace / "config.yaml"
+    if not config_path.exists():
+        return {"backend": "custom"}
+    config = load_yaml(config_path.read_text(encoding="utf-8"))
+    return config.get("roles", {}).get(role, {"backend": "custom"})
+
+
+def _emit_remediate_metric(workspace: Path, row: dict[str, str] | None, pane: str,
+                           screen_class: str, action: str, attempt: int | None = None,
+                           reason: str | None = None) -> None:
+    record = {
+        "event": "remediate",
+        "pane": pane,
+        "role": row.get("role") if row else None,
+        "screen_class": screen_class,
+        "action": action,
+    }
+    if attempt is not None:
+        record["attempt"] = attempt
+    if reason:
+        record["reason"] = reason
+    append_metric(workspace, record)
+
+
+def cmd_remediate(args: argparse.Namespace) -> int:
+    """对 P4 type(a) 幂等场景做有界自动补救；其他情况 escalate。"""
+    workspace = Path(args.workspace).resolve()
+    row = _session_for_pane(workspace, args.pane)
+    if row is None:
+        _emit_remediate_metric(workspace, None, args.pane, "unknown", "escalate", reason="unregistered_pane")
+        sys.stdout.write("ESCALATE unregistered_pane\n")
+        return REMEDIATE_ESCALATE_EXIT
+
+    observed = _observe_one_pane(workspace, row)
+    if not observed["alive"]:
+        _emit_remediate_metric(workspace, row, args.pane, "dead", "escalate", reason="pane_dead")
+        sys.stdout.write("ESCALATE pane_dead\n")
+        return REMEDIATE_ESCALATE_EXIT
+
+    counts = _read_remediate_counts(workspace)
+    retry_count = counts.get(args.pane, 0)
+    plan = plan_remediation(
+        observed["screen_class"], observed["screen"], observed["backend"], retry_count,
+        age_s=observed.get("age_s", 0),
+    )
+    action = plan["action"]
+    reason = plan.get("reason")
+    if action == "escalate":
+        _emit_remediate_metric(workspace, row, args.pane, observed["screen_class"], action, reason=reason)
+        sys.stdout.write(f"ESCALATE {reason}\n")
+        if observed["tail"]:
+            sys.stdout.write(f"--- pane tail ---\n{observed['tail']}\n")
+        return REMEDIATE_ESCALATE_EXIT
+
+    if action == "resend_status_prompt":
+        send_to_pane(args.pane, STATUS_REPROMPT)
+    elif action == "resolve_safe_box":
+        match = match_safe_launch_box(observed["screen"])
+        if match is None:
+            _emit_remediate_metric(workspace, row, args.pane, observed["screen_class"], "escalate", reason="unsafe_dispatch_block")
+            sys.stdout.write("ESCALATE unsafe_dispatch_block\n")
+            return REMEDIATE_ESCALATE_EXIT
+        box_name, keys = match
+        send_keys_to_pane(args.pane, keys)
+        role_cfg = _role_config(workspace, row["role"])
+        resend_after_box = launch_resend_after_box(role_cfg, launch_command(role_cfg))
+        if resend_after_box and box_name in resend_after_box:
+            send_to_pane(args.pane, resend_after_box[box_name])
+        _set_session_status(workspace, args.pane, "running")
+    elif action == "retry_errored":
+        send_to_pane(args.pane, ERROR_RETRY_PROMPT)
+    else:
+        _emit_remediate_metric(workspace, row, args.pane, observed["screen_class"], "escalate", reason="unknown_action")
+        sys.stdout.write("ESCALATE unknown_action\n")
+        return REMEDIATE_ESCALATE_EXIT
+
+    attempt = retry_count + 1
+    counts[args.pane] = attempt
+    _write_remediate_counts(workspace, counts)
+    _emit_remediate_metric(workspace, row, args.pane, observed["screen_class"], action, attempt=attempt, reason=reason)
+    sys.stdout.write(f"REMEDIATED {action} attempt={attempt}\n")
+    return REMEDIATE_EXIT
 
 
 def cmd_observe(args: argparse.Namespace) -> int:
@@ -1819,6 +2039,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--timeout", type=int, default=600, help="有界超时秒数(默认 600)")
     p.add_argument("--interval", type=int, default=AWAIT_ALL_INTERVAL, help="轮询间隔秒(默认 5)")
     p.set_defaults(func=cmd_await_all)
+
+    p = sub.add_parser("remediate", help="(orchestrator 调用) 对 type(a) 幂等故障做有界自动补救")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--pane", required=True)
+    p.set_defaults(func=cmd_remediate)
 
     p = sub.add_parser("pane-alive", help="exit 0 if pane alive else 1")
     p.add_argument("--pane", required=True)
