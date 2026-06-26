@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import json
 import re
 import shlex
@@ -282,6 +283,51 @@ def embedded_text_decision(text: str) -> Decision | None:
         return Decision("deny", "repository deletion is too risky for automatic execution.")
     nested = evaluate_command(text)
     return nested
+
+
+# os.system / os.popen and subprocess.* that take a command (string or argv list).
+DANGEROUS_PY_CALL_NAMES = {"system", "popen", "run", "call", "Popen", "check_output", "check_call"}
+
+
+def _ast_literal_command(node: ast.AST) -> str | None:
+    """A string literal, or a list/tuple of string literals joined as a command."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, (ast.List, ast.Tuple)):
+        parts = []
+        for elt in node.elts:
+            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                parts.append(elt.value)
+            else:
+                return None
+        return " ".join(parts)
+    return None
+
+
+def python_source_decision(text: str) -> Decision | None:
+    """Scan `python -c` source. AST-detect literal os.system / subprocess calls and
+    re-check their command — including the argv-LIST form (e.g. subprocess.run(["rm",
+    "-rf", "/etc"])) that the plain text scan misses — then fall back to the text scan.
+    ADVISORY only: python is Turing-complete, so non-literal argv, base64/eval and the
+    like still pass. This is defense-in-depth against accidental destructive commands,
+    NOT a hard security boundary."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return embedded_text_decision(text)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
+        if name not in DANGEROUS_PY_CALL_NAMES:
+            continue
+        command = _ast_literal_command(node.args[0])
+        if command is not None:
+            decision = embedded_text_decision(command)
+            if decision and decision.kind == "deny":
+                return decision
+    return embedded_text_decision(text)
 
 
 def raw_command_decision(command: str) -> Decision | None:
@@ -727,7 +773,8 @@ def segment_decision(segment: list[str]) -> Decision | None:
     if PYTHON_COMMAND_RE.fullmatch(cmd.name) and "-c" in args:
         index = args.index("-c")
         if index + 1 < len(segment):
-            return embedded_text_decision(segment[index + 2])
+            # AST + text scan of the -c source; advisory only (see python_source_decision).
+            return python_source_decision(segment[index + 2])
     if cmd.name in {"bash", "sh", "zsh"} and "-c" in args:
         index = args.index("-c")
         if index + 1 < len(segment):

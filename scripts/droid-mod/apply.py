@@ -176,6 +176,12 @@ def main():
     print(f'  完成 {ok} 个' + (f', 失败 {fail} 个' if fail else '') +
           (f', 字节变化 {byte_diff:+d}' if byte_diff else ''))
 
+    # 任一 mod 失败 → 二进制可能处于半改状态；从备份恢复并中止，不补偿、不签名、非 0 退出。
+    if fail:
+        print(f'\n{fail} 个 mod 应用失败，从备份恢复并中止（不补偿、不签名）。')
+        run_restore()
+        sys.exit(1)
+
     # 4. 补偿 + 签名
     print('[4/4] 补偿 + 签名')
     comp_ok = True

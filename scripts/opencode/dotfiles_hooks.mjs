@@ -30,16 +30,18 @@ function runPythonHook(script, input, cwd, args = []) {
     options.env.FACTORY_PROJECT_DIR = cwd;
   }
   const result = spawnSync("python3", [script, ...args], options);
+  // hookError 标记运行时失败(spawn/非0/坏 JSON), 供 command guard 走 fail-closed;
+  // 注入类调用方(capsule/memory/stop)只读 systemMessage/additionalContext, 忽略它, 仍 fail-open。
   if (result.error) {
-    return { systemMessage: `${script} failed: ${result.error.message}` };
+    return { systemMessage: `${script} failed: ${result.error.message}`, hookError: true };
   }
   if (result.status !== 0) {
-    return { systemMessage: `${script} exited with ${result.status}: ${result.stderr.trim()}` };
+    return { systemMessage: `${script} exited with ${result.status}: ${result.stderr.trim()}`, hookError: true };
   }
   try {
     return JSON.parse(result.stdout || "{}");
   } catch {
-    return { systemMessage: `${script} returned invalid JSON: ${result.stdout.trim()}` };
+    return { systemMessage: `${script} returned invalid JSON: ${result.stdout.trim()}`, hookError: true };
   }
 }
 
@@ -161,21 +163,28 @@ function maybeCommandFromPermission(input) {
 
 function applyCommandGuard(command, output) {
   const decision = runCommandGuard(command);
+  // Fail CLOSED: 一个跑不起来的 guard 绝不能放命令过去(注入类 capsule/memory 按设计 fail-open,
+  // 命令护栏不复用该策略)。
+  if (decision.hookError) {
+    const reason = `command guard 未能运行(${decision.systemMessage || "unknown error"})；出于安全先拒绝该命令。修好 guard 后重试，或人工确认后手动执行。`;
+    appendGuardReason(output, reason);
+    throw new Error(reason);
+  }
   const hookOutput = decision.hookSpecificOutput || {};
   if (hookOutput.permissionDecision === "deny") {
     const reason = hookOutput.permissionDecisionReason || "Command denied by dotfiles command guard.";
-    appendTextPart(output, reason);
+    appendGuardReason(output, reason);
     throw new Error(reason);
   }
   if (decision.systemMessage) {
-    appendTextPart(output, decision.systemMessage);
+    appendGuardReason(output, decision.systemMessage);
   }
 }
 
 function applyPermissionGuard(command, output) {
   const decision = runCommandGuard(command);
-  const hookOutput = decision.hookSpecificOutput || {};
-  if (hookOutput.permissionDecision === "deny") {
+  // Fail CLOSED on guard runtime failure, 与 applyCommandGuard 一致。
+  if (decision.hookError || decision.hookSpecificOutput?.permissionDecision === "deny") {
     output.status = "deny";
   }
 }
@@ -205,11 +214,20 @@ function runMemoryCapture(workspace, sessionID) {
   }
 }
 
-function appendTextPart(output, text) {
-  if (!Array.isArray(output.parts)) {
-    output.parts = [];
+// 把 guard 的拒绝/告警理由附到既有 text part 上 —— 不 push 无完整 schema 的新 part
+// (runtime 会 UnknownError，见 injectContextCapsules 注释)。无可附着的 text part 时不强行加，
+// 拦截结果由抛出的 Error / output.status 承载。
+function appendGuardReason(output, text) {
+  const parts = output?.parts;
+  if (!Array.isArray(parts)) {
+    return;
   }
-  output.parts.push({ type: "text", text, synthetic: true });
+  const textPart = parts.find(
+    (part) => part && part.type === "text" && typeof part.text === "string",
+  );
+  if (textPart) {
+    textPart.text = textPart.text ? `${textPart.text}\n\n${text}` : text;
+  }
 }
 
 function idleSessionID(event) {

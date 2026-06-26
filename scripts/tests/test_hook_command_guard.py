@@ -382,6 +382,34 @@ class HookCommandGuardTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assert_suppressed(self.run_guard(command))
 
+    def test_denies_python_dash_c_dangerous_calls_incl_argv_list(self) -> None:
+        # argv-LIST form bypassed the text-only scan before AST detection (C1).
+        cases = [
+            ('python3 -c \'import subprocess; subprocess.run(["rm","-rf","/etc"])\'', "wide destructive cleanup"),
+            ('python3 -c \'import subprocess; subprocess.run(["git","reset","--hard"])\'', "git reset --hard"),
+            ('python -c \'import os; os.system("rm -rf /etc")\'', "wide destructive cleanup"),
+        ]
+        for command, reason in cases:
+            with self.subTest(command=command):
+                self.assert_denied(self.run_guard(command), reason)
+
+    def test_allows_benign_python_dash_c(self) -> None:
+        for command in [
+            'python3 -c \'import subprocess; subprocess.run(["ls","-la"])\'',
+            "python3 -c 'print(1)'",
+        ]:
+            with self.subTest(command=command):
+                self.assert_suppressed(self.run_guard(command))
+
+    def test_denies_git_force_push_value_and_refspec_forms(self) -> None:
+        # --force-with-lease=<value> and +refspec were not recognized as force (I1).
+        for command in [
+            "git push origin +feature:feature",
+            "git push --force-with-lease=main origin feature",
+        ]:
+            with self.subTest(command=command):
+                self.assert_denied(self.run_guard(command), "force push")
+
 
 if __name__ == "__main__":
     unittest.main()
