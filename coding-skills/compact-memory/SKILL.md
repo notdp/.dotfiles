@@ -24,7 +24,7 @@ Use this skill when repeated episodic user memory notes should be compacted into
 
 1. Lexical recall: collect active episodic source notes by `--topic` and/or decision `source_ids`.
 2. Reflection decision: an LLM or human writes a JSON decision with `action`, `title`, `insight`, and `source_ids`; tests use fixtures.
-3. Deterministic write: run `coding-skills/compact-memory/scripts/compact_memory.py` to validate citations, reject unsafe writes, rebuild `INDEX.md`, and optionally mark explicitly refuted sources `stale`.
+3. Deterministic write: run `${HOME}/.dotfiles/coding-skills/compact-memory/scripts/compact_memory.py` to validate citations, reject unsafe writes, rebuild `INDEX.md`, and optionally mark explicitly refuted sources `stale`.
 
 ## Decision Shape
 

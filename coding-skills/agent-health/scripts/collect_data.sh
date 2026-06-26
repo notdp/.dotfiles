@@ -9,7 +9,14 @@ if [[ ! -d "$repo_root" ]]; then
 fi
 
 agents_file="$repo_root/agents/AGENTS.md"
-catalog_file="$repo_root/skills/catalog.json"
+# SSOT is coding-skills/ (this repo); fall back to skills/ for older/other layouts.
+if [[ -d "$repo_root/coding-skills" ]]; then
+  catalog_file="$repo_root/coding-skills/catalog.json"
+  skills_dir="$repo_root/coding-skills"
+else
+  catalog_file="$repo_root/skills/catalog.json"
+  skills_dir="$repo_root/skills"
+fi
 
 hook_candidates=(
   "$repo_root/hooks"
@@ -27,9 +34,9 @@ mcp_candidates=(
 )
 
 skills_count="0"
-if [[ -d "$repo_root/skills" ]]; then
+if [[ -d "$skills_dir" ]]; then
   skills_count="$(
-    find "$repo_root/skills" -mindepth 2 -maxdepth 2 -name SKILL.md ! -path "*/.system/*" | wc -l | tr -d ' '
+    find "$skills_dir" -mindepth 2 -maxdepth 2 -name SKILL.md ! -path "*/.system/*" | wc -l | tr -d ' '
   )"
 fi
 
@@ -67,7 +74,7 @@ fi
 
 if [[ ! -f "$catalog_file" ]]; then
   [[ "$status" == "PASS" ]] && status="WARN"
-  issues+=("[WARN] Missing skills/catalog.json")
+  issues+=("[WARN] Missing catalog.json ($catalog_file)")
 fi
 
 hook_path="$(find_hook_config || true)"

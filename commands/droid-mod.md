@@ -1,6 +1,6 @@
 ---
 description: 修改/检查/恢复 droid 二进制
-argument-hint: <status | apply | apply 1,4,8 | restore>
+argument-hint: <status | apply | apply 1,3 | restore>
 ---
 
 对 `~/.local/bin/droid` 二进制执行修改、状态检查或恢复。
@@ -19,7 +19,7 @@ argument-hint: <status | apply | apply 1,4,8 | restore>
 |------|------|
 | `status` | 检查当前 droid 各 mod 的应用状态和 settings.json 配置 |
 | `apply` | 应用全部 mod（自动备份 → 移除签名 → 逐个应用 → 补偿 → 签名） |
-| `apply 1,4,8` | 只应用指定编号的 mod |
+| `apply 1,3` | 只应用指定编号的 mod |
 | `restore` | 从备份恢复原版 droid |
 | `restore 0.90.0` | 恢复指定版本的备份 |
 | `restore --list` | 列出所有可用备份 |
@@ -41,7 +41,7 @@ python3 "$SCRIPT_DIR/status.py"
 python3 "$SCRIPT_DIR/apply.py"
 
 # apply (指定 mod)
-python3 "$SCRIPT_DIR/apply.py" 1,4,8
+python3 "$SCRIPT_DIR/apply.py" 1,3
 
 # restore
 python3 "$SCRIPT_DIR/restore.py"
@@ -51,21 +51,23 @@ python3 "$SCRIPT_DIR/restore.py" --list
 
 ## 可用 mod
 
-| # | 说明 | 字节 |
-|---|------|------|
-| 1 | 命令框 "command truncated. press Ctrl+O" → 隐藏 | 0 |
-| 4 | Edit diff/输出截断行数 20 → 99 | 0 |
-| 6 | Ctrl+N 跳过 Copilot model（ID 含 `[` 的模型） | ~+27 |
-| 7 | 多行历史按↓无法返回空输入框 → 修复 | 0 |
-| 8 | Welcome 橙色 + 版本号 "Modified" 标记 | ~+54 |
-| 10 | Kitty keyboard 检测超时 200→999ms | 0 |
+| # | key | 说明 |
+|---|-----|------|
+| 1 | mod-cycle-custom-model | Ctrl+N 直接切换 custom model |
+| 2 | mod-fix-multiline-history-down | 修复多行历史按 ↓ 无法回到空输入框 |
+| 3 | mod-highlight-welcome-modified | Welcome/Header 高亮 Modified 标记 |
+| 5 | mod-extend-kitty-timeout | 将 kitty 检测超时扩到 999ms |
+
+> 此表由 `scripts/droid-mod/apply.py` 的 `MODS` 派生，编号即 `id` 字段（非连续）。
+> 已归档（不再列出、不参与补偿）：`mod-hide-command-truncation`、`mod-expand-diff-lines`、`mod-unlock-max-custom-effort`（见 `scripts/droid-mod/mods/_archive/`）。
 
 ## 规则
 
-1. 先执行 `status` 确认当前状态再决定下一步
-2. `apply` 会自动处理备份、签名、字节补偿，补偿失败会自动恢复
-3. 修改后提示用户「新开一个 droid 窗口验证」
-4. 不要在 droid 正在运行修改操作时中断
+1. **改动仓库外二进制**：`apply` / `restore` 会修改 `~/.local/bin/droid`（仓库外）。按 AGENTS.md 边界纪律，执行前应先过 `/guard-gitops` 评估并取得用户**明确确认**；`status`（只读）不需要。
+2. 先执行 `status` 确认当前状态再决定下一步
+3. `apply` 会自动处理备份、签名、字节补偿，补偿失败会自动恢复
+4. 修改后提示用户「新开一个 droid 窗口验证」
+5. 不要在 droid 正在运行修改操作时中断
 
 ## Gotchas
 

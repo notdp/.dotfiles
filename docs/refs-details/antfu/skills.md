@@ -3,6 +3,7 @@
 - 上游仓库: `https://github.com/antfu/skills`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/antfu/skills`
 - Source SHA: `50deaeb269d80d92db7a2c5a677290309ae307fc`（heads/main），分析日期: 2026-06-02
+- ⚠️ **Source SHA stale**：当前 submodule gitlink 已为 `a74f281a27dadc02397bc1a174b0f2c97531b6ae`（≠ 上面分析 SHA）；本文档基于旧版本，重新吸收前先核对 `git log 50deaeb2..a74f281a`。
 - 一句话总结: 不是一套"agent 行为/工作流 skill 集", 而是一条"从上游官方文档/上游 skill 仓库自动生成并持续同步领域知识 skill"的流水线 + 产物, 核心主张是用 git submodule 把 skill 的事实源锚定到上游, 让知识库可溯源、可更新、可分发。
 
 ## 思路哲学 (Why)

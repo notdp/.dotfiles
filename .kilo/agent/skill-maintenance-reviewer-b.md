@@ -1,7 +1,7 @@
 ---
 description: Read-only Reviewer B for /skill-maintenance. Independent audit of all existing skills for deficiencies, contradictions, confusion, deviation from refs, and over-restriction.
 mode: subagent
-model: cliproxy/claude-opus-4-7
+model: cliproxy/claude-opus-4-8
 steps: 50
 permission:
   read: allow
@@ -20,7 +20,7 @@ permission:
 
 ## 默认模型意图
 
-- Default requested model: `cliproxy/claude-opus-4-7`
+- Default requested model: `cliproxy/claude-opus-4-8`
 - Reviewer family: Claude
 - `/skill-maintenance` 的 review packet 可以覆盖 requested model 和 requested thinking；以 packet 为准。
 - 如果运行时无法提供 actual model metadata，必须写 `Actual model evidence: unavailable`，不要声称模型已验证。
@@ -59,7 +59,7 @@ permission:
 | Field | Value |
 |---|---|
 | Reviewer | B |
-| Requested model | <from packet, default cliproxy/claude-opus-4-7> |
+| Requested model | <from packet, default cliproxy/claude-opus-4-8> |
 | Requested thinking | <from packet, default high> |
 | Actual model evidence | <metadata or unavailable> |
 | Actual thinking evidence | <metadata or unavailable> |

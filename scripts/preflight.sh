@@ -41,7 +41,7 @@ else
 fi
 
 # 3. 敏感信息扫描（暂存区 + 工作树 diff HEAD）
-SENSITIVE=$(git diff HEAD 2>/dev/null | grep -E -i '(^\+.*)(api[_-]?key|secret|token|password)[[:space:]]*[=:][[:space:]]*["\x27][^"\x27]{6,}' || true)
+SENSITIVE=$(git diff HEAD 2>/dev/null | grep -E -i "^\+.*(api[_-]?key|secret|token|password)[[:space:]]*[=:][[:space:]]*[\"']?[^[:space:]\"']{6,}" || true)
 PRIVKEY=$(git diff HEAD 2>/dev/null | grep -E '^\+.*-----BEGIN (RSA |EC )?PRIVATE KEY-----' || true)
 if [[ -n "$SENSITIVE" || -n "$PRIVKEY" ]]; then
   push_result "sensitive scan" "FAIL" "possible secret in diff — review before ship"

@@ -4,7 +4,7 @@
 
 - refs 吸收裁决的 SSOT：[`docs/software-engineering-research/refs-absorption-methodology.md`](./software-engineering-research/refs-absorption-methodology.md)
 - 后续拉取 refs 最新改动、判断是否吸收到本仓库时，必须按该方法论输出 commit range、候选吸收项、吸收层级、风险和证据。
-- 最近一次全量 refs 更新吸收分析：[`docs/refs-update-absorption-2026-05-14.md`](./refs-update-absorption-2026-05-14.md)
+- 最近一次全量 refs 更新吸收分析：[`docs/refs-update-absorption-2026-06-25.md`](./refs-update-absorption-2026-06-25.md)（上一轮：[2026-05-14](./refs-update-absorption-2026-05-14.md)）
 - 零散短参考登记入口：[`docs/refs-micro-index.md`](./refs-micro-index.md)
 
 ## 分类说明
@@ -34,6 +34,7 @@
 | [`affaan-m/everything-claude-code`](./refs-details/affaan-m/everything-claude-code.md) | 技能集合与市场 | 超大号跨 harness agent-performance 系统，整合 agents、skills、commands、hooks、rules 和安装器。 |
 | [`addyosmani/agent-skills`](./refs-details/addyosmani/agent-skills.md) | 研发流程 / Agent Skill 工作流 | 面向 AI coding agent 的生产级软件工程 skill 包，把 spec、plan、build、test、review、simplify、ship 串成带验证门禁的生命周期工作流。 |
 | [`addyosmani/web-quality-skills`](./refs-details/addyosmani/web-quality-skills.md) | 代码质量 / 审查 / 调试 | 面向 Web 质量审查与优化的技能仓库，围绕 Lighthouse、Core Web Vitals、可访问性、SEO 和现代最佳实践组织。 |
+| [`antfu/skills`](./refs-details/antfu/skills.md) | 技能集合与市场 | 把 skill 事实源用 git submodule 锚定到上游官方文档/skill 仓、自动生成并持续同步领域知识 skill 的流水线与产物，主张知识库可溯源、可更新、可分发。 |
 | [`anthropics/claude-code-security-review`](./refs-details/anthropics/claude-code-security-review.md) | 安全 / 网络安全技能库 | Anthropic 官方 AI 安全审查 GitHub Action，用 Python 编排层把 Claude Code 的非确定性安全审计包成可在 CI 运行的 pipeline，核心资产是三层误报过滤漏斗和 17 条误报判例。 |
 | [`anthropics/claude-plugins-official`](./refs-details/anthropics/claude-plugins-official.md) | 技能集合与市场 / Claude Code 插件市场 | Anthropic 官方维护的 Claude Code plugins marketplace，提供 plugin manifest、marketplace registry、commands / agents / skills / MCP 的组合分发样本，适合吸收资产 registry、专科 review、preflight gate、Business Rule Card、Hookify 与 session report 模式。 |
 | [`anthropics/skills`](./refs-details/anthropics/skills.md) | 技能集合与市场 | Anthropic 官方示例 skills 仓库，附带规范、模板，以及文档处理与开发类技能示例。 |
@@ -42,10 +43,12 @@
 | [`awslabs/agentcore-samples`](./refs-details/awslabs/agentcore-samples.md) | AWS / Bedrock AgentCore 样例库 | 覆盖 AgentCore 入门、能力专题、端到端业务用例、第三方集成、IaC 部署和完整 Blueprint 的官方样例集合。 |
 | [`Chachamaru127/claude-code-harness`](./refs-details/Chachamaru127/claude-code-harness.md) | Harness 工程 / Agent 工作流框架 | 为 AI 编码 Agent 构建的结构化交付循环框架，通过 5 动词 skill + 声明式护栏 + 多 Agent 团队编排 + 证据链，将散漫的 Agent 编码约束为可重复的 Plan-Work-Review-Release 路径。 |
 | [`ChromeDevTools/chrome-devtools-mcp`](./refs-details/ChromeDevTools/chrome-devtools-mcp.md) | 浏览器自动化与前端调试 | 通过 MCP 控制真实 Chrome，提供自动化、调试、性能分析和配套 skills。 |
+| [`ComposioHQ/awesome-claude-skills`](./refs-details/ComposioHQ/awesome-claude-skills.md) | 技能集合与市场 | Composio 维护的 awesome-list 式 Claude Skills 目录（1000+ 外链），夹带少量 exemplar skill 与规模化 MCP skill 工厂；价值在 skill 格式规范、progressive disclosure 原则与「用 MCP 工具发现替代硬编码工具」的批量生成模式。 |
 | [`Dimillian/Skills`](./refs-details/Dimillian/Skills.md) | 技能集合与市场 | 偏精选型的 skills 集合，覆盖 Apple 平台开发、GitHub 操作、review swarm、React 性能和重构。 |
 | [`EveryInc/compound-engineering-plugin`](./refs-details/EveryInc/compound-engineering-plugin.md) | 研发流程 / 经验复利工作流 | Every 的多平台 AI 工程工作流插件（37+ skills、50+ agents），把计划→执行→审查→沉淀做成复利闭环，核心是 `docs/solutions/` 这个带受控 frontmatter、可被未来 agent grep 检索并默认前置消费的机构记忆库。 |
 | [`frankbria/ralph-claude-code`](./refs-details/frankbria/ralph-claude-code.md) | 多智能体协作与工作流编排 | Geoffrey Huntley "Ralph" 技巧的工程化 bash 实现，把 Claude Code 包成无人值守自主开发循环（完成信号双门控 + 熔断器 + 速率限制 + Docker/E2B 沙箱），与我们人在环监督的 dev-long-run 哲学相反，值得吸收的是它把卡死/完成/进展落成磁盘可计算信号的机械可靠性。 |
 | [`garrytan/gstack`](./refs-details/garrytan/gstack.md) | 研发流程 / 多智能体工程工作流 | 面向 Claude Code 及多种 AI 编码代理的工程工作流套件，把产品规划、架构评审、浏览器 QA、代码审查、安全审计、发布部署和跨会话记忆组织成可安装 skill 与本地浏览器运行时。 |
+| `gastownhall/beads` | 上下文 / 记忆管理 | 面向 coding agent 的分布式图式 issue tracker（基于 Dolt），用依赖感知的图替代零散 markdown 计划，提供持久结构化记忆以承接长程任务（refs-details 待补）。 |
 | [`github/awesome-copilot`](./refs-details/github/awesome-copilot.md) | 技能集合与市场 | GitHub 官方运营的 Copilot 资源集合，统一管理 agents / instructions / skills / hooks / agentic workflows / plugins，并配套 marketplace、网站与 CLI 安装。 |
 | [`glittercowboy/taches-cc-resources`](./refs-details/glittercowboy/taches-cc-resources.md) | 技能集合与市场 | 面向 Claude Code 的资源仓库，主打技能开发、规划分层、MCP 服务生成、调试方法论与 Ralph 自治循环。 |
 | [`google-labs-code/design.md`](./refs-details/google-labs-code/design.md.md) | 前端 UI / 设计系统 | DESIGN.md 视觉契约格式规范（YAML token + markdown rationale）+ agent-first lint/diff/export CLI；本仓库已吸收格式，delta 在 token-graph 语义校验闭环。**vendored 文件非 submodule**。 |
@@ -60,6 +63,7 @@
 | [`lijigang/ljg-skills`](./refs-details/lijigang/ljg-skills.md) | 技能集合与市场（个人认知 / 内容 / 写作技能集） | 作者 lijigang 的个人 Claude Code 技能集（22 个 `ljg-*` skill + 2 工作流），以认知解剖 / 论文消化 / 内容铸卡 / 中文写作为主轴，org-mode（master）与 Markdown（md 分支）双格式分发，并打包为 plugin / marketplace。 |
 | [`mattpocock/skills`](./refs-details/mattpocock/skills.md) | 研发流程 / Skill 工程 | "小、可组合、可 hack"的 Claude Code skill 集合，核心价值在于 prompt 结构设计（指令-知识分离、Grilling 模式、Vertical Slice 可视化、强制词汇表+Avoid 列表）和工程纪律编码方式（.out-of-scope 知识库、Durability over precision）。 |
 | [`millionco/react-doctor`](./refs-details/millionco/react-doctor.md) | 代码质量 / 审查 / 调试 | React 代码体检工具仓库，核心是 CLI 扫描器，同时附带 GitHub Action、agent skill 和网站。 |
+| [`MiniMax-AI/skills`](./refs-details/MiniMax-AI/skills.md) | 技能集合与市场 | 面向内容/媒体/应用产出的领域 skill 库（frontend/mobile/shader/PDF/PPTX/XLSX/DOCX/多模态媒体），把专家级设计品味与产出 pipeline 编码成 SKILL.md+脚本，并用 PR 校验脚本+双层 review skill 守库质量。 |
 | [`mksglu/context-mode`](./refs-details/mksglu/context-mode.md) | 上下文 / 记忆管理 | 面向多种 AI 编码运行时的 MCP/plugin，用来减少上下文窗口占用并保留会话连续性。 |
 | [`msitarzewski/agency-agents`](./refs-details/msitarzewski/agency-agents.md) | Agent 角色库 / 多工具 Agent 资产 | 144 个 Markdown agent + 转换/安装脚本 + NEXUS 编排方法论，适合作为 agent catalog、handoff/quality-gate 模板和多工具适配参考。 |
 | [`multica-ai/andrej-karpathy-skills`](./refs-details/multica-ai/andrej-karpathy-skills.md) | 行为协议 / 提示工程 | 轻量编码行为指南，把先澄清、少抽象、精准改动和目标驱动验证打包成 Claude Code / Cursor / skill 可复用规则。 |
@@ -71,11 +75,13 @@
 | [`notdp/hive`](./refs-details/notdp/hive.md) | 多智能体协作与工作流编排 | 基于 tmux 的多 agent 协作运行时/CLI，围绕 Factory Droid 工作流构建。 |
 | [`nyldn/claude-octopus`](./refs-details/nyldn/claude-octopus.md) | 多智能体协作与工作流编排 | 超大体量的多模型编排插件，把 Claude Code/Droid 扩展成带工作流、角色、hooks、MCP 和兼容层的协作系统。 |
 | [`obra/superpowers`](./refs-details/obra/superpowers.md) | 研发流程 / 项目管理 | 强调纪律化开发流程的技能包，让 coding agent 按“先规格、后计划、再实现与复核”的方式工作。 |
+| [`OthmanAdi/planning-with-files`](./refs-details/OthmanAdi/planning-with-files.md) | 上下文 / 记忆管理 | 把「Manus 式持久化 markdown 文件即外部记忆」产品化为单一 skill，用 hooks 把计划文件强制注入 agent 每轮决策上下文，并跨 17+ 种 coding agent 可移植分发。 |
 | [`Owl-Listener/designer-skills`](./refs-details/Owl-Listener/designer-skills.md) | 前端 UI / 设计系统 | 面向设计工作的 Claude Code / Gemini CLI skill collection，提供 8 个设计插件、87 个 skills 和 27 个 commands。 |
 | [`pbakaus/impeccable`](./refs-details/pbakaus/impeccable.md) | 前端 UI / 设计系统 | 面向前端设计质量的跨平台技能/命令打包仓库，附带官网、下载 API 和构建系统。 |
 | [`rjs/shaping-skills`](./refs-details/rjs/shaping-skills.md) | 研发流程 / 产品塑形（Shape Up） | Ryan Singer 把 Shape Up 的 shaping 全链路（framing→shaping/fit-check→breadboarding→slicing→kickoff）编码成 agent skills，核心设计是表格为唯一事实源、文档分层一致性靠 hook 强制，让 LLM 写码前先把为什么做/做什么/怎么连显式化为可验证产物。 |
 | [`shanraisshan/claude-code-best-practice`](./refs-details/shanraisshan/claude-code-best-practice.md) | 最佳实践 / 知识库 | Claude Code 生态知识库，系统整理 commands、skills、subagents、memory、hooks 与工作流最佳实践，并给出对应实现入口。 |
 | [`Shubhamsaboo/awesome-llm-apps`](./refs-details/Shubhamsaboo/awesome-llm-apps.md) | LLM 应用模板 / Agent 示例库 | 可运行的 LLM 应用 cookbook，收录 Agent、RAG、MCP、语音、多智能体、技能与微调示例模板。 |
+| [`SuperClaude-Org/SuperClaude_Framework`](./refs-details/SuperClaude-Org/SuperClaude_Framework.md) | Harness 工程 / Agent 工作流框架 | 把 Claude Code 当可改造开发平台的 meta-programming 框架，靠行为指令注入+组件编排提供 30 命令/20 agent/7 行为模式，并用 Python+pytest 插件+prompt 双轨固化「置信度门+证据自检+跨 session 错误学习」方法论。 |
 | [`tanweai/pua`](./refs-details/tanweai/pua.md) | 行为协议 / 提示工程 | 面向多种 AI 编码代理的“高压/高主动性”技能包，核心是 PUA/PIP 风格提示、命令、hooks 和多平台分发素材。 |
 | [`tirth8205/code-review-graph`](./refs-details/tirth8205/code-review-graph.md) | 代码质量 / 审查 / 调试 | 面向 AI 编码工具的本地代码知识图谱，用 Tree-sitter、SQLite 与 MCP 把审查上下文缩到真正相关的 blast radius。 |
 | [`travisvn/awesome-claude-Skills`](./refs-details/travisvn/awesome-claude-Skills.md) | 技能集合与市场 | 纯 curated list 仓库，汇总官方和社区 Claude Skills、教程、资源、安全建议与 FAQ。 |

@@ -469,7 +469,14 @@ def git_push_target_branches(push_args: list[str]) -> tuple[list[str], bool]:
 
 
 def git_push_decision(push_args: list[str]) -> Decision | None:
-    if any(arg in GIT_FORCE_PUSH_FLAGS for arg in push_args):
+    # Force is also expressed as --force-with-lease=<value> (= form) and as a
+    # leading '+' on a refspec (e.g. `git push origin +feature`); match both.
+    if any(
+        arg in GIT_FORCE_PUSH_FLAGS
+        or arg.startswith("--force-with-lease=")
+        or arg.startswith("+")
+        for arg in push_args
+    ):
         return Decision("deny", "git force push can overwrite remote history; do not run automatically.")
     branches, pushes_all = git_push_target_branches(push_args)
     if pushes_all:

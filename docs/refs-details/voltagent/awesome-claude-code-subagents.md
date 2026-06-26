@@ -3,6 +3,7 @@
 - 上游仓库: `https://github.com/VoltAgent/awesome-claude-code-subagents`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/voltagent/awesome-claude-code-subagents`
 - Source SHA: `2f9cf8b9562dcc235cc2296bda6df82d60e800be`（heads/main），分析日期: 2026-06-10
+- ⚠️ **Source SHA stale**：当前 submodule gitlink 已为 `c193ad45419c13ceb49a43740186f680ad5ea264`（≠ 上面分析 SHA）；本文档基于旧版本，重新吸收前先核对 `git log 2f9cf8b9..c193ad45`。
 - 一句话总结: 一个全量托管 154 个 Claude Code subagent 定义的 mono-repo，统一 frontmatter 模板（name/description/tools/model）+ 三档 model 路由 + 4 条分发链路（plugin marketplace / 手动 / 交互脚本 / agent 自举安装），分发工程做得扎实，但 agent 正文大量是模板批量生成的"名词清单连祷"，且 tools 最小权限哲学与实际声明自相矛盾。
 
 ## 仓库性质澄清(先验事实)

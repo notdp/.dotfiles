@@ -3,6 +3,7 @@
 - 上游仓库: `https://github.com/anthropics/claude-plugins-official`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/anthropics/claude-plugins-official`
 - Source SHA: `30554536742b2b465acc4a4003d419ccaaf063af`（heads/main），分析日期: 2026-06-12
+- ⚠️ **Source SHA stale**：当前 submodule gitlink 已为 `f7b31235e6f01cd7cd08ad4a6699f007a4072519`（≠ 上面分析 SHA）；本文档基于旧版本，重新吸收前先核对 `git log 30554536..f7b31235`。
 - 主分类: **技能集合与市场 / Claude Code 插件市场**
 - 一句话总结: Anthropic 官方维护的 Claude Code plugins marketplace，价值不在直接安装整套插件，而在提供 plugin manifest、marketplace registry、commands / agents / skills / MCP 的组合分发样本，以及 PR review、modernization、hook generation、session report 等可移植工作流模式。
 

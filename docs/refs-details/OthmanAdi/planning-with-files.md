@@ -3,6 +3,7 @@
 - 上游仓库: `https://github.com/OthmanAdi/planning-with-files`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/OthmanAdi/planning-with-files`
 - Source SHA: `6f94643bd2b77dad9ac30b68ace14a536e2e5619`（v2.42.0-3-g6f94643），分析日期: 2026-06-02
+- ⚠️ **Source SHA stale**：当前 submodule gitlink 已为 `8f5a3c2e1c347635cf94debde033b3c1ac97e4ab`（≠ 上面分析 SHA）；本文档基于旧版本，重新吸收前先核对 `git log 6f94643b..8f5a3c2e`。
 - 一句话总结: 一个把 "Manus 式持久化 markdown 文件即外部记忆" 模式产品化为单一 skill 的项目，核心不在功能堆叠，而在用 hooks 把 "计划文件" 强制注入到 agent 的每一轮决策上下文里，并跨 17+ 种 coding agent 做同一套行为的可移植分发。
 
 ## 思路哲学 (Why)

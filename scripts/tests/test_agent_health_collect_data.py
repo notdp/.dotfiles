@@ -25,7 +25,7 @@ class AgentHealthCollectDataTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
             self.assertIn("=== SUMMARY ===", result.stdout)
-            self.assertIn("[WARN] Missing skills/catalog.json", result.stdout)
+            self.assertIn("[WARN] Missing catalog.json", result.stdout)
             self.assertIn("[WARN] Missing hook configuration", result.stdout)
             self.assertIn("[WARN] Missing MCP configuration", result.stdout)
 
@@ -47,6 +47,29 @@ class AgentHealthCollectDataTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
             self.assertNotIn("[WARN] Missing hook configuration", result.stdout)
+
+    def test_collect_data_prefers_coding_skills_layout(self) -> None:
+        # SSOT is coding-skills/ (this repo); the collector must detect it, not the legacy skills/.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            (repo / "agents").mkdir(parents=True)
+            (repo / "coding-skills" / "sample-skill").mkdir(parents=True)
+            (repo / "agents" / "AGENTS.md").write_text("# rules\n")
+            (repo / "coding-skills" / "catalog.json").write_text('{"skills": []}\n')
+            (repo / "coding-skills" / "sample-skill" / "SKILL.md").write_text(
+                "---\nname: sample-skill\ndescription: demo\n---\n"
+            )
+
+            result = subprocess.run(
+                ["bash", str(COLLECT_SCRIPT), str(repo)],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn("CATALOG: present", result.stdout)
+            self.assertIn("SKILLS: 1", result.stdout)
+            self.assertNotIn("[WARN] Missing catalog.json", result.stdout)
 
 
 if __name__ == "__main__":

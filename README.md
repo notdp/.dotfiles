@@ -36,8 +36,6 @@
 ## 本地工具与护栏
 
 - `statusline.sh`：展示 cwd、branch、PR、diff、session id、Factory usage 等状态。
-- `bin/droid-observe`：查看 long-loop workspace。
-- `bin/longrun`：启动 longrun dashboard。
 - `bin/droid-vim-command`：支持 `/vim`、`/cvim` 外部编辑器工作流。
 - `bin/droid-session-map-hook`：维护 droid session 映射（配合 `/vim` 工作流的 session-map）。
 - `scripts/install_hooks.py`：为 Droid / Claude / Codex / opencode / kilo 生成 hook 配置，并把 `coding-skills/` 软链到各 agent 的 skills 入口。
@@ -219,7 +217,7 @@ docs/                                   # 研究文档（git-tracked）
 
 ### 分类
 
-下表为 17 类的代表项目；**完整 56 个 submodule 的一句话总结、活动速览与吸收裁决以 [`docs/refs-summary.md`](./docs/refs-summary.md) 为准**。
+下表为 17 类的代表项目；**完整 refs/ submodule（当前 59 个，数量以 `.gitmodules` 为准）的一句话总结、活动速览与吸收裁决以 [`docs/refs-summary.md`](./docs/refs-summary.md) 为准**。
 
 | 分类 | 代表项目 |
 |------|----------|

@@ -1,5 +1,7 @@
 # writing-skills 体系设计 spec（overview）
 
+> **现行架构（最新，覆盖下方所有「物理隔离 / 不暴露给编程 agent」表述）**：写作 skill 已**并入编程池** `coding-skills/`（软链 12 个 `write-*` / `guard-write-*` / `assist-write-corpus` + `_shared/`），供编程项目里的临时写作诉求，**靠 `write-*` 域前缀做路由隔离，而非物理隐藏**。因此下方 TL;DR 的「物理隔离」、`spec-contract` 的 `checks` S4「编程 agent 看不到 write-* skill」与 `non_goals`「不把写作 skill/hook 暴露给任何编程 agent 全局」**均为历史决策、已不成立**——以 `README.md` 与 `coding-skills/` 现状为准。本文档全文（含内部旧路径 `writing-skills/hooks/`、`scripts/verify_writing.py` 等）留作演进记录，不再逐处订正。
+
 > **最终架构（2026-06-03 二次重构，覆盖下方 B 缩减）**：两层写作能力体系。
 > 用户指出「去 AI 味等是**通用能力**应沉淀 dotfiles，敏感+定制留项目」，故把 B 的误删纠正回来：
 > - **Layer 1 — dotfiles `writing-skills`（通用、account-agnostic、零敏感）**：12 个 skill

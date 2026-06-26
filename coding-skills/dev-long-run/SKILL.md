@@ -135,7 +135,7 @@ lr.py complete-run   --workspace <ws> [--keep-panes]        # 过 acceptance 门
 - 不自动 push/deploy/改 secrets/触第三方副作用;工作区文件是 SSOT,你的记忆不可信。
 
 ## 角色 prompt
-`skills/dev-long-run/prompts/{scaffold_orchestrator,scaffold_reviewer,loop_orchestrator,phase_planner,phase_coder,phase_reviewer}.md`
+`${HOME}/.dotfiles/coding-skills/dev-long-run/prompts/{scaffold_orchestrator,scaffold_reviewer,loop_orchestrator,phase_planner,phase_coder,phase_reviewer}.md`
 (orchestrator 两份是给"你"看的 playbook;其余三份是 worker pane 的注入 prompt。)
 
 ## 状态(state.json)

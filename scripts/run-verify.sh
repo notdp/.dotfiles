@@ -57,10 +57,10 @@ if [[ -f package.json ]]; then
   fi
 fi
 
-if [[ -f pyproject.toml ]] || [[ -d tests ]] && ls tests/test_*.py >/dev/null 2>&1; then
+if { [[ -f pyproject.toml ]] || [[ -d tests ]]; } && ls tests/test_*.py >/dev/null 2>&1; then
   if command -v pytest >/dev/null 2>&1; then
     run_check "tests (pytest)" "pytest -q"
-  elif [[ -f pyproject.toml ]] && command -v python3 >/dev/null 2>&1; then
+  elif command -v python3 >/dev/null 2>&1; then
     run_check "tests (unittest)" "python3 -m unittest discover -q"
   fi
 fi

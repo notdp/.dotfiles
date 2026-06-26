@@ -96,7 +96,7 @@ working tree 改动
 
 ## 7. 和其它 skill 的衔接
 
-- 由 `/guard-check` 默认路由进来（详见 `skills/guard-check/SKILL.md`）
+- 由 `/guard-check` 默认路由进来（详见 `${HOME}/.dotfiles/coding-skills/guard-check/SKILL.md`）
 - 是 `/guard-ship` 的前置门禁（预检会显式检查）
 - 漂移定位 → `/dev-debug`
 - 漂移修复需要测试护栏 → `/dev-tdd`

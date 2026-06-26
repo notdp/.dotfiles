@@ -3,6 +3,7 @@
 - 上游仓库: `https://github.com/voltagent/awesome-agent-skills`
 - 本地路径: `/Users/zhenninglang/.dotfiles/refs/voltagent/awesome-agent-skills`
 - Source SHA: `f4a2d027b25b5526f85ab3567215d926f332a4ae`（heads/main），分析日期: 2026-06-02
+- ⚠️ **Source SHA stale**：当前 submodule gitlink 已为 `934b1e80b131155edd6fdfe80e66dc88e9dee354`（≠ 上面分析 SHA）；本文档基于旧版本，重新吸收前先核对 `git log f4a2d027..934b1e80`。
 - 一句话总结: 一个人工策展(非 AI 批量生成)的 Agent Skills "awesome list" 索引仓库，只收录开发团队官方与社区已验证的 skill 链接，并附带一套跨工具安装路径表与最小质量门禁，自身不托管任何 skill 实现。
 
 ## 仓库性质澄清(先验事实)
