@@ -98,6 +98,244 @@ REMEDIATE_EXIT = 0
 REMEDIATE_ESCALATE_EXIT = 11
 STATUS_REPROMPT = "请把结论写进你启动时 [PHASE DIR] 给的目录下 <role>.status 首行(done / blocked <reason>)，不要写文件名或 =。"
 ERROR_RETRY_PROMPT = "上一步瞬时报错(网络/限流)，请重试上一步骤。"
+SHADOW_ANSWER_EXIT = 0
+CLOSED_PROMPT_SHAPES = ("binary_yn", "omzsh_update")
+MAX_AUTO_INTERVENE = 5
+MAX_REPEAT = 2
+READONLY_SANDBOX_ALLOWLIST_VERBS = (
+    "ls", "cat", "head", "tail", "less", "stat", "file", "git status", "git diff",
+    "git log", "grep", "rg", "fd", "find", "pwd", "echo", "wc", "diff",
+)
+_KNOWN_COMMAND_VERBS = {
+    *READONLY_SANDBOX_ALLOWLIST_VERBS,
+    "rm", "sudo", "dropdb", "psql", "mysql", "git push", "git reset", "kubectl",
+    "aws", "gh", "docker", "terraform", "helm",
+}
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_SHELL_SEPARATORS = {"&&", "||", ";", "|"}
+
+
+def _split_tokens(command: str) -> list[str]:
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return []
+
+
+def _command_head(tokens: list[str]) -> str:
+    if not tokens:
+        return ""
+    head = Path(tokens[0]).name.lower()
+    if head == "git" and len(tokens) > 1:
+        return f"git {tokens[1].lower()}"
+    return head
+
+
+def _looks_like_command(command: str) -> bool:
+    tokens = _split_tokens(command)
+    if not tokens:
+        return False
+    head = _command_head(tokens)
+    if head in _KNOWN_COMMAND_VERBS:
+        return True
+    first = Path(tokens[0]).name
+    return bool(re.match(r"^[A-Za-z0-9_.+-]+$", first) and first.islower())
+
+
+def _confirmation_region_lines(screen: str, backend: str) -> list[str]:
+    lines = screen_tail(screen, 20).splitlines()
+    prompt_indexes = [
+        index for index, raw in enumerate(lines)
+        if _has_confirm_marker(raw, backend) or classify_prompt_shape(raw, backend) in CLOSED_PROMPT_SHAPES
+    ]
+    if not prompt_indexes:
+        return []
+    prompt_index = prompt_indexes[-1]
+    start = max(0, prompt_index - 3)
+    return lines[start:prompt_index + 1]
+
+
+def _extract_command_from_region_line(line: str, allow_plain: bool) -> str | None:
+    stripped = line.strip().strip("│┃║|>❯ ")
+    if not stripped:
+        return None
+    quoted = re.search(r"`([^`]+)`", stripped)
+    if quoted:
+        return quoted.group(1).strip()
+    labeled = re.search(r"(?:command|cmd|run)\s*[:=]\s*(.+)$", stripped, re.I)
+    if labeled:
+        return labeled.group(1).strip()
+    low = stripped.lower()
+    if "do you want" in low or "proceed" in low or "approve" in low or low in {"yes", "no"}:
+        return None
+    if re.search(r"\[(?:y/n|y/N|Y/n|Y/N)\]|\([yY]/[nN]\)", stripped):
+        return None
+    return stripped if allow_plain else None
+
+
+def _command_candidate_lines(screen: str, backend: str) -> list[str]:
+    region = _confirmation_region_lines(screen, backend)
+    if not region:
+        return []
+    command_intent = any(re.search(r"\b(?:command|cmd|run|approve)\b", line, re.I) for line in region)
+    candidates: list[str] = []
+    for line in region:
+        command = _extract_command_from_region_line(line, allow_plain=command_intent)
+        if command and _looks_like_command(command):
+            candidates.append(command)
+    return candidates
+
+
+def extract_pending_action(screen: str, backend: str) -> tuple[str | None, str]:
+    """Extract the command currently being confirmed; fail closed to low confidence."""
+    candidates = _command_candidate_lines(screen, backend)
+    if not candidates:
+        return None, "low"
+    action = candidates[0]
+    if len(candidates) != 1:
+        return action, "low"
+    tokens = _split_tokens(action)
+    if not tokens:
+        return action, "low"
+    if any(token in _SHELL_SEPARATORS for token in tokens):
+        return action, "low"
+    if _ANSI_RE.search(screen) or "�" in screen or "…" in screen or action.endswith("\\"):
+        return action, "low"
+    if not _looks_like_command(action):
+        return action, "low"
+    return action, "high"
+
+
+def in_readonly_sandbox_allowlist(action: str) -> bool:
+    tokens = _split_tokens(action)
+    if not tokens or any(token in _SHELL_SEPARATORS for token in tokens):
+        return False
+    return _command_head(tokens) in READONLY_SANDBOX_ALLOWLIST_VERBS
+
+
+def _path_operands(tokens: list[str]) -> list[str]:
+    if not tokens:
+        return []
+    cmd = Path(tokens[0]).name.lower()
+    start = 1
+    if cmd == "git" and len(tokens) > 1:
+        start = 2
+    operands: list[str] = []
+    stop_options = False
+    for token in tokens[start:]:
+        if token == "--":
+            stop_options = True
+            continue
+        if not stop_options and token.startswith("-"):
+            continue
+        operands.append(token)
+    return operands
+
+
+def _has_remote_or_dynamic_scope(tokens: list[str]) -> bool:
+    text = " ".join(tokens)
+    if any(marker in text for marker in ("$", "`", "*", "?", "[", "]")):
+        return True
+    lowered = [token.lower() for token in tokens]
+    if any(token in {"-h", "--host"} or token.startswith("--host=") for token in lowered):
+        return True
+    if tokens and Path(tokens[0]).name.lower() in {"ssh", "scp", "rsync", "kubectl", "helm", "terraform", "aws", "aliyun", "docker", "dropdb", "psql", "mysql", "mariadb"}:
+        return True
+    return any(re.match(r"^(?:[^@\s:]+@)?[^/\s:]+:.+", token) for token in tokens)
+
+
+def _is_within_worktree(path: Path, worktree_path: str) -> bool:
+    wt = Path(worktree_path).expanduser().resolve()
+    try:
+        resolved = path.expanduser().resolve(strict=False)
+        return resolved != wt and os.path.commonpath([str(wt), str(resolved)]) == str(wt)
+    except (OSError, ValueError):
+        return False
+
+
+def escapes_worktree(action: str, worktree_path: str, in_place: bool) -> bool:
+    tokens = _split_tokens(action)
+    if not tokens or _has_remote_or_dynamic_scope(tokens):
+        return True
+    if in_place and _command_head(tokens) in {"rm", "git reset", "git clean", "mv", "cp"}:
+        return True
+    operands = _path_operands(tokens)
+    if not operands:
+        return True
+    base = Path(worktree_path).expanduser().resolve()
+    for operand in operands:
+        candidate = Path(operand).expanduser()
+        if not candidate.is_absolute():
+            candidate = base / candidate
+        if not _is_within_worktree(candidate, str(base)):
+            return True
+    return False
+
+
+def _guard_kind(guard_decision) -> str | None:
+    if guard_decision is None:
+        return None
+    kind = getattr(guard_decision, "kind", None)
+    if kind in {"warn", "deny"}:
+        return kind
+    if isinstance(guard_decision, dict):
+        hook = guard_decision.get("hookSpecificOutput", {})
+        if hook.get("permissionDecision") == "deny":
+            return "deny"
+        if guard_decision.get("systemMessage"):
+            return "warn"
+    return "warn"
+
+
+def _shadow_prompt_shape(screen: str, backend: str) -> str:
+    match = match_safe_launch_box(screen)
+    if match and match[0] == "omzsh_update":
+        return "omzsh_update"
+    return classify_prompt_shape(screen, backend)
+
+
+def decide_confirm_answer(*, screen, prev_screen, backend, status_state, action, confidence,
+                          worktree_path, in_place, guard_decision, intervene_count,
+                          repeat_count, human_active) -> dict:
+    _ = (prev_screen, status_state)  # Reserved for P5c two-frame/staleness checks.
+    prompt_shape = _shadow_prompt_shape(screen, backend)
+    if prompt_shape not in CLOSED_PROMPT_SHAPES:
+        return {"would_decision": "escalate", "reason": "non_closed_shape", "prompt_shape": prompt_shape}
+    if confidence != "high" or not action:
+        return {"would_decision": "escalate", "reason": "low_confidence", "prompt_shape": prompt_shape}
+    guard_kind = _guard_kind(guard_decision)
+    if guard_kind:
+        return {"would_decision": "escalate", "reason": f"guard_{guard_kind}", "prompt_shape": prompt_shape}
+    if not in_readonly_sandbox_allowlist(action):
+        return {"would_decision": "escalate", "reason": "not_in_allowlist", "prompt_shape": prompt_shape}
+    if escapes_worktree(action, worktree_path, in_place):
+        return {"would_decision": "escalate", "reason": "escapes_worktree", "prompt_shape": prompt_shape}
+    if int(intervene_count or 0) >= MAX_AUTO_INTERVENE:
+        return {"would_decision": "escalate", "reason": "budget_exceeded", "prompt_shape": prompt_shape}
+    if int(repeat_count or 0) >= MAX_REPEAT:
+        return {"would_decision": "escalate", "reason": "repeat_loop", "prompt_shape": prompt_shape}
+    if human_active:
+        return {"would_decision": "escalate", "reason": "human_active", "prompt_shape": prompt_shape}
+    return {"would_decision": "would_auto_answer", "reason": "all_gates_passed", "prompt_shape": prompt_shape, "keys": ["y", "Enter"]}
+
+
+def _load_command_guard():
+    hooks_dir = Path(__file__).resolve().parents[2] / "scripts" / "hooks"
+    if str(hooks_dir) not in sys.path:
+        sys.path.insert(0, str(hooks_dir))
+    import command_guard  # type: ignore
+    return command_guard
+
+
+def _evaluate_command_guard(action: str | None):
+    if not action:
+        return {"hookSpecificOutput": {"permissionDecision": "deny"}}
+    try:
+        return _load_command_guard().evaluate_command(action)
+    except Exception as error:
+        return {"systemMessage": f"command_guard unavailable: {error}"}
 
 
 def aggregate_await_all(pane_states: list[dict]) -> dict:
@@ -1474,6 +1712,45 @@ def _write_remediate_counts(workspace: Path, counts: dict[str, int]) -> None:
     )
 
 
+def _action_signature(action: str | None) -> str:
+    basis = " ".join(_split_tokens(action or "")) or "<none>"
+    return hashlib.sha1(basis.encode("utf-8")).hexdigest()[:12]
+
+
+def _read_shadow_counts(workspace: Path, pane: str, action: str | None) -> tuple[int, int]:
+    path = workspace / "shadow.json"
+    if not path.exists():
+        return 0, 0
+    data = json.loads(path.read_text(encoding="utf-8"))
+    pane_data = data.get("panes", {}).get(pane, {}) if isinstance(data, dict) else {}
+    actions = pane_data.get("actions", {}) if isinstance(pane_data, dict) else {}
+    return int(pane_data.get("intervene_count", 0) or 0), int(actions.get(_action_signature(action), 0) or 0)
+
+
+def _record_shadow_decision(workspace: Path, pane: str, action: str | None, would_decision: str) -> None:
+    if would_decision != "would_auto_answer":
+        return
+    path = workspace / "shadow.json"
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    panes = data.setdefault("panes", {})
+    pane_data = panes.setdefault(pane, {"intervene_count": 0, "actions": {}})
+    pane_data["intervene_count"] = int(pane_data.get("intervene_count", 0) or 0) + 1
+    actions = pane_data.setdefault("actions", {})
+    sig = _action_signature(action)
+    actions[sig] = int(actions.get(sig, 0) or 0) + 1
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _human_active_for_pane(pane: str) -> bool:
+    # Conservative shadow gate: active pane + any attached client counts as human present.
+    # This may over-escalate soak data; P5c can narrow it with per-pane recent input evidence.
+    clients = _tmux(["list-clients", "-F", "#{client_tty}"], capture=True)
+    if not clients.strip():
+        return False
+    active = _tmux(["display-message", "-p", "-t", pane, "#{pane_active}"], capture=True)
+    return active.strip() == "1"
+
+
 def _set_session_status(workspace: Path, pane: str, status: str) -> None:
     sessions_path = workspace / "SESSIONS.md"
     rows = parse_sessions(sessions_path.read_text(encoding="utf-8")) if sessions_path.exists() else []
@@ -1554,6 +1831,104 @@ def _emit_remediate_metric(workspace: Path, row: dict[str, str] | None, pane: st
     if reason:
         record["reason"] = reason
     append_metric(workspace, record)
+
+
+def _guard_decision_payload(guard_decision) -> dict | None:
+    if guard_decision is None:
+        return None
+    return {
+        "kind": _guard_kind(guard_decision),
+        "reason": getattr(guard_decision, "reason", None),
+    }
+
+
+def _shadow_payload(decision: dict, *, action: str | None, confidence: str) -> dict:
+    return {
+        "would_decision": decision.get("would_decision"),
+        "reason": decision.get("reason"),
+        "action": action,
+        "confidence": confidence,
+        "prompt_shape": decision.get("prompt_shape"),
+    }
+
+
+def _emit_shadow_metric(workspace: Path, row: dict[str, str] | None, pane: str, screen: str,
+                        action: str | None, confidence: str, guard_decision,
+                        worktree_scope: dict, decision: dict) -> None:
+    append_metric(workspace, {
+        "event": "shadow_answer",
+        "pane": pane,
+        "role": row.get("role") if row else None,
+        "screen_tail": screen_tail(screen),
+        "action": action,
+        "confidence": confidence,
+        "guard_decision": _guard_decision_payload(guard_decision),
+        "worktree_scope": worktree_scope,
+        "prompt_shape": decision.get("prompt_shape"),
+        "would_decision": decision.get("would_decision"),
+        "reason": decision.get("reason"),
+    })
+
+
+def cmd_shadow_answer(args: argparse.Namespace) -> int:
+    """Shadow-only confirmation decision: compute and record, never press keys."""
+    workspace = Path(args.workspace).resolve()
+    row = _session_for_pane(workspace, args.pane)
+    if row is None:
+        decision = {"would_decision": "escalate", "reason": "unregistered_pane", "prompt_shape": None}
+        _emit_shadow_metric(workspace, None, args.pane, "", None, "low", None, {"escapes_worktree": True}, decision)
+        sys.stdout.write(json.dumps(_shadow_payload(decision, action=None, confidence="low"), ensure_ascii=False) + "\n")
+        return SHADOW_ANSWER_EXIT
+
+    state = load_state(workspace / "state.json")
+    backend = _role_backends(workspace).get(row["role"], "custom")
+    worktree = str(Path(state.get("worktree_path") or workspace).expanduser().resolve())
+    in_place = bool(state.get("in_place", False))
+    live = _tmux(["list-panes", "-aF", "#{pane_id}"], capture=True)
+    if not pane_is_alive(live, args.pane):
+        decision = {"would_decision": "escalate", "reason": "pane_dead", "prompt_shape": None}
+        _emit_shadow_metric(workspace, row, args.pane, "", None, "low", None, {"escapes_worktree": True, "worktree_path": worktree, "in_place": in_place}, decision)
+        sys.stdout.write(json.dumps(_shadow_payload(decision, action=None, confidence="low"), ensure_ascii=False) + "\n")
+        return SHADOW_ANSWER_EXIT
+
+    prev_screen = capture_pane(args.pane)
+    time.sleep(OBSERVE_FRAME_GAP)
+    screen = capture_pane(args.pane)
+    status_state = _status_state_for_observe(workspace, row)
+    screen_class = classify_screen(screen, prev_screen, backend, status_state, _session_age_s(row))
+    if screen_class != "awaiting_input":
+        decision = {"would_decision": "escalate", "reason": "not_awaiting_input", "prompt_shape": _shadow_prompt_shape(screen, backend)}
+        _emit_shadow_metric(workspace, row, args.pane, screen, None, "low", None, {"escapes_worktree": True, "worktree_path": worktree, "in_place": in_place}, decision)
+        sys.stdout.write(json.dumps(_shadow_payload(decision, action=None, confidence="low"), ensure_ascii=False) + "\n")
+        return SHADOW_ANSWER_EXIT
+
+    action, confidence = extract_pending_action(screen, backend)
+    guard_decision = _evaluate_command_guard(action)
+    intervene_count, repeat_count = _read_shadow_counts(workspace, args.pane, action)
+    human_active = _human_active_for_pane(args.pane)
+    scope = {
+        "escapes_worktree": escapes_worktree(action or "", worktree, in_place),
+        "worktree_path": worktree,
+        "in_place": in_place,
+    }
+    decision = decide_confirm_answer(
+        screen=screen,
+        prev_screen=prev_screen,
+        backend=backend,
+        status_state=status_state,
+        action=action,
+        confidence=confidence,
+        worktree_path=worktree,
+        in_place=in_place,
+        guard_decision=guard_decision,
+        intervene_count=intervene_count,
+        repeat_count=repeat_count,
+        human_active=human_active,
+    )
+    _emit_shadow_metric(workspace, row, args.pane, screen, action, confidence, guard_decision, scope, decision)
+    _record_shadow_decision(workspace, args.pane, action, str(decision.get("would_decision")))
+    sys.stdout.write(json.dumps(_shadow_payload(decision, action=action, confidence=confidence), ensure_ascii=False) + "\n")
+    return SHADOW_ANSWER_EXIT
 
 
 def cmd_remediate(args: argparse.Namespace) -> int:
@@ -2044,6 +2419,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("--pane", required=True)
     p.set_defaults(func=cmd_remediate)
+
+    p = sub.add_parser("shadow-answer", help="(orchestrator 调用) shadow-only 判定确认框会如何答, 绝不发键")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--pane", required=True)
+    p.set_defaults(func=cmd_shadow_answer)
 
     p = sub.add_parser("pane-alive", help="exit 0 if pane alive else 1")
     p.add_argument("--pane", required=True)
