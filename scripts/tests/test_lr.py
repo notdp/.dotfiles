@@ -1295,5 +1295,20 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertIn("尚无", out)
 
 
+class DcLrApiContractTests(unittest.TestCase):
+    """跨模块 API 漂移守护: dev-complete 的 dc.py import lr 并直接调用 lr.<func>。
+    P1 删 consume_claude_trust/wait_kilo_ready 时只 grep 了 lr.py/test_lr.py, 漏了 dc.py,
+    merge 后炸了所有 dc.py launch。本测试 parse dc.py 的 lr.* 引用, 断言全部存在。"""
+
+    def test_dc_py_lr_references_all_exist(self):
+        import re
+        dc_path = REPO_ROOT / "coding-skills" / "dev-complete" / "dc.py"
+        src = dc_path.read_text(encoding="utf-8")
+        # 排除注释/文档里的文件名引用 `lr.py`(否则误抓属性 "py")。
+        refs = sorted(set(re.findall(r"\blr\.(?!py\b)([A-Za-z_]\w*)", src)))
+        missing = [name for name in refs if not hasattr(lr, name)]
+        self.assertEqual(missing, [], f"dc.py 引用了 lr 不存在的属性(跨模块 API 漂移): {missing}")
+
+
 if __name__ == "__main__":
     unittest.main()
