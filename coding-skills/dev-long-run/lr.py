@@ -719,6 +719,35 @@ def verify_dispatch(
     return "blocked", screen_tail(last_screen or capture_pane(pane))
 
 
+# 薄 wrapper: launch_role 已改用 verify_dispatch(P1), 但 dev-complete 的 dc.py 仍直接
+# 调 lr.consume_claude_trust / lr.wait_kilo_ready(独立 cmd_launch)。spec L57 允许保留为
+# thin wrapper 以保现调用不破; 委托 P1 的 match_safe_launch_box/agent_ready 不重复逻辑。
+def consume_claude_trust(pane: str, timeout_s: int = 20) -> bool:
+    """claude 首次进目录的 trust 对话框: 检测到则发 Enter 接受, 否则就绪即返回。"""
+    for _ in range(timeout_s):
+        time.sleep(1)
+        screen = capture_pane(pane)
+        match = match_safe_launch_box(screen)
+        if match and match[0] == "claude_trust":
+            send_keys_to_pane(pane, match[1])
+            time.sleep(1)
+            return True
+        if agent_ready(screen, "claude_cli"):
+            return False
+    return False
+
+
+def wait_kilo_ready(pane: str, timeout_s: int = 30) -> bool:
+    """轮询 kilo TUI 直到就绪, 防止 prompt 在加载完前抢跑丢失。"""
+    for _ in range(timeout_s):
+        time.sleep(1)
+        screen = capture_pane(pane)
+        if agent_ready(screen, "kilo"):
+            return True
+    sys.stderr.write(f"WARN: kilo pane {pane} 未在 {timeout_s}s 内就绪,仍尝试发送\n")
+    return False
+
+
 FRESH_PER_PHASE_ROLES = ("phase_coder",)  # L6(改): 每 phase 关掉上一个、开 fresh 的角色
 # L24(pane 生命周期收尾): phase 收口该清的临时角色。coder 不在内 — 不是复用(L6 已反转为
 # fresh-per-phase), 而是它由下一 phase 的 fresh launch 负责关; run 收尾清全部 worker。
