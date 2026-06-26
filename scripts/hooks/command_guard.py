@@ -65,6 +65,16 @@ SUPERVISORCTL_READ_ARGS = {"status", "tail"}
 PYTHON_COMMAND_RE = re.compile(r"^python(?:\d+(?:\.\d+)?)?$")
 DB_PIPE_RE = re.compile(r"\|\s*(?:\S*/)?(?:psql|mysql)\b", re.I)
 DYNAMIC_WIDE_CLEANUP_RE = re.compile(r"(?:\$\([^)]*\)|`[^`]+`)\s+-[^;&|]*[rf][^;&|]*\s+(?:/|~|\$HOME|\*)", re.I)
+WRAPPER_COMMANDS = {"sudo", "doas", "timeout", "nice", "nohup", "command", "time", "ionice", "stdbuf", "setsid", "env"}
+DB_CLIENT_COMMANDS = {"psql", "mysql", "mariadb"}
+DB_INLINE_EXEC_FLAGS = {"-c", "-e", "--command", "--execute"}
+SHELL_COMMANDS = {"bash", "sh", "zsh"}
+DESTRUCTIVE_SQL_PATTERNS = [
+    re.compile(r"\bdrop\s+(?:database|table)\b", re.I),
+    re.compile(r"\btruncate\s+table\b", re.I),
+    re.compile(r"\balter\s+table\b.*\bdrop\b", re.I),
+    re.compile(r"\bdelete\s+from\b(?![^;]*\bwhere\b)", re.I),
+]
 
 
 def load_input() -> dict:
@@ -239,6 +249,8 @@ def rsync_is_read_only(segment: list[str]) -> bool:
 
 def db_command_decision(cmd_name: str, args: list[str], all_words: list[str]) -> Decision | None:
     if cmd_name == "redis-cli":
+        if any(token in {"flushall", "flushdb"} for token in all_words):
+            return Decision("deny", "database destructive flush command is too risky for automatic execution.")
         if any(token in REDIS_WRITE_WORDS for token in all_words):
             return Decision("warn", "database write command; confirm scope, rollback, and validation before proceeding.")
         return None
@@ -275,6 +287,8 @@ def embedded_text_decision(text: str) -> Decision | None:
 def raw_command_decision(command: str) -> Decision | None:
     if DYNAMIC_WIDE_CLEANUP_RE.search(command):
         return Decision("deny", "wide destructive cleanup is too risky for automatic execution.")
+    if curl_pipe_shell_decision(command):
+        return Decision("deny", "remote script piped into a shell is too risky for automatic execution.")
     if DB_PIPE_RE.search(command):
         return Decision("warn", "database piped SQL input can write data or schema; confirm scope, rollback, and validation before proceeding.")
     return None
@@ -352,6 +366,47 @@ def env_inner_segment(segment: list[str]) -> list[str]:
     return []
 
 
+def wrapper_inner_segment(segment: list[str]) -> list[str]:
+    cmd_name = PathLikeCommand(segment[0]).name if segment else ""
+    if cmd_name == "env":
+        return env_inner_segment(segment)
+    index = 1
+    options_with_values = {
+        "sudo": {"-C", "-g", "-h", "-p", "-T", "-t", "-U", "-u"},
+        "doas": {"-C", "-u"},
+        "timeout": {"--signal", "-s", "--kill-after", "-k"},
+        "nice": {"-n"},
+        "ionice": {"-c", "-n", "-p"},
+        "stdbuf": {"-i", "-o", "-e"},
+    }
+    value_options = options_with_values.get(cmd_name, set())
+    if cmd_name == "timeout":
+        while index < len(segment) and segment[index].startswith("-"):
+            token = segment[index]
+            if token in value_options and index + 1 < len(segment):
+                index += 2
+                continue
+            index += 1
+        if index < len(segment):
+            index += 1
+        return segment[index:]
+    while index < len(segment):
+        token = segment[index]
+        if token == "--":
+            return segment[index + 1 :]
+        if token in value_options and index + 1 < len(segment):
+            index += 2
+            continue
+        if cmd_name in {"sudo", "doas"} and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return segment[index:]
+    return []
+
+
 def xargs_inner_segment(segment: list[str]) -> list[str]:
     index = 1
     options_with_values = {"-a", "-E", "-I", "-n", "-P", "-s", "--arg-file", "--max-args", "--max-procs", "--max-chars"}
@@ -372,6 +427,8 @@ def xargs_inner_segment(segment: list[str]) -> list[str]:
 GIT_PUSH_PROTECTED_BRANCHES = {"main", "master"}
 GIT_FORCE_PUSH_FLAGS = {"--force", "--force-with-lease", "-f"}
 GIT_PUSH_VALUE_OPTIONS = {"-o", "--push-option", "--repo", "--exec", "--receive-pack"}
+GIT_GLOBAL_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree"}
+GIT_GLOBAL_FLAGS = {"--no-pager", "-p", "--paginate"}
 
 
 def git_push_target_branches(push_args: list[str]) -> tuple[list[str], bool]:
@@ -424,6 +481,125 @@ def git_push_decision(push_args: list[str]) -> Decision | None:
     return None
 
 
+def git_command_args(segment: list[str]) -> list[str]:
+    args = segment[1:]
+    command_index = 0
+    while command_index < len(args):
+        token = args[command_index]
+        if token == "--":
+            command_index += 1
+            break
+        if token in GIT_GLOBAL_VALUE_OPTIONS:
+            command_index += 2
+            continue
+        if any(token.startswith(f"{option}=") for option in GIT_GLOBAL_VALUE_OPTIONS if option.startswith("--")):
+            command_index += 1
+            continue
+        if token in GIT_GLOBAL_FLAGS:
+            command_index += 1
+            continue
+        break
+    return [arg.lower() for arg in args[command_index:]]
+
+
+def rm_decision(args: list[str]) -> Decision | None:
+    has_recursive = False
+    has_force = False
+    operands: list[str] = []
+    parsing_options = True
+    for arg in args:
+        if parsing_options and arg == "--":
+            parsing_options = False
+            continue
+        if not parsing_options:
+            operands.append(arg)
+            continue
+        if arg in {"--recursive", "-r", "-R"}:
+            has_recursive = True
+            continue
+        if arg == "--force" or arg == "-f":
+            has_force = True
+            continue
+        if arg.startswith("-") and not arg.startswith("--"):
+            has_recursive = has_recursive or "r" in arg.lower()
+            has_force = has_force or "f" in arg.lower()
+            continue
+        if arg.startswith("--"):
+            continue
+        operands.append(arg)
+    if has_recursive and has_force:
+        if any(wide_path_operand(arg) for arg in operands):
+            return Decision("deny", "wide destructive cleanup is too risky for automatic execution.")
+        return Decision("warn", "destructive file cleanup requires explicit user approval and safety review.")
+    return None
+
+
+def has_db_inline_execution(args: list[str]) -> bool:
+    return any(arg in DB_INLINE_EXEC_FLAGS or any(arg.startswith(f"{flag}=") for flag in DB_INLINE_EXEC_FLAGS if flag.startswith("--")) for arg in args)
+
+
+def destructive_sql_text(text: str) -> bool:
+    return any(pattern.search(text) for pattern in DESTRUCTIVE_SQL_PATTERNS)
+
+
+def sql_content_decision(cmd_name: str, args: list[str], text: str) -> Decision | None:
+    if cmd_name in DB_CLIENT_COMMANDS and has_db_inline_execution(args) and destructive_sql_text(text):
+        return Decision("deny", "database destructive SQL command is too risky for automatic execution.")
+    if cmd_name in {"drop", "truncate", "alter", "delete"} and destructive_sql_text(text):
+        return Decision("deny", "database destructive SQL command is too risky for automatic execution.")
+    return None
+
+
+def curl_pipe_shell_decision(command: str) -> bool:
+    tokens = split_tokens(command)
+    for index, token in enumerate(tokens):
+        if token != "|":
+            continue
+        left = tokens[index - 1 :: -1]
+        source = []
+        for left_token in left:
+            if left_token in SHELL_SEPARATORS:
+                break
+            source.insert(0, left_token)
+        sink = []
+        for right_token in tokens[index + 1 :]:
+            if right_token in SHELL_SEPARATORS:
+                break
+            sink.append(right_token)
+        if not source or PathLikeCommand(source[0]).name != "curl":
+            continue
+        while sink and PathLikeCommand(sink[0]).name in WRAPPER_COMMANDS:
+            next_sink = wrapper_inner_segment(sink)
+            if next_sink == sink:
+                break
+            sink = next_sink
+        if sink and PathLikeCommand(sink[0]).name in SHELL_COMMANDS:
+            return True
+    return False
+
+
+def dangerous_verb_decision(cmd_name: str, args: list[str]) -> Decision | None:
+    if cmd_name == "truncate":
+        if any(arg in {"--help", "-h"} for arg in args):
+            return None
+        size = option_value(args, "-s") or option_value(args, "--size")
+        if size == "0" or any(arg in {"-s0", "--size=0"} for arg in args):
+            return Decision("deny", "file truncation is too risky for automatic execution.")
+    if cmd_name == "dd":
+        output = option_value(args, "of")
+        if output and (output.startswith("/dev/") or output.startswith(("/etc/", "/bin/", "/sbin/", "/usr/", "/var/"))):
+            return Decision("deny", "raw disk or system-path write is too risky for automatic execution.")
+    if cmd_name == "shred":
+        return Decision("deny", "secure file deletion is too risky for automatic execution.")
+    if cmd_name.startswith("mkfs") or cmd_name == "wipefs":
+        return Decision("deny", "filesystem destruction is too risky for automatic execution.")
+    if cmd_name == "dropdb":
+        return Decision("deny", "database deletion is too risky for automatic execution.")
+    if cmd_name == "crontab" and "-r" in args:
+        return Decision("deny", "crontab removal is too risky for automatic execution.")
+    return None
+
+
 def segment_decision(segment: list[str]) -> Decision | None:
     if not segment:
         return None
@@ -431,32 +607,42 @@ def segment_decision(segment: list[str]) -> Decision | None:
     args = [arg.lower() for arg in segment[1:]]
     all_words = re.findall(r"[a-z_]+", " ".join([cmd.name, *args]))
 
-    if cmd.name == "git" and args[:1] == ["push"]:
-        return git_push_decision(args[1:])
-    if cmd.name == "git" and args[:1] == ["branch"]:
+    if cmd.name in WRAPPER_COMMANDS:
+        nested = segment_decision(wrapper_inner_segment(segment))
+        if nested:
+            return nested
+    content_decision = sql_content_decision(cmd.name, args, " ".join(segment))
+    if content_decision:
+        return content_decision
+    verb_decision = dangerous_verb_decision(cmd.name, args)
+    if verb_decision:
+        return verb_decision
+    git_args = git_command_args(segment) if cmd.name == "git" else args
+    if cmd.name == "git" and git_args[:1] == ["push"]:
+        return git_push_decision(git_args[1:])
+    if cmd.name == "git" and git_args[:1] == ["branch"]:
         original_args = segment[2:]
         has_combined_force_delete = any(
-            a.startswith("-") and not a.startswith("--") and "d" in a and "f" in a
-            for a in args
+            a.startswith("-") and not a.startswith("--") and "d" in a and "f" in a for a in git_args
         )
         is_force_delete = (
             any(a == "-D" for a in original_args)
             or has_combined_force_delete
-            or (any(a in {"-d", "--delete"} for a in args) and any(a in {"--force", "-f"} for a in args))
+            or (any(a in {"-d", "--delete"} for a in git_args) and any(a in {"--force", "-f"} for a in git_args))
         )
         if is_force_delete:
             return Decision("warn", "git branch -D can lose unmerged commits; confirm the branch is fully merged or backed up before proceeding.")
-    if cmd.name == "git" and args[:1] == ["checkout"] and "." in args:
+    if cmd.name == "git" and git_args[:1] == ["checkout"] and "." in git_args:
         return Decision("warn", "git checkout . discards all unstaged changes; confirm no uncommitted work will be lost before proceeding.")
-    if cmd.name == "git" and args[:1] == ["restore"] and "." in args:
+    if cmd.name == "git" and git_args[:1] == ["restore"] and "." in git_args:
         return Decision("warn", "git restore . discards unstaged changes; confirm no uncommitted work will be lost before proceeding.")
-    if cmd.name == "git" and args[:1] == ["stash"] and args[1:2] == ["drop"]:
+    if cmd.name == "git" and git_args[:1] == ["stash"] and git_args[1:2] == ["drop"]:
         return Decision("warn", "git stash drop permanently removes stashed work; confirm the stash is no longer needed before proceeding.")
-    if cmd.name == "git" and args[:1] == ["clean"] and not is_dry_run(args):
-        if any("x" in arg for arg in args if arg.startswith("-")):
+    if cmd.name == "git" and git_args[:1] == ["clean"] and not is_dry_run(git_args):
+        if any("x" in arg for arg in git_args if arg.startswith("-")):
             return Decision("deny", "destructive git cleanup including ignored files is too risky for automatic execution.")
         return Decision("warn", "destructive git cleanup requires explicit user approval and safety review.")
-    if cmd.name == "git" and args[:1] == ["reset"] and "--hard" in args:
+    if cmd.name == "git" and git_args[:1] == ["reset"] and "--hard" in git_args:
         return Decision("deny", "git reset --hard can discard working tree changes; do not run automatically.")
     if cmd.name == "gh" and (args[:2] == ["pr", "merge"] or args[:1] == ["release"]):
         return Decision("warn", "GitHub merge/release changes remote state; confirm target, checks, and rollback before proceeding.")
@@ -476,10 +662,6 @@ def segment_decision(segment: list[str]) -> Decision | None:
         return Decision("warn", "container cleanup can remove local runtime state; confirm scope and rollback before proceeding.")
     if cmd.name == "npm" and args[:1] == ["publish"]:
         return Decision("warn", "publishing changes package registry state; confirm package, version, and rollback before proceeding.")
-    if cmd.name == "env":
-        nested = segment_decision(env_inner_segment(segment))
-        if nested:
-            return nested
     if cmd.name == "xargs":
         nested = segment_decision(xargs_inner_segment(segment))
         if nested:
@@ -507,10 +689,10 @@ def segment_decision(segment: list[str]) -> Decision | None:
         return Decision("deny", "terraform destroy is too risky for automatic execution.")
     if cmd.name == "terraform" and args and args[0] == "apply":
         return Decision("warn", "terraform apply changes infrastructure; confirm plan, scope, rollback, and validation before proceeding.")
-    if cmd.name == "rm" and any(arg.startswith("-") and "r" in arg and "f" in arg for arg in args):
-        if any(wide_path_operand(arg) for arg in segment[1:]):
-            return Decision("deny", "wide destructive cleanup is too risky for automatic execution.")
-        return Decision("warn", "destructive file cleanup requires explicit user approval and safety review.")
+    if cmd.name == "rm":
+        rm_cleanup_decision = rm_decision(segment[1:])
+        if rm_cleanup_decision:
+            return rm_cleanup_decision
     if cmd.name == "find" and "-delete" in args:
         if any(arg in {"/", "~", "$HOME", "."} for arg in args):
             return Decision("deny", "wide find -delete is too risky for automatic execution.")
