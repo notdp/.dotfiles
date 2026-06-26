@@ -1034,13 +1034,12 @@ def launch_command(role_cfg: dict) -> str | None:
     claude_cli → None(走默认交互 zsh, 再 send-keys cfg['cmd'], 以拿 .zshrc 的 token)。"""
     backend = role_cfg["backend"]
     if backend == "kilo":
-        cmd = f"kilo -m {shlex.quote(role_cfg['model'])}"
-        # autonomy 接到 kilo 权限: off → 不加 flag(交互/依 kilo 全局配置); 其余 →
-        # --dangerously-skip-permissions(自动批准但尊重显式 deny, 比 --auto[approve all] 安全)。
-        # 前台 TUI 命令也接受该 flag(已验证 yargs 不拒, 非 headless 专属)。
-        if role_cfg.get("autonomy", "off") != "off":
-            cmd += " --dangerously-skip-permissions"
-        return cmd
+        # kilo 7.3.46+: 默认 TUI 模式不再接受 --dangerously-skip-permissions/--auto
+        # (那是 `kilo run` headless 子命令专属);TUI 启动时拼该 flag 会被当未知参数 →
+        # 打印 help、exit 1、pane 秒死、verify_dispatch 超时报 DISPATCH_BLOCKED。
+        # TUI 的自动批准由 ~/.config/kilo/kilo.json 的 `permission` 块承担,不靠启动 flag。
+        # (旧版 yargs 不拒该 flag,升级后 TUI 收紧参数校验;autonomy 对 kilo TUI 不再产生命令差异。)
+        return f"kilo -m {shlex.quote(role_cfg['model'])}"
     if backend == "claude_cli":
         return None  # 交互 zsh pane, cmd 通过 send-keys 注入(见 launch_role)
     if backend == "custom":
