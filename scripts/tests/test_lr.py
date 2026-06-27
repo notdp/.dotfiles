@@ -997,13 +997,14 @@ class LaunchCommandTests(unittest.TestCase):
         cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "off"})
         self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5")
 
-    def test_kilo_autonomy_high_adds_skip_permissions(self) -> None:
+    def test_kilo_autonomy_high_no_skip_flag_tui(self) -> None:
+        # kilo 7.3.46+: TUI 拒 --dangerously-skip-permissions(headless 专属);autonomy 不再改 kilo 命令(见 5150692)。
         cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "high"})
-        self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5 --dangerously-skip-permissions")
+        self.assertEqual(cmd, "kilo -m cliproxy/gpt-5.5")
 
-    def test_kilo_autonomy_medium_adds_skip_permissions(self) -> None:
+    def test_kilo_autonomy_medium_no_skip_flag_tui(self) -> None:
         cmd = lr.launch_command({"backend": "kilo", "model": "cliproxy/gpt-5.5", "autonomy": "medium"})
-        self.assertIn("--dangerously-skip-permissions", cmd)
+        self.assertNotIn("--dangerously-skip-permissions", cmd)
 
     def test_claude_cli_returns_none_for_interactive_shell(self) -> None:
         cmd = lr.launch_command({"backend": "claude_cli", "cmd": "claude --dangerously-skip-permissions"})
@@ -2338,8 +2339,8 @@ class GateCommandIntegrationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("REMEDIATED resolve_safe_box", out)
             self.assertEqual(sent_keys, [("%42", ("n", "Enter"))])
-            # coder autonomy=high → resend 的 launch_command 带 --dangerously-skip-permissions
-            self.assertEqual(sent_text, [("%42", "kilo -m cliproxy/gpt-5.5 --dangerously-skip-permissions", True)])
+            # coder 是 kilo TUI → resend 的 launch_command 不再带 --dangerously-skip-permissions(见 5150692)
+            self.assertEqual(sent_text, [("%42", "kilo -m cliproxy/gpt-5.5", True)])
             rows = lr.parse_sessions((ws / "SESSIONS.md").read_text(encoding="utf-8"))
             self.assertEqual(rows[0]["status"], "running")
             metrics = [json.loads(ln) for ln in (ws / "metrics.jsonl").read_text().splitlines() if ln.strip()]
