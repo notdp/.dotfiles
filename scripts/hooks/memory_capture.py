@@ -56,6 +56,28 @@ ANTI_SELF_POISONING_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("one_time_task_narration", re.compile(r"(?i)\b(?:this session|one[- ]time|temporary todo|一次性任务|本轮任务)\b")),
 )
 TASK_NARRATION_RE = re.compile(r"(?i)\b(?:changed|ran tests|updated file|implemented|fixed|this session|本轮|临时|todo)\b")
+# Harness/capsule machinery that an agent may echo back into a transcript. These
+# strings are high-precision: they appear in skill prompts, boundary capsules,
+# compact-recovery capsules and system reminders, never in a genuine user/agent
+# memory exchange. Without this gate the noise passes the broad SIGNAL_RULES
+# (it contains words like "use"/"decision") and pollutes the candidate pool —
+# the junk candidate that broke consolidation gate 2.
+CAPSULE_NOISE_RE = re.compile(
+    r"(?i)(?:"
+    r"###\s*Skill:"
+    r"|Base directory for this skill"
+    r"|Boundary facts:"
+    r"|Boundary decisions:"
+    r"|Risk types:"
+    r"|Compact Recovery Capsule"
+    r"|TaskCheckpoint:"
+    r"|system-reminder"
+    r"|This context may or may not be relevant"
+    r"|dotfiles-context-capsule"
+    r"|These instructions OVERRIDE"
+    r"|Skill 路由"
+    r")"
+)
 
 
 @dataclass(frozen=True)
@@ -216,6 +238,9 @@ def _build_candidate_with_skips(
         text = strip_injected_segments(record.text).strip()
         if not text:
             skip("empty_text")
+            continue
+        if CAPSULE_NOISE_RE.search(text):
+            skip("capsule_noise")
             continue
         category = _signal_for(text)
         if not category:
