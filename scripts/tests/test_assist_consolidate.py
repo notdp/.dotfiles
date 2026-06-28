@@ -1,6 +1,8 @@
 import json
+import os
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -76,6 +78,25 @@ class AssistConsolidateTests(unittest.TestCase):
 
     def user_notes(self, root: Path) -> list[Path]:
         return sorted(path for path in (root / "memory" / "user").glob("*.md") if path.name != "INDEX.md")
+
+    def test_gc_archived_notes_deletes_old_archived_keeps_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            old_archived = self.write_existing_note(root, "old-archived.md", status="archived")
+            fresh_archived = self.write_existing_note(root, "fresh-archived.md", status="archived")
+            active = self.write_existing_note(root, "active.md", status="active")
+            old = time.time() - (91 * 24 * 60 * 60)  # >90d
+            os.utime(old_archived, (old, old))
+            os.utime(active, (old, old))  # active stays even when old
+
+            result = self.run_cli(root, root, "--gc-archived-notes")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertFalse(old_archived.exists(), "old archived note hard-deleted")
+            self.assertTrue(fresh_archived.exists(), "archived within TTL kept")
+            self.assertTrue(active.exists(), "active notes are never deleted")
+            index = (root / "memory" / "user" / "INDEX.md").read_text(encoding="utf-8")
+            self.assertNotIn("old-archived.md", index, "INDEX rebuilt after delete")
 
     def test_secret_candidate_is_rejected_before_tracked_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

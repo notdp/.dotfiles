@@ -31,7 +31,9 @@ except ModuleNotFoundError:
 
 ALLOWED_ROLES = {"user", "assistant"}
 RAW_DIR = Path("memory") / ".staging" / "raw_memories"
+CONSUMED_DIR = Path("memory") / ".staging" / "consumed"
 TTL_DAYS = 14
+CONSUMED_TTL_DAYS = 7
 CAPSULE_COMMENT_RE = re.compile(r"<!--\s*dotfiles-context-capsule\s*-->.*", re.I | re.S)
 MEMORY_SEGMENT_RE = re.compile(r"<dotfiles-memory>.*?</dotfiles-memory>", re.I | re.S)
 LEGACY_CAPSULE_RE = re.compile(r"<dotfiles-capsule>.*?</dotfiles-capsule>", re.I | re.S)
@@ -588,19 +590,37 @@ def capture_best_effort(root: Path, hook_input: dict[str, Any], env: dict[str, s
         return result
 
 
-def gc_raw_memories(root: Path, ttl_days: int = TTL_DAYS) -> list[Path]:
-    directory = raw_dir(root)
+def consumed_dir(root: Path) -> Path:
+    return root / CONSUMED_DIR
+
+
+def _gc_dir_by_mtime(directory: Path, ttl_days: int, patterns: tuple[str, ...]) -> list[Path]:
+    """Delete files in `directory` matching `patterns` whose mtime is older than
+    ttl_days. Shared by the candidate (raw) and consumed-archive GC."""
     if not directory.exists():
         return []
     cutoff = time.time() - ttl_days * 24 * 60 * 60
     removed: list[Path] = []
-    candidates = sorted(list(directory.glob("*.json")) + list(directory.glob("*.bak")))
-    for path in candidates:
+    paths: list[Path] = []
+    for pattern in patterns:
+        paths.extend(directory.glob(pattern))
+    for path in sorted(paths):
         if path.stat().st_mtime >= cutoff:
             continue
         path.unlink()
         removed.append(path)
     return removed
+
+
+def gc_raw_memories(root: Path, ttl_days: int = TTL_DAYS) -> list[Path]:
+    return _gc_dir_by_mtime(raw_dir(root), ttl_days, ("*.json", "*.bak"))
+
+
+def gc_consumed(root: Path, ttl_days: int = CONSUMED_TTL_DAYS) -> list[Path]:
+    """GC the drained-candidate archive. consumed/ holds candidates already
+    consolidated (and committed into memory/user), so deleting old ones is safe
+    — they are recoverable from the memory/user git history."""
+    return _gc_dir_by_mtime(consumed_dir(root), ttl_days, ("*.json",))
 
 
 def result_payload(result: CaptureResult) -> dict[str, Any]:
@@ -624,7 +644,7 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
     if args.gc:
-        removed = gc_raw_memories(root)
+        removed = gc_raw_memories(root) + gc_consumed(root)
         print(json.dumps({"status": "gc", "removed": [str(path) for path in removed]}, ensure_ascii=False))
         return 0
     if args.sqlite_session:
