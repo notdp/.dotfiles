@@ -454,5 +454,49 @@ class AssistConsolidateTests(unittest.TestCase):
             self.assertIn(phrase, skill_text)
 
 
+class FrontmatterYamlSafetyTests(unittest.TestCase):
+    """A title containing ':' '#' or '"' must not break strict YAML parsers
+    (agentsview's syncer used yaml.Unmarshal and silently dropped such notes)."""
+
+    def _load_module(self):
+        import importlib.util
+        import sys
+
+        spec = importlib.util.spec_from_file_location("assist_consolidate_mod", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod  # required so @dataclass can resolve __module__
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_frontmatter_value_emits_quoted_escaped_scalar(self) -> None:
+        mod = self._load_module()
+        out = mod.frontmatter_value('decision: # Cap "x"\nsecond line')
+        # double-quoted, internal quotes escaped, newline flattened
+        self.assertTrue(out.startswith('"') and out.endswith('"'), out)
+        self.assertIn('\\"', out)
+        self.assertNotIn("\n", out)
+
+    def test_rendered_user_note_frontmatter_parses_as_yaml(self) -> None:
+        try:
+            import yaml  # type: ignore
+        except ModuleNotFoundError:
+            self.skipTest("pyyaml not available; string-form asserted elsewhere")
+        mod = self._load_module()
+        cand = mod.Candidate(
+            id="c1",
+            summary='decision: # Scope Alignment Capsule: add or refactor "stuff"',
+            evidence="e",
+            implication="i",
+            problem_type="decision",
+            origin_session="ses_1",
+            raw={"applies_to": "user"},
+        )
+        text = mod.render_user_note(cand)
+        block = text.split("---")[1]
+        data = yaml.safe_load(block)  # must not raise
+        self.assertEqual(data["title"], cand.summary.replace("\n", " "))
+        self.assertEqual(data["problem_type"], "decision")
+
+
 if __name__ == "__main__":
     unittest.main()

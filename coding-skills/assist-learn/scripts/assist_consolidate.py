@@ -160,7 +160,12 @@ def slugify(value: str, fallback: str) -> str:
 
 
 def frontmatter_value(value: str) -> str:
-    return str(value).replace("\n", " ").replace('"', "'").strip()
+    # Emit a YAML-safe double-quoted scalar so titles/values containing ':',
+    # '#', quotes, etc. cannot break downstream frontmatter parsers (a malformed
+    # title silently dropped the whole note in agentsview's strict YAML syncer).
+    s = str(value).replace("\n", " ").strip()
+    s = s.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{s}"'
 
 
 def render_user_note(candidate: Candidate) -> str:
