@@ -129,6 +129,31 @@ class MemoryCaptureTests(unittest.TestCase):
         legit = [self.capture.NormalizedRecord("user", "decision: use lexical recall before embeddings for the memory MVP")]
         self.assertIsNotNone(self.capture.build_candidate(legit, platform="cc", origin_session="legit"))
 
+    def test_classify_origin_scope_splits_user_vs_project(self) -> None:
+        root = Path("/Users/x/.dotfiles")
+        # A real project repo -> project-scoped, named by its basename.
+        self.assertEqual(self.capture.classify_origin_scope("/Users/x/Projects/oss-atlas", root), ("oss-atlas", "project"))
+        # The dotfiles repo itself, home, and the CC config dir are general/user.
+        self.assertEqual(self.capture.classify_origin_scope("/Users/x/.dotfiles", root), ("", "user"))
+        self.assertEqual(self.capture.classify_origin_scope("/Users/x", root), ("", "user"))
+        self.assertEqual(self.capture.classify_origin_scope("/Users/x/.claude/skills/foo", root), ("", "user"))
+        # Unknown / empty origin defaults to user.
+        self.assertEqual(self.capture.classify_origin_scope("", root), ("", "user"))
+
+    def test_candidate_carries_origin_scope_when_dir_known(self) -> None:
+        root = Path("/Users/x/.dotfiles")
+        recs = [self.capture.NormalizedRecord("user", "decision: use feature flags for the rollout")]
+        proj = self.capture.build_candidate(recs, platform="cc", origin_session="s", origin_dir="/Users/x/Projects/oss-atlas", root=root)
+        self.assertIsNotNone(proj)
+        assert proj is not None
+        self.assertEqual(proj["scope"], "project")
+        self.assertEqual(proj["origin_project"], "oss-atlas")
+        # Without a known dir, scope defaults to user and origin_project is empty.
+        usr = self.capture.build_candidate(recs, platform="cc", origin_session="s")
+        assert usr is not None
+        self.assertEqual(usr["scope"], "user")
+        self.assertEqual(usr["origin_project"], "")
+
     def test_secret_text_is_redacted_before_raw_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -211,6 +211,33 @@ def _origin_session(value: str) -> str:
     return cleaned[:80] or "unknown-session"
 
 
+def classify_origin_scope(directory: str, root: Path) -> tuple[str, str]:
+    """Map the originating session's directory to (origin_project, scope).
+
+    Scope is "project" for a real project repo (origin_project = its basename),
+    and "user" for general work: the dotfiles repo itself, the home dir, or the
+    agent config dirs (~/.claude, ~/.config). Home is derived as the dotfiles
+    root's parent so this is testable with synthetic roots. Unknown/empty → user.
+    """
+    d = (directory or "").strip()
+    if not d:
+        return "", "user"
+    try:
+        p = Path(d).expanduser().resolve()
+        root_r = root.expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return "", "user"
+    home = root_r.parent
+    if p == root_r or p == home or p.is_relative_to(root_r):
+        return "", "user"
+    if p.is_relative_to(home / ".claude") or p.is_relative_to(home / ".config"):
+        return "", "user"
+    name = p.name
+    if name in {"", ".dotfiles", "dotfiles"}:
+        return "", "user"
+    return name, "project"
+
+
 def _summary_from(text: str, category: str) -> str:
     trimmed = re.sub(r"\s+", " ", text).strip()
     trimmed = re.sub(r"(?i)^\s*(remember|decision|correction)\s*[:：-]?\s*", "", trimmed).strip()
@@ -227,9 +254,11 @@ def _candidate_id(candidate: dict[str, Any]) -> str:
 
 
 def _build_candidate_with_skips(
-    records: list[NormalizedRecord], *, platform: str, origin_session: str
+    records: list[NormalizedRecord], *, platform: str, origin_session: str,
+    origin_dir: str = "", root: Path | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, int]]:
     skipped: dict[str, int] = {}
+    origin_project, scope = classify_origin_scope(origin_dir, root or Path.cwd())
 
     def skip(reason: str) -> None:
         skipped[reason] = skipped.get(reason, 0) + 1
@@ -261,6 +290,8 @@ def _build_candidate_with_skips(
             "implication": implication,
             "category": category,
             "origin_session": _origin_session(origin_session),
+            "origin_project": origin_project,
+            "scope": scope,
             "source_platform": platform,
             "source_roles": [record.role],
             "created_at": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -278,8 +309,13 @@ def _build_candidate_with_skips(
     return None, skipped
 
 
-def build_candidate(records: list[NormalizedRecord], *, platform: str, origin_session: str) -> dict[str, Any] | None:
-    candidate, _skipped = _build_candidate_with_skips(records, platform=platform, origin_session=origin_session)
+def build_candidate(
+    records: list[NormalizedRecord], *, platform: str, origin_session: str,
+    origin_dir: str = "", root: Path | None = None,
+) -> dict[str, Any] | None:
+    candidate, _skipped = _build_candidate_with_skips(
+        records, platform=platform, origin_session=origin_session, origin_dir=origin_dir, root=root
+    )
     return candidate
 
 
@@ -376,12 +412,15 @@ def capture_from_records(
     platform: str,
     records: list[dict[str, Any]],
     origin_session: str,
+    origin_dir: str = "",
     env: dict[str, str] | None = None,
 ) -> CaptureResult:
     if not memory_enabled(env):
         return CaptureResult(status="disabled", reason="DOTFILES_MEMORY_ENABLED is not enabled")
     normalized, stats = normalize_records(platform, records)
-    candidate, candidate_skips = _build_candidate_with_skips(normalized, platform=platform, origin_session=origin_session)
+    candidate, candidate_skips = _build_candidate_with_skips(
+        normalized, platform=platform, origin_session=origin_session, origin_dir=origin_dir, root=root
+    )
     stats.skipped_reasons.update({key: stats.skipped_reasons.get(key, 0) + value for key, value in candidate_skips.items()})
     if not candidate:
         reason = "secret_rejected" if stats.skipped_reasons.get("secret_rejected") else "no memory-worthy candidate"
@@ -409,7 +448,8 @@ def capture_from_hook_input(root: Path, hook_input: dict[str, Any], env: dict[st
         emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
         return result
     records = load_json_lines(path)
-    result = capture_from_records(root, platform=platform, records=records, origin_session=session_id or path.stem, env=env)
+    origin_dir = str(hook_input.get("cwd") or hook_input.get("workspace") or "").strip()
+    result = capture_from_records(root, platform=platform, records=records, origin_session=session_id or path.stem, origin_dir=origin_dir, env=env)
     emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
     return result
 
@@ -426,11 +466,23 @@ def sqlite_db_path(platform: str, env: dict[str, str] | None = None) -> Path:
     return Path.home() / ".local" / "share" / platform / f"{platform}.db"
 
 
-def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[dict[str, Any]], str]:
+def _sqlite_session_directory(con: sqlite3.Connection, sid: str) -> str:
+    """Best-effort: the originating cwd for a kilo/opencode session (for scope
+    tagging). The session table carries `directory`; if the schema differs or the
+    row is absent, return "" so scope falls back to user (fail-open)."""
+    try:
+        row = con.execute("SELECT directory FROM session WHERE id = ?", (sid,)).fetchone()
+        return str(row[0]) if row and row[0] else ""
+    except sqlite3.Error:
+        return ""
+
+
+def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[dict[str, Any]], str, str]:
     """immutable 只读(零锁、不碰 live 写)抽指定/最近 session 的 {role,content} 记录。
 
     安装版 schema = message/part,role 在 message.data JSON、text 在 part.data JSON。
     role 白名单 / 注入剥离 / redact 由下游 capture_from_records pipeline 统一处理。
+    返回 (records, sid, directory);directory 用于 scope 标记,取不到为 ""。
     """
     con = sqlite3.connect(f"file:{db}?mode=ro&immutable=1", uri=True, timeout=2)
     try:
@@ -442,7 +494,7 @@ def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[di
             row = con.execute("SELECT session_id FROM message ORDER BY time_created DESC LIMIT 1").fetchone()
             sid = row[0] if row else ""
         if not sid:
-            return [], ""
+            return [], "", ""
         rows = con.execute(
             "SELECT json_extract(m.data,'$.role') AS role, json_extract(p.data,'$.text') AS text "
             "FROM part p JOIN message m ON p.message_id = m.id "
@@ -451,7 +503,7 @@ def read_sqlite_session_records(db: Path, session_id: str = "") -> tuple[list[di
             (sid,),
         ).fetchall()
         records = [{"role": role, "content": text} for role, text in rows if role and text]
-        return records, sid
+        return records, sid, _sqlite_session_directory(con, sid)
     finally:
         con.close()
 
@@ -469,7 +521,7 @@ def capture_from_sqlite(root: Path, *, platform: str, session_id: str = "", env:
         emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
         return result
     try:
-        records, origin = read_sqlite_session_records(db, session_id)
+        records, origin, origin_dir = read_sqlite_session_records(db, session_id)
     except Exception as exc:  # noqa: BLE001 - 捕获 hook 必须 fail-open,绝不打断会话。
         result = CaptureResult(status="unavailable", reason=f"sqlite_read_failed:{exc.__class__.__name__}")
         emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
@@ -478,7 +530,7 @@ def capture_from_sqlite(root: Path, *, platform: str, session_id: str = "", env:
         result = CaptureResult(status="unavailable", reason="no_session_records")
         emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
         return result
-    result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id or db.stem, env=env)
+    result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id or db.stem, origin_dir=origin_dir, env=env)
     emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
     return result
 
@@ -501,11 +553,11 @@ def capture_sqlite_for_session(
         if not db.exists():
             continue
         try:
-            records, origin = read_sqlite_session_records(db, session_id)
+            records, origin, origin_dir = read_sqlite_session_records(db, session_id)
         except Exception:  # noqa: BLE001 - fail-open:某库读失败不阻断,试下一个。
             continue
         if records:
-            result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id, env=env)
+            result = capture_from_records(root, platform=platform, records=records, origin_session=origin or session_id, origin_dir=origin_dir, env=env)
             emit_capture_telemetry(root, result, platform=platform, duration_ms=int((time.monotonic() - started) * 1000))
             return result
     result = CaptureResult(status="unavailable", reason="session_not_found_in_any_sqlite")
