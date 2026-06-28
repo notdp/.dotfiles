@@ -11,11 +11,18 @@ INDEX_SCRIPT = REPO_ROOT / "scripts" / "build_memory_index.py"
 
 
 class AssistConsolidateTests(unittest.TestCase):
-    def run_cli(self, root: Path, raw_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_cli(
+        self,
+        root: Path,
+        raw_dir: Path,
+        *args: str,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SCRIPT), "--root", str(root), "--raw-dir", str(raw_dir), *args],
             text=True,
             capture_output=True,
+            cwd=cwd,
         )
 
     def write_candidate(self, raw_dir: Path, name: str, **overrides) -> Path:
@@ -96,6 +103,25 @@ class AssistConsolidateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(len(self.user_notes(root)), 1)
 
+    def test_relative_raw_dir_is_resolved_against_root_from_other_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "repo"
+            raw_rel = Path("memory/.staging/raw_memories")
+            outside_cwd = base / "outside-cwd"
+            outside_cwd.mkdir()
+            self.write_candidate(root / raw_rel, "cwd-case", summary="Root staging candidate is used")
+            decision = self.write_decision(root, action="ADD")
+
+            result = self.run_cli(root, raw_rel, "--decision-file", str(decision), cwd=outside_cwd)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            notes = self.user_notes(root)
+            self.assertEqual(len(notes), 1)
+            self.assertIn("Root staging candidate is used", notes[0].read_text(encoding="utf-8"))
+            outside_notes = sorted((outside_cwd / "memory" / "user").glob("*.md"))
+            self.assertEqual(outside_notes, [])
+
     def test_invalidate_soft_marks_existing_note_without_naked_delete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
@@ -127,23 +153,53 @@ class AssistConsolidateTests(unittest.TestCase):
             self.assertIn("anti_self_poisoning", result.stdout)
             self.assertEqual(self.user_notes(root), [])
 
-    def test_promotion_gates_reject_underqualified_and_accept_qualified_candidates(self) -> None:
+    def test_action_add_promotes_trial_knowledge_and_correction_samples(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             raw_dir = Path(tmp) / "raw"
-            self.write_candidate(raw_dir, "weak", category="fact", why="", user_marked=False, occurrences=1)
-            self.write_candidate(raw_dir, "strong", user_marked=True, summary="Use redact gate before memory writes")
-            decision = self.write_decisions(root, {"weak": {"action": "ADD"}, "strong": {"action": "ADD"}})
+            self.write_candidate(
+                raw_dir,
+                "background-jobs",
+                category="fact",
+                summary="BACKGROUND_JOBS_ENABLED=false disables background jobs",
+                evidence="Trial memory candidate recorded BACKGROUND_JOBS_ENABLED=false as an operator-relevant fact.",
+                implication="When background processing appears inactive, check BACKGROUND_JOBS_ENABLED before debugging workers.",
+                why="",
+                user_marked=False,
+                occurrences=1,
+            )
+            self.write_candidate(
+                raw_dir,
+                "dev-complete-required",
+                category="correction",
+                summary="Code changes must go through /dev-complete",
+                evidence="Trial memory candidate recorded the user rule: 代码改动必须走 /dev-complete.",
+                implication="For future code changes, choose /dev-complete unless the task is a pure bug fix or otherwise scoped out.",
+                why="",
+                user_marked=False,
+                occurrences=1,
+            )
+            decision = self.write_decisions(
+                root,
+                {
+                    "background-jobs": {"action": "ADD"},
+                    "dev-complete-required": {"action": "ADD"},
+                },
+            )
 
             result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("write background-jobs", result.stdout)
+            self.assertIn("write dev-complete-required", result.stdout)
+            self.assertNotIn("not_promoted", result.stdout)
             notes = self.user_notes(root)
-            self.assertEqual(len(notes), 1)
-            self.assertIn("Use redact gate before memory writes", notes[0].read_text(encoding="utf-8"))
-            self.assertIn("not_promoted", result.stdout)
+            self.assertEqual(len(notes), 2)
+            note_text = "\n".join(path.read_text(encoding="utf-8") for path in notes)
+            self.assertIn("BACKGROUND_JOBS_ENABLED=false", note_text)
+            self.assertIn("代码改动必须走 /dev-complete", note_text)
 
-    def test_decision_candidate_requires_explicit_why_unless_other_gate_qualifies(self) -> None:
+    def test_action_add_promotes_complete_candidate_without_explicit_why(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             raw_dir = Path(tmp) / "raw"
@@ -153,7 +209,85 @@ class AssistConsolidateTests(unittest.TestCase):
             result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("not_promoted", result.stdout)
+            self.assertIn("write decision", result.stdout)
+            self.assertEqual(len(self.user_notes(root)), 1)
+
+    def test_non_decision_update_is_not_blocked_by_quality_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            raw_dir = Path(tmp) / "raw"
+            existing = self.write_existing_note(root)
+            self.write_candidate(
+                raw_dir,
+                "replacement",
+                category="correction",
+                summary="Replacement correction note",
+                evidence="The previous note used stale recall guidance.",
+                implication="Use the corrected recall guidance for future consolidation updates.",
+                why="",
+                user_marked=False,
+                occurrences=1,
+            )
+            decision = self.write_decision(root, action="UPDATE", note_id="existing.md")
+
+            result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("update replacement existing.md -> memory/user/", result.stdout)
+            notes = self.user_notes(root)
+            self.assertEqual(len(notes), 2)
+            replacement = next(path for path in notes if path.name != "existing.md")
+            self.assertIn("Replacement correction note", replacement.read_text(encoding="utf-8"))
+            old_text = existing.read_text(encoding="utf-8")
+            self.assertIn("status: archived", old_text)
+            self.assertIn(f"superseded_by: {replacement.name}", old_text)
+
+    def test_one_time_narration_is_not_promoted_by_llm_add(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            raw_dir = Path(tmp) / "raw"
+            self.write_candidate(
+                raw_dir,
+                "one-time",
+                category="fact",
+                summary="This session resolved a one-time migration checklist",
+                evidence="This session only needed a temporary todo for the migration dry run.",
+                implication="Remember this session outcome as a one-time task narration.",
+                why="",
+                user_marked=False,
+                occurrences=1,
+            )
+            decision = self.write_decision(root, action="ADD")
+
+            result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("anti_self_poisoning:one_time_task_narration", result.stdout)
+            self.assertEqual(self.user_notes(root), [])
+
+    def test_missing_core_fields_are_rejected_despite_llm_add(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            raw_dir = Path(tmp) / "raw"
+            raw_dir.mkdir(parents=True)
+            (raw_dir / "missing.json").write_text(
+                json.dumps(
+                    {
+                        "id": "missing",
+                        "summary": "Missing core implication",
+                        "evidence": "The candidate has evidence but no reusable implication.",
+                        "category": "fact",
+                        "origin_session": "session-123",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            decision = self.write_decision(root, action="ADD")
+
+            result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
+
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("missing required field implication", result.stderr)
             self.assertEqual(self.user_notes(root), [])
 
     def test_decision_file_is_required_for_consolidation(self) -> None:

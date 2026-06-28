@@ -123,7 +123,7 @@ def anti_self_poisoning_reason(candidate: Candidate) -> str | None:
     return None
 
 
-def promoted(candidate: Candidate) -> tuple[bool, str]:
+def promoted(candidate: Candidate, action: str) -> tuple[bool, str]:
     raw = candidate.raw
     if bool(raw.get("user_marked")):
         return True, "user_marked"
@@ -133,6 +133,8 @@ def promoted(candidate: Candidate) -> tuple[bool, str]:
         return True, "recurring"
     if str(raw.get("scope") or "").lower() == "vault" and raw.get("commit") and raw.get("verify_json"):
         return True, "vault_evidence"
+    if action in {"ADD", "UPDATE", "DELETE", "INVALIDATE"}:
+        return True, f"llm_action_{candidate.problem_type}"
     return False, "not_promoted"
 
 
@@ -342,16 +344,17 @@ def process_candidate(root: Path, candidate: Candidate, decision: dict[str, Any]
     if blacklist_reason:
         return f"skip {candidate.id} anti_self_poisoning:{blacklist_reason}"
 
-    ok, reason = promoted(candidate)
-    if not ok:
-        return f"skip {candidate.id} {reason}"
+    action = str(decision.get("action") or "ADD").upper()
 
     if args.emit_decision_context:
         emit_context(root, candidate)
 
-    action = str(decision.get("action") or "ADD").upper()
     if action == "SKIP":
         return f"skip {candidate.id} decision_skip:{decision.get('reason', '')}"
+
+    ok, reason = promoted(candidate, action)
+    if not ok:
+        return f"skip {candidate.id} {reason}"
 
     if args.store == "project":
         allowed, gate_reason = project_repo_gate(candidate, args.repo_nature, args.approve_cross_project)
@@ -442,7 +445,7 @@ def main() -> int:
         results = []
         errors = []
         needs_index_rebuild = False
-        for candidate in iter_candidates(args.raw_dir.resolve()):
+        for candidate in iter_candidates(root / args.raw_dir):
             try:
                 result = process_candidate(root, candidate, decision_for(decisions, candidate), args)
                 results.append(result)
