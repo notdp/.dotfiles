@@ -11,11 +11,18 @@ INDEX_SCRIPT = REPO_ROOT / "scripts" / "build_memory_index.py"
 
 
 class AssistConsolidateTests(unittest.TestCase):
-    def run_cli(self, root: Path, raw_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_cli(
+        self,
+        root: Path,
+        raw_dir: Path,
+        *args: str,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["python3", str(SCRIPT), "--root", str(root), "--raw-dir", str(raw_dir), *args],
             text=True,
             capture_output=True,
+            cwd=cwd,
         )
 
     def write_candidate(self, raw_dir: Path, name: str, **overrides) -> Path:
@@ -95,6 +102,25 @@ class AssistConsolidateTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(len(self.user_notes(root)), 1)
+
+    def test_relative_raw_dir_is_resolved_against_root_from_other_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "repo"
+            raw_rel = Path("memory/.staging/raw_memories")
+            outside_cwd = base / "outside-cwd"
+            outside_cwd.mkdir()
+            self.write_candidate(root / raw_rel, "cwd-case", summary="Root staging candidate is used")
+            decision = self.write_decision(root, action="ADD")
+
+            result = self.run_cli(root, raw_rel, "--decision-file", str(decision), cwd=outside_cwd)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            notes = self.user_notes(root)
+            self.assertEqual(len(notes), 1)
+            self.assertIn("Root staging candidate is used", notes[0].read_text(encoding="utf-8"))
+            outside_notes = sorted((outside_cwd / "memory" / "user").glob("*.md"))
+            self.assertEqual(outside_notes, [])
 
     def test_invalidate_soft_marks_existing_note_without_naked_delete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

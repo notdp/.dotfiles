@@ -442,7 +442,7 @@ def main() -> int:
         results = []
         errors = []
         needs_index_rebuild = False
-        for candidate in iter_candidates(args.raw_dir.resolve()):
+        for candidate in iter_candidates(root / args.raw_dir):
             try:
                 result = process_candidate(root, candidate, decision_for(decisions, candidate), args)
                 results.append(result)
