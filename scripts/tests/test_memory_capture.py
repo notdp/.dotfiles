@@ -275,6 +275,24 @@ class MemoryCaptureTests(unittest.TestCase):
             self.assertTrue(fresh_bak.exists())
             self.assertTrue(note.exists())
 
+    def test_gc_consumed_removes_only_old_archived_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            consumed = self.capture.consumed_dir(root)
+            consumed.mkdir(parents=True)
+            old = consumed / "old.json"
+            fresh = consumed / "fresh.json"
+            old.write_text("{}\n", encoding="utf-8")
+            fresh.write_text("{}\n", encoding="utf-8")
+            old_time = time.time() - (8 * 24 * 60 * 60)  # >7d
+            os.utime(old, (old_time, old_time))
+
+            removed = self.capture.gc_consumed(root, ttl_days=7)
+
+            self.assertEqual(removed, [old])
+            self.assertFalse(old.exists())
+            self.assertTrue(fresh.exists(), "consumed candidates within TTL are kept")
+
     def test_resolve_codex_rollout_uses_newest_matching_session_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)

@@ -420,6 +420,38 @@ def invalidate_failed_verify_notes(root: Path) -> list[str]:
     return results
 
 
+ARCHIVED_NOTE_TTL_DAYS = 90
+
+
+def gc_archived_user_notes(root: Path, ttl_days: int = ARCHIVED_NOTE_TTL_DAYS) -> list[str]:
+    """Hard-delete archived/stale user notes older than ttl_days, then rebuild
+    INDEX. Active notes are NEVER deleted. Safe because memory/user is a git repo
+    (+ private backup): the git history is the durable audit trail, so the live
+    dir only needs to hold active + recently-archived notes."""
+    import time as _time
+
+    user_dir = root / "memory" / "user"
+    if not user_dir.exists():
+        return []
+    cutoff = _time.time() - ttl_days * 24 * 60 * 60
+    removed: list[str] = []
+    for path in sorted(user_dir.glob("*.md")):
+        if path.name == "INDEX.md":
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        frontmatter, _body = split_frontmatter(text)
+        meta = parse_frontmatter(frontmatter)
+        if meta.get("status", "active").lower() in ACTIVE_STATUSES:
+            continue  # never delete an active note
+        if path.stat().st_mtime >= cutoff:
+            continue  # archived but within retention window
+        path.unlink()
+        removed.append(path.name)
+    if removed:
+        rebuild_index(root)
+    return removed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Consolidate raw memory candidates into tracked stores.")
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -430,9 +462,19 @@ def main() -> int:
     parser.add_argument("--approve-cross-project", action="store_true")
     parser.add_argument("--emit-decision-context", action="store_true")
     parser.add_argument("--invalidate-failed-verify", action="store_true")
+    parser.add_argument("--gc-archived-notes", action="store_true", help="hard-delete archived/stale user notes past retention (git is the audit trail)")
+    parser.add_argument("--archived-note-ttl-days", type=int, default=ARCHIVED_NOTE_TTL_DAYS)
     args = parser.parse_args()
 
     root = args.root.resolve()
+    if args.gc_archived_notes:
+        try:
+            removed = gc_archived_user_notes(root, ttl_days=args.archived_note_ttl_days)
+        except ConsolidationError as exc:
+            print(f"assist_consolidate failed: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps({"status": "gc_archived", "removed": removed}, ensure_ascii=False))
+        return 0
     if args.invalidate_failed_verify:
         try:
             results = invalidate_failed_verify_notes(root)
