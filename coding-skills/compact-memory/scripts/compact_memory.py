@@ -27,8 +27,12 @@ except ModuleNotFoundError:
 
 
 TODAY = dt.date.today().isoformat()
-DEFAULT_MAX_NOTE_CHARS = 6000
-DEFAULT_MAX_INDEX_CHARS = 40000
+# A synthesized topic note is denser than an atomic note, and the INDEX must
+# accommodate a real cross-agent memory (hundreds of notes) — synthesis then
+# SHRINKS it by folding atomics and marking sources stale. The old 6k/40k caps
+# blocked every cycle once the pool grew past a few dozen notes.
+DEFAULT_MAX_NOTE_CHARS = 20000
+DEFAULT_MAX_INDEX_CHARS = 120000
 ACTIVE_STATUS = {"", "active"}
 BECAUSE_RE = re.compile(r"\(because of ([^)]+)\)")
 
@@ -174,7 +178,11 @@ def render_semantic_note(decision: dict[str, Any], selected: list[SourceNote]) -
     problem_type = frontmatter_value(str(decision.get("problem_type") or "knowledge"))
     if problem_type not in {"knowledge", "pattern", "decision", "preference", "failure-mode", "bug"}:
         problem_type = "knowledge"
-    insight = str(decision["insight"]).strip()
+    # Citations are required in the decision insight for validation, but they are
+    # provenance, not prose — keep them in `related` and strip the inline
+    # "(because of <id>)" markers from the readable body.
+    insight = BECAUSE_RE.sub("", str(decision["insight"]))
+    insight = re.sub(r"[ \t]{2,}", " ", insight).strip()
     return (
         "---\n"
         f"title: {title}\n"
