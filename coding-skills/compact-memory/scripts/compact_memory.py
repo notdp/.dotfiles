@@ -102,10 +102,14 @@ def select_sources(notes: list[SourceNote], topic: str, source_ids: list[str]) -
     for note in notes:
         if note.meta.get("status", "active").strip().lower() not in ACTIVE_STATUS:
             continue
-        if note.meta.get("type", "").strip().lower() != "episodic":
-            continue
+        # An explicitly requested source is honored regardless of type: the auto
+        # synthesize worker clusters atomic notes (type:semantic from consolidate)
+        # and names them by id. The episodic-only filter below applies only to the
+        # topic-term fallback used by the manual /compact-memory skill.
         if note.note_id in ids or note.path.stem in ids:
             selected.append(note)
+            continue
+        if note.meta.get("type", "").strip().lower() != "episodic":
             continue
         if terms and score_note(note.frontmatter, note.body, terms) > 0:
             selected.append(note)
