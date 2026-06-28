@@ -120,6 +120,32 @@ class CompactMemoryTests(unittest.TestCase):
             self.assertEqual(second.read_text(encoding="utf-8"), original_bodies["lexical-b.md"])
             self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
 
+    def test_explicit_source_ids_select_active_semantic_atomic_notes(self) -> None:
+        # The auto synthesize worker passes explicit source_ids for the atomic
+        # notes it clustered. Those notes are type:semantic (consolidate output),
+        # so explicit ids must be honored regardless of type — otherwise the
+        # episodic-only filter would drop them and nothing would synthesize.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self.write_note(root, "atom-a.md", title="Signed URL fields break deep compare", note_type="semantic")
+            self.write_note(root, "atom-b.md", title="Strip signed URLs before comparison", note_type="semantic")
+            self.rebuild_index(root)
+            decision = self.decision_file(
+                root,
+                id="reflect-signed-url",
+                action="ADD",
+                title="比较前剥离 signed URL 字段",
+                insight="对象比较应忽略每次生成的 signed URL 字段 (because of atom-a) (because of atom-b)。",
+                source_ids=["atom-a", "atom-b"],
+            )
+
+            result = self.run_cli(root, "--decision-file", str(decision))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(len(self.semantic_notes(root)), 3, "2 atomic sources + 1 synthesized")
+            synth = next(p for p in self.semantic_notes(root) if "比较前剥离" in p.read_text(encoding="utf-8"))
+            self.assertIn("(because of atom-a)", synth.read_text(encoding="utf-8"))
+
     def test_one_source_skips_without_semantic_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
