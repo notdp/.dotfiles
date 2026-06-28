@@ -114,8 +114,10 @@ class CompactMemoryTests(unittest.TestCase):
             semantic = self.semantic_notes(root)
             self.assertEqual(len(semantic), 1)
             semantic_text = semantic[0].read_text(encoding="utf-8")
-            self.assertIn("(because of lexical-a)", semantic_text)
-            self.assertIn("(because of lexical-b)", semantic_text)
+            # Provenance lives in `related`; inline citations are stripped from
+            # the readable body.
+            self.assertIn("related: [lexical-a, lexical-b]", semantic_text)
+            self.assertNotIn("(because of", semantic_text)
             self.assertEqual(first.read_text(encoding="utf-8"), original_bodies["lexical-a.md"])
             self.assertEqual(second.read_text(encoding="utf-8"), original_bodies["lexical-b.md"])
             self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
@@ -144,7 +146,7 @@ class CompactMemoryTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(len(self.semantic_notes(root)), 3, "2 atomic sources + 1 synthesized")
             synth = next(p for p in self.semantic_notes(root) if "比较前剥离" in p.read_text(encoding="utf-8"))
-            self.assertIn("(because of atom-a)", synth.read_text(encoding="utf-8"))
+            self.assertIn("related: [atom-a, atom-b]", synth.read_text(encoding="utf-8"))
 
     def test_one_source_skips_without_semantic_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

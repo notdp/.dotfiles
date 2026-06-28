@@ -79,6 +79,23 @@ class AssistConsolidateTests(unittest.TestCase):
     def user_notes(self, root: Path) -> list[Path]:
         return sorted(path for path in (root / "memory" / "user").glob("*.md") if path.name != "INDEX.md")
 
+    def test_chinese_summary_gets_short_readable_filename_not_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            raw_dir = Path(tmp) / "raw"
+            self.write_candidate(raw_dir, "zh", id="a" * 64, summary="弹层组件必须显式覆盖默认最大宽度否则被锁死", evidence="否则宽度被锁定不可调。", category="decision", why="覆盖默认宽度约束")
+            decision = self.write_decision(root, action="ADD")
+
+            result = self.run_cli(root, raw_dir, "--decision-file", str(decision))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            notes = self.user_notes(root)
+            self.assertEqual(len(notes), 1)
+            stem = notes[0].name.removesuffix(".md")
+            import re as _re
+            self.assertIsNone(_re.fullmatch(r"[0-9a-f]{32,}", stem), f"filename is a raw sha256: {stem}")
+            self.assertLess(len(stem), 32, f"filename should be short/readable: {stem}")
+
     def test_gc_archived_notes_deletes_old_archived_keeps_active(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"

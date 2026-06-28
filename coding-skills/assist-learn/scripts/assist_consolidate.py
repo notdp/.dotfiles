@@ -154,9 +154,16 @@ def keywords_for(candidate: Candidate) -> list[str]:
 
 def slugify(value: str, fallback: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    if not slug:
-        slug = re.sub(r"[^a-z0-9]+", "-", fallback.lower()).strip("-") or "memory-note"
-    return slug[:80]
+    if slug:
+        return slug[:80]
+    # A non-ascii (e.g. Chinese) summary slugifies to empty and falls back to the
+    # candidate id (a 64-char sha256). Leaving that as the filename trips the
+    # redact high-entropy-hex gate when it later appears in INDEX rows and
+    # synthesis citations, so cap the id-derived fallback to 24 chars — under the
+    # gate's 32-char hex threshold while staying unique enough (unique_path
+    # disambiguates collisions).
+    fallback_slug = re.sub(r"[^a-z0-9]+", "-", fallback.lower()).strip("-") or "memory-note"
+    return fallback_slug[:24]
 
 
 def frontmatter_value(value: str) -> str:
