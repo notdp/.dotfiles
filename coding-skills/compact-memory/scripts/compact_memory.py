@@ -199,6 +199,13 @@ def render_semantic_note(decision: dict[str, Any], selected: list[SourceNote]) -
         f"keywords: {keywords_text(decision, selected)}\n"
         f"related: {related}\n"
         f"origin_session: compact-memory:{reflection_id}\n"
+        # Project dimension: the synthesize worker computes these from the source
+        # atomics' projects — a single shared project (scope=project) or a
+        # cross-project topic (scope=general, empty origin_project = the General
+        # bucket). Default to general here so a decision that omits them is a
+        # cross-project topic, never mislabelled as belonging to one project.
+        f"origin_project: {frontmatter_value(str(decision.get('origin_project') or ''))}\n"
+        f"scope: {frontmatter_value(str(decision.get('scope') or 'general'))}\n"
         "verify:\n"
         "applies_to: user\n"
         "---\n\n"

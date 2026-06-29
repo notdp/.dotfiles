@@ -195,6 +195,12 @@ def render_user_note(candidate: Candidate) -> str:
         f"keywords: {keywords_text}\n"
         "related: []\n"
         f"origin_session: {frontmatter_value(candidate.origin_session)}\n"
+        # Project dimension: the originating project (basename, "" = general) and
+        # scope (project | user) the capture/extract pipeline tagged on the
+        # candidate. Carrying them onto the note lets agentsview index/group
+        # memory by project (empty origin_project = the General bucket).
+        f"origin_project: {frontmatter_value(str(candidate.raw.get('origin_project') or ''))}\n"
+        f"scope: {frontmatter_value(str(candidate.raw.get('scope') or 'user'))}\n"
         "verify:\n"
         f"applies_to: {frontmatter_value(str(candidate.raw.get('applies_to') or 'user'))}\n"
         "---\n\n"

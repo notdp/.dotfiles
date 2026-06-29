@@ -30,6 +30,8 @@ ALLOWED_FRONTMATTER_FIELDS = {
     "tags",
     "related",
     "origin_session",
+    "origin_project",
+    "scope",
     "verify",
     "applies_to",
 }

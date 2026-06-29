@@ -535,6 +535,37 @@ class FrontmatterYamlSafetyTests(unittest.TestCase):
         self.assertEqual(data["title"], cand.summary.replace("\n", " "))
         self.assertEqual(data["problem_type"], "decision")
 
+    def test_rendered_user_note_carries_project_dimension_from_candidate(self) -> None:
+        mod = self._load_module()
+        cand = mod.Candidate(
+            id="c1",
+            summary="some project-specific lesson",
+            evidence="e",
+            implication="i",
+            problem_type="knowledge",
+            origin_session="ses_1",
+            raw={"origin_project": "oss-atlas", "scope": "project"},
+        )
+        text = mod.render_user_note(cand)
+        self.assertIn('origin_project: "oss-atlas"', text)
+        self.assertIn('scope: "project"', text)
+
+    def test_rendered_user_note_defaults_project_dimension_to_general_user(self) -> None:
+        mod = self._load_module()
+        cand = mod.Candidate(
+            id="c2",
+            summary="some general lesson",
+            evidence="e",
+            implication="i",
+            problem_type="knowledge",
+            origin_session="ses_2",
+            raw={},
+        )
+        text = mod.render_user_note(cand)
+        # Empty origin_project = the General bucket; scope falls back to user.
+        self.assertIn('origin_project: ""', text)
+        self.assertIn('scope: "user"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

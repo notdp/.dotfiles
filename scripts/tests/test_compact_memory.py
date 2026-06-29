@@ -122,6 +122,51 @@ class CompactMemoryTests(unittest.TestCase):
             self.assertEqual(second.read_text(encoding="utf-8"), original_bodies["lexical-b.md"])
             self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
 
+    def test_synthesized_note_carries_project_dimension_from_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self.write_note(root, "proj-a.md", title="Project lesson one")
+            self.write_note(root, "proj-b.md", title="Project lesson two")
+            self.rebuild_index(root)
+            decision = self.decision_file(
+                root,
+                id="reflect-proj",
+                action="ADD",
+                title="A single-project topic",
+                insight="Single project topic (because of proj-a) (because of proj-b).",
+                source_ids=["proj-a", "proj-b"],
+                keywords=["project"],
+                origin_project="oss-atlas",
+                scope="project",
+            )
+            result = self.run_cli(root, "--topic", "project lesson", "--decision-file", str(decision))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            semantic_text = self.semantic_notes(root)[0].read_text(encoding="utf-8")
+            self.assertIn('origin_project: oss-atlas', semantic_text)
+            self.assertIn('scope: project', semantic_text)
+
+    def test_synthesized_note_defaults_to_general_when_decision_omits_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self.write_note(root, "x-a.md", title="Cross topic one")
+            self.write_note(root, "x-b.md", title="Cross topic two")
+            self.rebuild_index(root)
+            decision = self.decision_file(
+                root,
+                id="reflect-cross",
+                action="ADD",
+                title="A cross-project topic",
+                insight="Cross project topic (because of x-a) (because of x-b).",
+                source_ids=["x-a", "x-b"],
+                keywords=["cross"],
+            )
+            result = self.run_cli(root, "--topic", "cross topic", "--decision-file", str(decision))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            semantic_text = self.semantic_notes(root)[0].read_text(encoding="utf-8")
+            # No project in the decision = cross-project topic = General bucket.
+            self.assertIn('origin_project: \n', semantic_text)
+            self.assertIn('scope: general', semantic_text)
+
     def test_explicit_source_ids_select_active_semantic_atomic_notes(self) -> None:
         # The auto synthesize worker passes explicit source_ids for the atomic
         # notes it clustered. Those notes are type:semantic (consolidate output),
