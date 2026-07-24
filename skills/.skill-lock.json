@@ -308,14 +308,14 @@
       "installedAt": "2026-07-14T15:48:26.435Z",
       "updatedAt": "2026-07-14T15:48:26.435Z"
     },
-    "pr-polish": {
+    "polish": {
       "source": "notdp/.dotfiles",
       "sourceType": "github",
       "sourceUrl": "https://github.com/notdp/.dotfiles.git",
-      "skillPath": "skills/pr-polish/SKILL.md",
-      "skillFolderHash": "a3f66e689e0bb6430e3fdfcc8ca989111603eca1",
+      "skillPath": "skills/polish/SKILL.md",
+      "skillFolderHash": "dcdf8ec0de0f17bed8e01164a1445dac0eca3fa2",
       "installedAt": "2026-07-23T14:05:57.773Z",
-      "updatedAt": "2026-07-23T14:05:57.773Z"
+      "updatedAt": "2026-07-24T04:53:35.000Z"
     }
   },
   "lastSelectedAgents": [
