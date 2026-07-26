@@ -142,9 +142,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/ui/SKILL.md",
-      "skillFolderHash": "4f87e323aa8a5fdfebb8401eb07990e011a60ef0",
+      "skillFolderHash": "2485ad0b2edc74fcd21d90b2bdf48d62d05c3710",
       "installedAt": "2026-07-14T15:38:05.685Z",
-      "updatedAt": "2026-07-25T01:04:55.137Z"
+      "updatedAt": "2026-07-26T14:30:10.802Z"
     },
     "lark-approval": {
       "source": "larksuite/cli",
