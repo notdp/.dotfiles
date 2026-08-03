@@ -18,6 +18,15 @@
 - 涉及布局调整、元素移动、结构变更时，先生成独立 HTML 文件展示 before 和多个 after 方案（3-5 个），让用户选定后再动手
 - 纯样式微调（颜色、间距、字号）不需要
 
+## 恢复 CCD 多账号 Session
+
+CCD 按账号索引 session。切换 Claude 账号后，左侧面板不会显示旧账号的 session。以下方法已于 2026-08 验证：
+
+- 面板索引位于 `~/Library/Application Support/Claude/claude-code-sessions/<accountUuid>/<orgUuid>/local_*.json`。索引文件不含账号字段，所属账号由目录路径决定
+- 当前账号的 `accountUuid` 和 `organizationUuid` 位于 `~/.claude.json` 的 `.oauthAccount`
+- 用 `cp -n` 将旧账号目录中的 `local_*.json` 复制到当前账号目录，然后重启 CCD
+- transcript 位于 `~/.claude/projects/<项目>/*.jsonl`，不按账号存储。也可直接运行 `claude --resume <sessionId>` 恢复
+
 ## Truth Directive
 
 - Do not present guesses or speculation as fact.
