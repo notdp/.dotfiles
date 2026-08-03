@@ -24,36 +24,36 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-commit-push-pr/SKILL.md",
-      "skillFolderHash": "c3122abbe2a901ad2b6743cef97893f1348e73a9",
+      "skillFolderHash": "b13e31f69cef9f3ed50b5e2d8f108cdc7a1c5f97",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-07-24T04:58:01.019Z"
+      "updatedAt": "2026-08-03T05:26:41.630Z"
     },
     "ce-plan": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "a735e4a00f865b8790852aaec45446040ffa2301",
+      "skillFolderHash": "57fee590bf4ba19aa8343029693ab549ac8a261e",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-07-31T01:03:43.442Z"
+      "updatedAt": "2026-08-03T05:26:50.983Z"
     },
     "check": {
       "source": "tw93/Waza",
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/check/SKILL.md",
-      "skillFolderHash": "44ac0799d44edc302c2f974bc85e9450475265c5",
+      "skillFolderHash": "5e211edab6551ab0914c8ab34548656d333f6a33",
       "installedAt": "2026-07-14T15:32:26.455Z",
-      "updatedAt": "2026-07-27T02:50:24.690Z"
+      "updatedAt": "2026-08-03T05:26:58.698Z"
     },
     "hunt": {
       "source": "tw93/Waza",
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/hunt/SKILL.md",
-      "skillFolderHash": "29fd2a16e433f8dc49a979b49733c2ea4046f24c",
+      "skillFolderHash": "e33a01af7a479bb6c3cb25e893e369db5d11299f",
       "installedAt": "2026-07-14T15:32:26.457Z",
-      "updatedAt": "2026-07-27T02:50:36.829Z"
+      "updatedAt": "2026-08-03T05:27:06.791Z"
     },
     "learn": {
       "source": "tw93/Waza",
@@ -78,9 +78,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/think/SKILL.md",
-      "skillFolderHash": "245d5307982353b1b04ac0498b1bb266e973db0f",
+      "skillFolderHash": "a64d35b5883fc8847fb156131cbec88ac6e6d94a",
       "installedAt": "2026-07-14T15:32:26.458Z",
-      "updatedAt": "2026-07-26T02:08:57.941Z"
+      "updatedAt": "2026-08-03T05:27:14.384Z"
     },
     "find-skills": {
       "source": "vercel-labs/skills",
@@ -142,9 +142,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/ui/SKILL.md",
-      "skillFolderHash": "2485ad0b2edc74fcd21d90b2bdf48d62d05c3710",
+      "skillFolderHash": "41b9ee63d946971efef17af703f6c4d1ef99d620",
       "installedAt": "2026-07-14T15:38:05.685Z",
-      "updatedAt": "2026-07-26T14:30:10.802Z"
+      "updatedAt": "2026-08-03T05:27:22.289Z"
     },
     "lark-approval": {
       "source": "larksuite/cli",
@@ -169,9 +169,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "e0520ddb97db0cbdea2dc9551978e1254915a2ff",
+      "skillFolderHash": "ef4da6de4dfaa96dafde8c6970bc0d524b344ce5",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-07-31T01:03:55.845Z"
+      "updatedAt": "2026-08-03T05:27:34.440Z"
     },
     "lark-calendar": {
       "source": "larksuite/cli",
@@ -205,9 +205,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-drive/SKILL.md",
-      "skillFolderHash": "07c0786dce1dd827c44ff96213c0a8e2cfacf3f4",
+      "skillFolderHash": "e7d6845a5f471b915c890b472eb4dbca1f0dada9",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-07-31T01:04:29.632Z"
+      "updatedAt": "2026-08-03T05:27:45.557Z"
     },
     "lark-event": {
       "source": "larksuite/cli",
