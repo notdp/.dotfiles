@@ -169,9 +169,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "ef4da6de4dfaa96dafde8c6970bc0d524b344ce5",
+      "skillFolderHash": "8867f2f0393707c3eacdd39fa442470cd2d6995e",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-03T05:27:34.440Z"
+      "updatedAt": "2026-08-04T01:03:12.526Z"
     },
     "lark-calendar": {
       "source": "larksuite/cli",
@@ -196,9 +196,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-doc/SKILL.md",
-      "skillFolderHash": "4738e58183e69e38290b85334da72d95ceaff82c",
+      "skillFolderHash": "98561c884fd99ff42c99c135eccdbfe49ff47d23",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-07-25T01:05:06.018Z"
+      "updatedAt": "2026-08-04T01:03:24.734Z"
     },
     "lark-drive": {
       "source": "larksuite/cli",
@@ -223,9 +223,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-im/SKILL.md",
-      "skillFolderHash": "9b5689b393050774185c19353451de283bf39e87",
+      "skillFolderHash": "3d8aecdecec1fe72814afda27f8b7d78962493e2",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-07-24T02:18:59.542Z"
+      "updatedAt": "2026-08-04T01:03:36.240Z"
     },
     "lark-markdown": {
       "source": "larksuite/cli",
@@ -316,6 +316,15 @@
       "skillFolderHash": "dcdf8ec0de0f17bed8e01164a1445dac0eca3fa2",
       "installedAt": "2026-07-23T14:05:57.773Z",
       "updatedAt": "2026-07-24T04:53:35.000Z"
+    },
+    "ce-babysit-pr": {
+      "source": "everyinc/compound-engineering-plugin",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
+      "skillPath": "skills/ce-babysit-pr/SKILL.md",
+      "skillFolderHash": "9a10c783045afa35532919baaf4c4da1a7a6d65c",
+      "installedAt": "2026-08-03T07:47:10.935Z",
+      "updatedAt": "2026-08-03T07:47:10.935Z"
     }
   },
   "lastSelectedAgents": [
