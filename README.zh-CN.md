@@ -87,28 +87,8 @@ cd ~/.dotfiles && stow -d config -t ~ tmux ghostty
 
 AdaL, Amp, Antigravity, Augment, Claude Code, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, iFlow CLI, Junie, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, Neovate, OpenClaw, OpenCode, OpenHands, Pi, Pochi, Qoder, Qwen Code, Roo Code, Trae, Windsurf, Zencoder
 
-## Skills
+## 本仓库发布的 Skills
 
 | Skill | 说明 |
 |-------|------|
-| **[duoduo](./DUODUO.md)** | Opus + Codex 交叉审查 PR |
-| **chrome-devtools-mcp-fix** | 修复 chrome-devtools MCP 连接问题 |
-| **chrome-devtools-mock** | 通过 Chrome DevTools 注入脚本 mock 前端 API 数据 |
-| **droid-bin-mod** | 修改 droid 二进制以禁用输出截断 |
-| **find-skills** | 发现和安装 agent skills |
-| **frontend-design** | 创建生产级前端界面 |
-| **react** | React 组件开发指南 |
-| **react-best-practices** | Vercel 工程团队的 React/Next.js 性能优化指南 |
-| **react-doctor** | 诊断和修复 React 代码库健康问题 |
-| **shadcn-ui** | shadcn/ui 组件库指南 |
-
-## Commands
-
-| 命令 | 说明 |
-|------|------|
-| `clip` | 复制内容到剪贴板 |
-| `ec` | 编辑配置 |
-| `eh` | 编辑历史 |
-| `install-react-grab` | 安装 react-grab 组件 |
-| `learn` | 从代码库模式中学习 |
-| `simplify` | 简化复杂代码 |
+| **polish** | 去掉 PR、commit、文档、消息里的机器味 |
