@@ -13,6 +13,6 @@ description: 去掉文字里的机器味。当用户说 polish、润色、改文
 - 注释写为什么，测试名写行为，PR 和 commit 写实际变化，文档写读者需要知道的。
 - 用仓库和团队里已有的说法，说人话。只给一个终稿，不给选项。
 
-只动被指定的文字，不改业务逻辑。保留模板要求的固定 section；不擅自重写已发布的 commit。
+只动被指定的文字，不改业务逻辑。润 PR/commit 时，diff 里新增或改动的注释也在润色范围内，不要只改 PR body 和 commit message。保留模板要求的固定 section；不擅自重写已发布的 commit。
 
-直接落地修改。涉及 live PR、commit 或 push 时用 `ce-commit-push-pr`。改完重读一遍；改的是代码内文字就跑 `git diff --check`，只有测试名或 anchor 变动才补对应校验。
+直接落地修改。涉及 live PR、commit 或 push 时用 `ce-commit-push-pr`。改了 PR body 要显式告知用户：修改只有 apply agent 应用后才会真正更新到 PR。改完重读一遍；改的是代码内文字就跑 `git diff --check`，只有测试名或 anchor 变动才补对应校验。
