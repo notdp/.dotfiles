@@ -87,28 +87,8 @@ Edit the file under `~/.dotfiles/config/...` (the home paths are symlinks pointi
 
 AdaL, Amp, Antigravity, Augment, Claude Code, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, iFlow CLI, Junie, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, Neovate, OpenClaw, OpenCode, OpenHands, Pi, Pochi, Qoder, Qwen Code, Roo Code, Trae, Windsurf, Zencoder
 
-## Skills
+## Skills published here
 
 | Skill | Description |
 |-------|-------------|
-| **[duoduo](./DUODUO.md)** | Cross-review PRs with Opus + Codex |
-| **chrome-devtools-mcp-fix** | Fix chrome-devtools MCP connection issues |
-| **chrome-devtools-mock** | Mock frontend API data via Chrome DevTools |
-| **droid-bin-mod** | Modify droid binary to disable output truncation |
-| **find-skills** | Discover and install agent skills |
-| **frontend-design** | Create production-grade frontend interfaces |
-| **react** | React component development guide |
-| **react-best-practices** | React/Next.js performance optimization from Vercel |
-| **react-doctor** | Diagnose and fix React codebase health issues |
-| **shadcn-ui** | shadcn/ui component library guide |
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `clip` | Copy content to clipboard |
-| `ec` | Edit configuration |
-| `eh` | Edit history |
-| `install-react-grab` | Install react-grab component |
-| `learn` | Learn from codebase patterns |
-| `simplify` | Simplify complex code |
+| **polish** | Strip AI-speak out of PRs, commits, docs, and messages |
