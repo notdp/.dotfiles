@@ -17,14 +17,15 @@ HISTORY = pathlib.Path.home() / ".claude" / "tokamak-history.jsonl"
 
 
 def accumulate(events):
-    """events: iterable of (monotonic_time, parsed_json). 返回 (first, last, model_id, result)."""
-    first = last = None
+    """events: iterable of (monotonic_time, parsed_json). 返回 (first, last, t_init, model_id, result)."""
+    first = last = t_init = None
     model_id = None
     result = None
     for now, ev in events:
         et = ev.get("type")
         if et == "system" and ev.get("subtype") == "init":
             model_id = ev.get("model")
+            t_init = now
         elif et == "stream_event":
             if ev.get("event", {}).get("type") == "content_block_delta":
                 if first is None:
@@ -32,7 +33,7 @@ def accumulate(events):
                 last = now
         elif et == "result":
             result = ev
-    return first, last, model_id, result
+    return first, last, t_init, model_id, result
 
 
 def run_once(model, count):
@@ -59,7 +60,7 @@ def run_once(model, count):
             except json.JSONDecodeError:
                 continue
 
-    first, last, model_id, result = accumulate(events())
+    first, last, t_init, model_id, result = accumulate(events())
     proc.wait()
     if proc.returncode != 0 or result is None or result.get("is_error"):
         err = proc.stderr.read().strip()
@@ -67,10 +68,12 @@ def run_once(model, count):
 
     tokens = (result.get("usage") or {}).get("output_tokens", 0)
     stream_s = last - first if first is not None and last > first else None
+    # TTFT 从 init 事件起算, 排除 CLI 启动耗时, 接近纯 API 首字延迟
+    ttft_base = t_init if t_init is not None else t0
     return {
         "model": model_id,
         "output_tokens": tokens,
-        "ttft_s": round(first - t0, 2) if first is not None else None,
+        "ttft_s": round(first - ttft_base, 2) if first is not None else None,
         "stream_s": round(stream_s, 2) if stream_s else None,
         "tok_per_s": round(tokens / stream_s, 1) if stream_s and tokens else None,
     }
@@ -88,8 +91,10 @@ def load_history():
     return out
 
 
-def fmt_delta(new, old):
+def fmt_delta(new, old, invert=False):
     d = (new - old) / old * 100
+    if invert:
+        d = -d
     if abs(d) < 1:
         return "基本持平"
     return f"{'快了' if d > 0 else '慢了'} {abs(d):.0f}%"
@@ -100,15 +105,19 @@ def compare(record, history):
     if not prior:
         print("(该模型无历史记录, 本次已存档, 下次可对比)")
         return
+
+    def vs(tag, old):
+        parts = [f"速度 {fmt_delta(record['median_tok_s'], old['median_tok_s'])}"]
+        if record.get("median_ttft_s") and old.get("median_ttft_s"):
+            parts.append(f"TTFT {fmt_delta(record['median_ttft_s'], old['median_ttft_s'], invert=True)}")
+        print(f"vs {tag}   ({old['time']}, {old['median_tok_s']} tok/s): " + ", ".join(parts))
+
     last = prior[-1]
-    print(f"vs 上一次   ({last['time']}, {last['median_tok_s']} tok/s): "
-          f"{fmt_delta(record['median_tok_s'], last['median_tok_s'])}")
+    vs("上一次", last)
     today = record["time"][:10]
     earlier = [h for h in prior if h["time"][:10] < today]
     if earlier and earlier[-1] is not last:
-        p = earlier[-1]
-        print(f"vs 前一天   ({p['time']}, {p['median_tok_s']} tok/s): "
-              f"{fmt_delta(record['median_tok_s'], p['median_tok_s'])}")
+        vs("前一天", earlier[-1])
 
 
 def show_history():
@@ -123,19 +132,22 @@ def show_history():
 
 def self_test():
     lines = [
-        (0.0, {"type": "system", "subtype": "init", "model": "claude-test-1"}),
+        (0.5, {"type": "system", "subtype": "init", "model": "claude-test-1"}),
         (2.0, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
         (2.5, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
         (12.0, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
         (12.1, {"type": "result", "usage": {"output_tokens": 500}}),
     ]
-    first, last, model_id, result = accumulate(lines)
-    assert (first, last, model_id) == (2.0, 12.0, "claude-test-1"), (first, last, model_id)
+    first, last, t_init, model_id, result = accumulate(lines)
+    assert (first, last, t_init, model_id) == (2.0, 12.0, 0.5, "claude-test-1")
     assert result["usage"]["output_tokens"] == 500
     assert round(500 / (last - first), 1) == 50.0
+    assert round(first - t_init, 2) == 1.5
     assert fmt_delta(110, 100) == "快了 10%"
     assert fmt_delta(90, 100) == "慢了 10%"
     assert fmt_delta(100.5, 100) == "基本持平"
+    assert fmt_delta(2.0, 1.0, invert=True) == "慢了 100%"
+    assert fmt_delta(1.0, 2.0, invert=True) == "快了 50%"
     print("self-test ok")
 
 
@@ -177,7 +189,7 @@ def main():
     }
     print(f"\nmodel: {record['model']}")
     print(f"median: {record['median_tok_s']} tok/s over {record['runs']} runs")
-    print(f"median TTFT: {record['median_ttft_s']}s (含 CLI 启动)")
+    print(f"median TTFT: {record['median_ttft_s']}s (init→首字, 不含 CLI 启动)")
     print()
     compare(record, load_history())
     HISTORY.parent.mkdir(parents=True, exist_ok=True)
