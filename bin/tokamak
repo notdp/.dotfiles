@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""tokamak — 测 Claude Code (claude CLI) 的 token 输出速度。
+
+原理: headless `claude -p` 让模型数数(强制长输出), 用 stream-json 记录每个
+content_block_delta 的到达时间。tok/s = output_tokens / (首个delta → 末个delta),
+不含首字延迟; TTFT 单独报告(含 CLI 启动)。
+"""
+import argparse
+import json
+import pathlib
+import statistics
+import subprocess
+import sys
+import time
+
+HISTORY = pathlib.Path.home() / ".claude" / "tokamak-history.jsonl"
+
+
+def accumulate(events):
+    """events: iterable of (monotonic_time, parsed_json). 返回 (first, last, t_init, model_id, result)."""
+    first = last = t_init = None
+    model_id = None
+    result = None
+    for now, ev in events:
+        et = ev.get("type")
+        if et == "system" and ev.get("subtype") == "init":
+            model_id = ev.get("model")
+            t_init = now
+        elif et == "stream_event":
+            if ev.get("event", {}).get("type") == "content_block_delta":
+                if first is None:
+                    first = now
+                last = now
+        elif et == "result":
+            result = ev
+    return first, last, t_init, model_id, result
+
+
+def run_once(model, count):
+    prompt = f"Count from 1 to {count}, one number per line, no other text."
+    cmd = [
+        "claude", "-p", prompt,
+        "--output-format", "stream-json",
+        "--include-partial-messages", "--verbose",
+        # 跳过 MCP server 启动, 只影响启动耗时不影响测速
+        "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+    ]
+    if model:
+        cmd += ["--model", model]
+    t0 = time.monotonic()
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    def events():
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield time.monotonic(), json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+    first, last, t_init, model_id, result = accumulate(events())
+    proc.wait()
+    if proc.returncode != 0 or result is None or result.get("is_error"):
+        err = proc.stderr.read().strip()
+        sys.exit(f"claude 运行失败 (exit {proc.returncode}): {err or result}")
+
+    tokens = (result.get("usage") or {}).get("output_tokens", 0)
+    stream_s = last - first if first is not None and last > first else None
+    # TTFT 从 init 事件起算, 排除 CLI 启动耗时, 接近纯 API 首字延迟
+    ttft_base = t_init if t_init is not None else t0
+    return {
+        "model": model_id,
+        "output_tokens": tokens,
+        "ttft_s": round(first - ttft_base, 2) if first is not None else None,
+        "stream_s": round(stream_s, 2) if stream_s else None,
+        "tok_per_s": round(tokens / stream_s, 1) if stream_s and tokens else None,
+    }
+
+
+def load_history():
+    if not HISTORY.exists():
+        return []
+    out = []
+    for line in HISTORY.read_text().splitlines():
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def fmt_delta(new, old, invert=False):
+    d = (new - old) / old * 100
+    if invert:
+        d = -d
+    if abs(d) < 1:
+        return "基本持平"
+    return f"{'快了' if d > 0 else '慢了'} {abs(d):.0f}%"
+
+
+def compare(record, history):
+    prior = [h for h in history if h.get("model") == record["model"]]
+    if not prior:
+        print("(该模型无历史记录, 本次已存档, 下次可对比)")
+        return
+
+    def vs(tag, old):
+        parts = [f"速度 {fmt_delta(record['median_tok_s'], old['median_tok_s'])}"]
+        if record.get("median_ttft_s") and old.get("median_ttft_s"):
+            parts.append(f"TTFT {fmt_delta(record['median_ttft_s'], old['median_ttft_s'], invert=True)}")
+        print(f"vs {tag}   ({old['time']}, {old['median_tok_s']} tok/s): " + ", ".join(parts))
+
+    last = prior[-1]
+    vs("上一次", last)
+    today = record["time"][:10]
+    earlier = [h for h in prior if h["time"][:10] < today]
+    if earlier and earlier[-1] is not last:
+        vs("前一天", earlier[-1])
+
+
+def show_history():
+    hist = load_history()
+    if not hist:
+        print("暂无历史记录")
+        return
+    for h in hist[-15:]:
+        print(f"{h['time']}  {h['model']}  {h['median_tok_s']} tok/s  "
+              f"TTFT {h.get('median_ttft_s', '?')}s  ({h.get('runs', '?')} runs)")
+
+
+def self_test():
+    lines = [
+        (0.5, {"type": "system", "subtype": "init", "model": "claude-test-1"}),
+        (2.0, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
+        (2.5, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
+        (12.0, {"type": "stream_event", "event": {"type": "content_block_delta"}}),
+        (12.1, {"type": "result", "usage": {"output_tokens": 500}}),
+    ]
+    first, last, t_init, model_id, result = accumulate(lines)
+    assert (first, last, t_init, model_id) == (2.0, 12.0, 0.5, "claude-test-1")
+    assert result["usage"]["output_tokens"] == 500
+    assert round(500 / (last - first), 1) == 50.0
+    assert round(first - t_init, 2) == 1.5
+    assert fmt_delta(110, 100) == "快了 10%"
+    assert fmt_delta(90, 100) == "慢了 10%"
+    assert fmt_delta(100.5, 100) == "基本持平"
+    assert fmt_delta(2.0, 1.0, invert=True) == "慢了 100%"
+    assert fmt_delta(1.0, 2.0, invert=True) == "快了 50%"
+    print("self-test ok")
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="tokamak", description="测 claude CLI 的 token 输出速度")
+    ap.add_argument("--model", default="opus", help="模型别名或完整 id, 默认 opus")
+    ap.add_argument("--runs", type=int, default=3, help="轮数, 默认 3")
+    ap.add_argument("--count", type=int, default=400, help="数数上限, 控制输出长度, 默认 400")
+    ap.add_argument("--fable", action="store_true", help="确认要消耗 fable 配额测速")
+    ap.add_argument("--history", action="store_true", help="只看历史记录, 不测速")
+    ap.add_argument("--self-test", action="store_true", help="离线自检, 不调 API")
+    args = ap.parse_args()
+    if args.self_test:
+        self_test()
+        return
+    if args.history:
+        show_history()
+        return
+    if "fable" in args.model.lower() and not args.fable:
+        sys.exit("fable 配额珍贵, 默认拒测。确定要烧 fable 请加 --fable")
+
+    results = []
+    for i in range(args.runs):
+        r = run_once(args.model, args.count)
+        results.append(r)
+        print(f"run {i + 1}: {r['output_tokens']} tokens / {r['stream_s']}s "
+              f"= {r['tok_per_s']} tok/s  (TTFT {r['ttft_s']}s)", flush=True)
+
+    speeds = [r["tok_per_s"] for r in results if r["tok_per_s"]]
+    if not speeds:
+        sys.exit("没有拿到有效速度数据")
+    record = {
+        "time": time.strftime("%Y-%m-%d %H:%M"),
+        "model": results[0]["model"],
+        "runs": len(speeds),
+        "median_tok_s": statistics.median(speeds),
+        "median_ttft_s": statistics.median(r["ttft_s"] for r in results if r["ttft_s"]),
+        "speeds": speeds,
+    }
+    print(f"\nmodel: {record['model']}")
+    print(f"median: {record['median_tok_s']} tok/s over {record['runs']} runs")
+    print(f"median TTFT: {record['median_ttft_s']}s (init→首字, 不含 CLI 启动)")
+    print()
+    compare(record, load_history())
+    HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    with HISTORY.open("a") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+if __name__ == "__main__":
+    main()
