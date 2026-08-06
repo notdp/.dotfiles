@@ -15,18 +15,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-commit/SKILL.md",
-      "skillFolderHash": "069a7b88f226e7e612acad9b0a0291779903a304",
+      "skillFolderHash": "ecba1ffa30623f9aafc46a3647fcd80439c1554b",
       "installedAt": "2026-07-14T15:32:16.901Z",
-      "updatedAt": "2026-07-14T15:32:16.901Z"
+      "updatedAt": "2026-08-06T01:03:45.735Z"
     },
     "ce-commit-push-pr": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-commit-push-pr/SKILL.md",
-      "skillFolderHash": "923624c198b68063d1bc518b96474910e75c6167",
+      "skillFolderHash": "abffd7cf858b17120e50575db7cd245b5b601a18",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-05T01:04:02.807Z"
+      "updatedAt": "2026-08-06T01:03:56.117Z"
     },
     "ce-plan": {
       "source": "everyinc/compound-engineering-plugin",
@@ -105,9 +105,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/lobehub/lobe-chat.git",
       "skillPath": ".agents/skills/react/SKILL.md",
-      "skillFolderHash": "8de1dd0a4ad365fd7f0954edb9c510c6070dd7c2",
+      "skillFolderHash": "e58b2a103e0695a37ef05de7edd25ed34a1ddcf8",
       "installedAt": "2026-07-14T15:34:52.165Z",
-      "updatedAt": "2026-07-14T15:34:52.165Z"
+      "updatedAt": "2026-08-06T01:04:42.675Z"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
@@ -169,18 +169,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "baf56b7bb76c73946eac2afdcf80c1df632762ed",
+      "skillFolderHash": "52effb05474f61aa4ddcc5b75c8c89699038b01b",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-05T01:04:34.639Z"
+      "updatedAt": "2026-08-06T01:04:54.887Z"
     },
     "lark-calendar": {
       "source": "larksuite/cli",
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-calendar/SKILL.md",
-      "skillFolderHash": "2b6bad0f05887913e77f30e161bf562edaaaa955",
+      "skillFolderHash": "14e64225c67b6ea0756145f90508aa30bdb6f9ef",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-07-31T01:04:06.829Z"
+      "updatedAt": "2026-08-06T01:05:06.092Z"
     },
     "lark-contact": {
       "source": "larksuite/cli",
@@ -196,27 +196,27 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-doc/SKILL.md",
-      "skillFolderHash": "98561c884fd99ff42c99c135eccdbfe49ff47d23",
+      "skillFolderHash": "ac4883697b2f32d8a4468a796e1084eab257d7bc",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-04T01:03:24.734Z"
+      "updatedAt": "2026-08-06T01:05:18.004Z"
     },
     "lark-drive": {
       "source": "larksuite/cli",
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-drive/SKILL.md",
-      "skillFolderHash": "e7d6845a5f471b915c890b472eb4dbca1f0dada9",
+      "skillFolderHash": "f9494556372cba709dd22e877e3f9600014cb6dc",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-08-03T05:27:45.557Z"
+      "updatedAt": "2026-08-06T01:05:29.675Z"
     },
     "lark-event": {
       "source": "larksuite/cli",
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-event/SKILL.md",
-      "skillFolderHash": "d6ff96f0a3af64aa9c185bf744515af2268bbb62",
+      "skillFolderHash": "095e9b13951088f8ad733a6368f4d195bf325315",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-07-24T02:18:47.188Z"
+      "updatedAt": "2026-08-06T01:05:41.179Z"
     },
     "lark-im": {
       "source": "larksuite/cli",
@@ -259,9 +259,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-shared/SKILL.md",
-      "skillFolderHash": "09e283ca1ce79c09966efba808a2c6cbfb28f34b",
+      "skillFolderHash": "3f6b181ecc8a343d2c965df95fdb543157ac43e4",
       "installedAt": "2026-07-14T15:48:26.434Z",
-      "updatedAt": "2026-07-14T15:48:26.434Z"
+      "updatedAt": "2026-08-06T01:05:52.207Z"
     },
     "lark-sheets": {
       "source": "larksuite/cli",
@@ -295,9 +295,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-wiki/SKILL.md",
-      "skillFolderHash": "d84f263769a28788d70bb617144cc25cf17d5bcd",
+      "skillFolderHash": "10c5e1efe93ffdba47b54807902e95e379e7530c",
       "installedAt": "2026-07-14T15:48:26.435Z",
-      "updatedAt": "2026-07-24T02:19:32.739Z"
+      "updatedAt": "2026-08-06T01:06:03.555Z"
     },
     "lark-workflow-standup-report": {
       "source": "larksuite/cli",
@@ -313,18 +313,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/notdp/.dotfiles.git",
       "skillPath": "skills/polish/SKILL.md",
-      "skillFolderHash": "dcdf8ec0de0f17bed8e01164a1445dac0eca3fa2",
+      "skillFolderHash": "c185c4d81caf247728cb46c88c4d3c4cb4ddc47f",
       "installedAt": "2026-07-23T14:05:57.773Z",
-      "updatedAt": "2026-07-24T04:53:35.000Z"
+      "updatedAt": "2026-08-06T01:06:09.206Z"
     },
     "ce-babysit-pr": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-babysit-pr/SKILL.md",
-      "skillFolderHash": "80b4f78082a68dd2f5b769499c731ab740120d4a",
+      "skillFolderHash": "81b4c75b01074e6c51500fe1e3ff68d76e14920b",
       "installedAt": "2026-08-03T07:47:10.935Z",
-      "updatedAt": "2026-08-05T01:04:22.652Z"
+      "updatedAt": "2026-08-06T01:04:06.050Z"
     }
   },
   "lastSelectedAgents": [
