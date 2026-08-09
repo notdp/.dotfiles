@@ -1,9 +1,9 @@
 ---
 name: ccd-shortcuts
-description: 每天输出 Claude Code Desktop 快捷键全量表，并在表内标记出相对昨天的新增 / 改键
+description: 每周一 10:17 输出 Claude Code Desktop 快捷键全量表，并标记相对上次的新增 / 改键
 ---
 
-每天输出 Claude Code Desktop（`/Applications/Claude.app`）的**快捷键全量表**，翻译成中文，并在表内标记出相对上次的变化。
+每周输出 Claude Code Desktop（`/Applications/Claude.app`）的**快捷键全量表**，翻译成中文，并在表内标记出相对上次的变化。
 
 ## 步骤
 
