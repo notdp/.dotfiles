@@ -1,15 +1,6 @@
 {
   "version": 3,
   "skills": {
-    "agent-browser": {
-      "source": "vercel-labs/agent-browser",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/vercel-labs/agent-browser.git",
-      "skillPath": "skills/agent-browser/SKILL.md",
-      "skillFolderHash": "037e8078db4b20b4aa25c04f21c6de7d335ec449",
-      "installedAt": "2026-07-14T15:32:01.842Z",
-      "updatedAt": "2026-07-24T01:48:32.824Z"
-    },
     "ce-commit": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
