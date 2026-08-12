@@ -17,25 +17,29 @@ CCD 的 session 面板索引和 routine 注册表都按账号隔离，存在
 
 ## 步骤
 
-当前账号：
+当前账号。`~/.claude.json` 的 oauthAccount 是 CLI 状态，CCD 切号后可能还停在旧账号（实测踩过，差点把方向搞反），只能当邮箱↔uuid 的参考映射。当前账号以桌面版自己的存储为准：
 
 ```bash
-python3 -c "import json;print(json.load(open('$HOME/.claude.json'))['oauthAccount'])"
+strings -a "$HOME/Library/Application Support/Claude/Local Storage/leveldb/"* 2>/dev/null | grep -oE '"account_uuid":"[a-f0-9-]{36}","organization_uuid":"[a-f0-9-]{36}"' | sort | uniq -c | sort -rn
 ```
 
-找旧账号目录，按 session 数和最后修改时间挑最近在用的那个（一个 accountUuid 下可能有多个 orgUuid，只有一个是真在用的）：
+列出所有账号目录，按 session 数和最后修改时间判断（一个 accountUuid 下可能有多个 orgUuid，只有一个是真在用的）：
 
 ```bash
 cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && for d in */*/; do echo "$(ls "$d" | grep -c '^local_')	$(ls -lt "$d" | sed -n 2p | awk '{print $6,$7,$8}')	$d"; done
 ```
 
+切号后 CCD 一启动就写新账号目录，所以 mtime 最新的通常是当前账号（DST），次新且 session 多的才是要恢复的旧账号（SRC）。两步结果要互相印证；邮箱和 uuid 对不上号就直接问用户当前登录的邮箱，别猜。
+
 复制索引（`SRC`/`DST` 换成上面查到的 `<accountUuid>/<orgUuid>`）。`deleted_*` 是删除标记，一起带上，否则删掉的会话会复活：
 
 ```bash
-cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && cp -n "$SRC"/local_*.json "$SRC"/deleted_* "$DST"/
+cd "$HOME/Library/Application Support/Claude/claude-code-sessions/"
+cp -n "$SRC"/local_*.json "$DST"/
+cp -n "$SRC"/deleted_* "$DST"/
 ```
 
-`cp -n` 不覆盖已有文件。旧账号有好几个的话，从最近的开始按顺序跑，先复制的版本优先。
+`cp -n` 不覆盖已有文件。两个坑：macOS 的 `cp -n` 跳过已存在文件时退出码非零，放 `&&` 链里会把后面的命令全吞掉，一条条跑；zsh 下 glob 没匹配会让整条 cp 失败，所以两类文件分开复制。旧账号有好几个的话，从最近的开始按顺序跑，先复制的版本优先。
 
 routine 注册表直接覆盖，不用合并：
 
@@ -43,7 +47,7 @@ routine 注册表直接覆盖，不用合并：
 cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && cp "$SRC/scheduled-tasks.json" "$DST/scheduled-tasks.json"
 ```
 
-任务每天都在跑，旧目录里的那份就是最新的；新账号目录基本是空数组，没有值得保的东西。
+一律以旧账号的为准。新账号目录里的注册表不一定是空数组——可能已有同一批任务，时间戳更新、配置还会漂移（实测 cron 被改过），这些都不值得保，直接覆盖。覆盖前 diff 一眼确认任务列表没有新账号独有的任务即可。
 
 最后重启 CCD 才会读到新索引。
 
