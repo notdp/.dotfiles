@@ -15,18 +15,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-commit-push-pr/SKILL.md",
-      "skillFolderHash": "14a6fd78070627a87729161540d47818493d5d36",
+      "skillFolderHash": "234ecce768ef979abe3e9efb3bcc8e1e5a3051fd",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-13T01:03:01.615Z"
+      "updatedAt": "2026-08-14T01:03:40.360Z"
     },
     "ce-plan": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "3940737f2ae51849cd21db6c1ee82f3f1615474b",
+      "skillFolderHash": "0d83c9614f53793ccee85d95ab4255609bdbe6f6",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-13T01:03:06.128Z"
+      "updatedAt": "2026-08-14T01:03:45.198Z"
     },
     "check": {
       "source": "tw93/Waza",
@@ -151,9 +151,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "ef624f26fe004a12d3c693345fd91068fc5bd63d",
+      "skillFolderHash": "8cc6c78c32b505ea345fb164e2a99a9e4f00ab69",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-12T05:06:26.148Z"
+      "updatedAt": "2026-08-14T01:04:03.189Z"
     },
     "lark-contact": {
       "source": "larksuite/cli",
@@ -169,9 +169,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-doc/SKILL.md",
-      "skillFolderHash": "2214189831946a4adb97d008b158e72d44d8de0f",
+      "skillFolderHash": "70c07bf3f9131197d1662093a84fb6dcc66a9db2",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-12T01:03:59.845Z"
+      "updatedAt": "2026-08-14T01:04:10.449Z"
     },
     "lark-event": {
       "source": "larksuite/cli",
@@ -241,9 +241,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-wiki/SKILL.md",
-      "skillFolderHash": "9ab3af9ccfe106444f906d598dc3c7a3c814ba18",
+      "skillFolderHash": "f414d0100e7afa397a1084a3a31f299b1ae5b7a3",
       "installedAt": "2026-07-14T15:48:26.435Z",
-      "updatedAt": "2026-08-13T01:03:21.559Z"
+      "updatedAt": "2026-08-14T01:04:17.142Z"
     },
     "polish": {
       "source": "notdp/.dotfiles",
@@ -259,9 +259,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-babysit-pr/SKILL.md",
-      "skillFolderHash": "5fe1f319149f4621cc675e19a192f51807017af3",
+      "skillFolderHash": "11756cedc6bde334508f01d8ee0148081e7658d2",
       "installedAt": "2026-08-03T07:47:10.935Z",
-      "updatedAt": "2026-08-11T01:03:20.699Z"
+      "updatedAt": "2026-08-14T01:03:52.623Z"
     },
     "ccd-account-switch": {
       "source": "notdp/.dotfiles",
