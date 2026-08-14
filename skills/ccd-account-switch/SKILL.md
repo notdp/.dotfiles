@@ -47,7 +47,7 @@ routine 注册表直接覆盖，不用合并：
 cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && cp "$SRC/scheduled-tasks.json" "$DST/scheduled-tasks.json"
 ```
 
-一律以旧账号的为准。新账号目录里的注册表不一定是空数组——可能已有同一批任务，时间戳更新、配置还会漂移（实测 cron 被改过），这些都不值得保，直接覆盖。覆盖前 diff 一眼确认任务列表没有新账号独有的任务即可。
+一律以旧账号的为准。新账号目录里的注册表不一定是空的（任务列表在 `scheduledTasks` 键下）——可能已有同一批任务，时间戳更新、配置还会漂移（实测 cron 被改过），这些都不值得保，直接覆盖。覆盖前 diff 一眼确认任务列表没有新账号独有的任务即可。
 
 最后重启 CCD 才会读到新索引。
 
