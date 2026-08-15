@@ -1,6 +1,6 @@
 ---
 name: ccd-account-switch
-description: 切换 Claude 账号后恢复 Claude Code 桌面版的 session 列表和 scheduled task（routine）。当用户说切了账号、session 不见了、会话列表空了、历史会话没了、routine 消失、定时任务不跑了时使用。
+description: 切换 Claude 账号后恢复 Claude Code 桌面版的 session 列表和 scheduled task（routine）。当用户说切了账号、session 不见了、会话列表空了、历史会话没了、会话内容停在过去、轮数变少、routine 消失、定时任务不跑了时使用。
 ---
 
 # 切账号后恢复 session 和 routine
@@ -31,15 +31,25 @@ cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && for d in 
 
 切号后 CCD 一启动就写新账号目录，所以 mtime 最新的通常是当前账号（DST），次新且 session 多的才是要恢复的旧账号（SRC）。两步结果要互相印证；邮箱和 uuid 对不上号就直接问用户当前登录的邮箱，别猜。
 
+先备份 DST，这步不可逆：
+
+```bash
+cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && rm -rf ../claude-code-sessions-backup && cp -R "$DST" ../claude-code-sessions-backup
+```
+
 复制索引（`SRC`/`DST` 换成上面查到的 `<accountUuid>/<orgUuid>`）。`deleted_*` 是删除标记，一起带上，否则删掉的会话会复活：
 
 ```bash
 cd "$HOME/Library/Application Support/Claude/claude-code-sessions/"
-cp -n "$SRC"/local_*.json "$DST"/
-cp -n "$SRC"/deleted_* "$DST"/
+cp -f "$SRC"/local_*.json "$DST"/
+cp -f "$SRC"/deleted_* "$DST"/
 ```
 
-`cp -n` 不覆盖已有文件。两个坑：macOS 的 `cp -n` 跳过已存在文件时退出码非零，放 `&&` 链里会把后面的命令全吞掉，一条条跑；zsh 下 glob 没匹配会让整条 cp 失败，所以两类文件分开复制。旧账号有好几个的话，从最近的开始按顺序跑，先复制的版本优先。
+**必须 `-f` 全量覆盖，绝对不要 `cp -n`。** DST 不一定是空目录——之前在这个账号下用过、或者以前恢复过，里面就有同名 `local_*.json`，而且往往是旧快照。`cp -n` 跳过已存在文件 = 保留旧的丢掉新的，索引里的 `cliSessionId` 指向 `~/.claude/projects/<项目>/<cliSessionId>.jsonl`，旧索引指着旧 transcript，**会话打开后内容停在过去、轮数变少**（实测一个 116 轮的会话显示成 19 轮）。这种错混在几百个文件里，只有逐个开会话才看得出来，极难发现。
+
+`cp -f` 只覆盖 SRC 里有的文件，DST 独有的会原样保留——当前正在跑的会话就在这里面，所以别图省事 `rm -rf "$DST"` 再整个拷。
+
+zsh 下 glob 没匹配会让整条 cp 失败，所以两类文件分开复制。旧账号有好几个的话，**从最旧的开始按顺序跑**，最新的最后写才能赢（这跟 `cp -n` 时代的顺序正好相反，别照抄老习惯）。
 
 routine 注册表直接覆盖，不用合并：
 
@@ -49,7 +59,26 @@ cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && cp "$SRC/
 
 一律以旧账号的为准。新账号目录里的注册表不一定是空的（任务列表在 `scheduledTasks` 键下）——可能已有同一批任务，时间戳更新、配置还会漂移（实测 cron 被改过），这些都不值得保，直接覆盖。覆盖前 diff 一眼确认任务列表没有新账号独有的任务即可。
 
-最后重启 CCD 才会读到新索引。
+覆盖完对一遍。SRC 该逐字节一致；回退项是全量覆盖的代价——这些会话确实在 DST 账号下用过、比 SRC 新，被盖回了旧状态（transcript 没丢，只是索引指回旧的那条）。列出来让用户定要不要从备份单独捞：
+
+```bash
+cd "$HOME/Library/Application Support/Claude/claude-code-sessions/" && python3 - "$SRC" "$DST" ../claude-code-sessions-backup <<'PY'
+import json,glob,os,sys,datetime
+SRC,DST,BK=sys.argv[1:4]
+t=lambda ms: datetime.datetime.fromtimestamp(ms/1000).strftime('%m-%d %H:%M') if ms else '?'
+bad=[b for b in map(os.path.basename,glob.glob(SRC+"/local_*.json"))
+     if open(SRC+"/"+b,'rb').read()!=open(DST+"/"+b,'rb').read()]
+print(f"SRC 未生效: {len(bad)}  (应为 0)")
+for b in map(os.path.basename,glob.glob(DST+"/local_*.json")):
+    if not os.path.exists(BK+"/"+b): continue
+    D=json.load(open(DST+"/"+b)); B=json.load(open(BK+"/"+b))
+    if D.get('lastActivityAt',0) < B.get('lastActivityAt',0):
+        print(f"回退 {t(B['lastActivityAt'])}->{t(D.get('lastActivityAt'))} "
+              f"turns {B.get('completedTurns')}->{D.get('completedTurns')}  {B.get('title','')}")
+PY
+```
+
+最后重启 CCD 才会读到新索引。重启后随手开一个轮数多的会话，确认内容是最新的而不是停在过去。
 
 ## 之后
 
