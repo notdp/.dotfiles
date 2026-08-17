@@ -62,14 +62,14 @@ def pane_table(src):
 # Entries without a `shortcut` must NOT swallow the next entry's bindings, so the
 # skipped span may not cross another `description:` — each entry has exactly one.
 REG_RE = re.compile(
-    r'(\w+):\{description:(\w+)\.description,(?:(?!description:)[\s\S]){0,400}?'
+    r'(\w+):\{description:([\w$]+)\.description,(?:(?!description:)[\s\S]){0,400}?'
     r'shortcut:\{bindings:\[(.*?)\]\}'
 )
 BIND_RE = re.compile(
     r'key:"([^"]+)"(?:,code:"[^"]*")?,modifiers:\[([^\]]*)\](?:,platform:"([^"]*)")?'
 )
 # Labels live in separate minified consts: vS=$a({description:{defaultMessage:"..."
-DESC_RE = re.compile(r'(\w+)=\$?\w*\(\{description:\{defaultMessage:"([^"]*)"')
+DESC_RE = re.compile(r'([\w$]+)=\$?\w*\(\{description:\{defaultMessage:"([^"]*)"')
 
 
 def registry(src):
@@ -92,16 +92,21 @@ def registry(src):
 # --- 3. Cmd+/ modal -----------------------------------------------------------
 
 ROW_RE = re.compile(
-    r'(?:shortcut:(\[[^\]]*\]|"[^"]*"|[A-Za-z_$][^,]{0,70}?)|shortcutId:"(\w+)")'
+    # The array form is scanned string-by-string: a key can itself contain `]`
+    # (`["cmd+shift+]","ctrl+tab"]`), so a naive [^\]]* truncates it.
+    r'(?:shortcut:(\[(?:"[^"]*",?)*\]|"[^"]*"|[A-Za-z_$][^,]{0,70}?)|shortcutId:"(\w+)")'
     r',children:[\s\S]{0,120}?defaultMessage:"([^"]*)"'
 )
 
 
 def modal_rows(src):
-    anchor = src.find('defaultMessage:"Keyboard shortcuts"')
-    if anchor < 0:
+    # Anchor on the modal's own row, not on the label "Keyboard shortcuts" — that
+    # string also appears as a help-menu item in a different (larger) chunk, and
+    # chunks are scanned largest-first.
+    anchors = [m.start() for m in re.finditer(r'shortcutId:"shortcuts_modal"', src)]
+    if not anchors:
         return []
-    seg = src[max(0, anchor - 20000): anchor + 20000]
+    seg = src[max(0, anchors[0] - 20000): anchors[-1] + 20000]
     out = []
     for shortcut, sid, label in ROW_RE.findall(seg):
         label = label.encode().decode("unicode_escape")
@@ -253,7 +258,10 @@ def main():
         return 2
 
     new = collect()
-    missing = [k for k in ("pane", "registry", "modal") if not new[k]]
+    # A handful of rows means the regex latched onto the wrong chunk, which reads
+    # as "everything was removed" — treat it as missing so the WARN path kicks in.
+    MIN_ROWS = {"pane": 5, "registry": 10, "modal": 10}
+    missing = [k for k, n in MIN_ROWS.items() if len(new[k]) < n]
     if len(missing) == 3:
         print("ERROR: extracted nothing — bundle layout changed, extract.py needs "
               "updating. Do NOT report shortcuts as removed.", file=sys.stderr)
