@@ -105,9 +105,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/millionco/react-doctor.git",
       "skillPath": "skills/react-doctor/SKILL.md",
-      "skillFolderHash": "a46946b573d7f317f327f1443ea91c524c29c097",
+      "skillFolderHash": "549e7d8728550f1f3fc72572b8601c3b11e801ac",
       "installedAt": "2026-07-14T15:35:09.981Z",
-      "updatedAt": "2026-07-24T02:15:20.908Z"
+      "updatedAt": "2026-08-17T03:42:09.907Z"
     },
     "shadcn-ui": {
       "source": "giuseppe-trisciuoglio/developer-kit",
@@ -214,9 +214,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-shared/SKILL.md",
-      "skillFolderHash": "e7818ff487738e13d692e44dbb9eeb799ac7e706",
+      "skillFolderHash": "1ee7e9dce1377a7038ab798e1ac5813ed608f4e1",
       "installedAt": "2026-07-14T15:48:26.434Z",
-      "updatedAt": "2026-08-12T01:04:08.163Z"
+      "updatedAt": "2026-08-17T03:42:41.132Z"
     },
     "lark-sheets": {
       "source": "larksuite/cli",
