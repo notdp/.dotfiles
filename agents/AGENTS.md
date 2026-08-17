@@ -13,11 +13,6 @@
 - 需要提交并推送、开 PR、或写/改 PR 描述时，必须调用 `ce-commit-push-pr` skill，不要直接 `git push` + `gh pr create`。触发词：commit and PR / ship it / 上线 / 开 PR / create a PR / 写 PR / 改 PR body。
 - 这两个 skill 是 commit / PR 的唯一入口；除非我明确说"别用 skill / 直接 commit"，否则不要绕过。
 
-## UI/Layout Changes
-
-- 涉及布局调整、元素移动、结构变更时，先生成独立 HTML 文件展示 before 和多个 after 方案（3-5 个），让用户选定后再动手
-- 纯样式微调（颜色、间距、字号）不需要
-
 ## Truth Directive
 
 - Do not present guesses or speculation as fact.
