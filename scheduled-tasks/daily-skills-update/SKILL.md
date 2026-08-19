@@ -25,7 +25,14 @@ description: 每天 09:00 用 npx skills update 更新本机 agent skills
   git -C ~/.dotfiles worktree remove --force "$W"
   ```
 
-  push 成功后，如果当前就在 main 上，补一句 `git -C ~/.dotfiles merge --ff-only origin/main` 让本地 main 跟上，工作区里 lock 的未提交 diff 会自动消失；ff 不动说明本地 main 与远端有分歧，别强推，写进汇总。不在 main 上就保持原样，当前分支会留着 lock 的未提交改动（等它 rebase/merge 到 main 就没了），汇总里写一句分支名。
+  push 成功后，如果当前就在 main 上，让本地 main 跟上远端：
+
+  ```
+  git -C ~/.dotfiles checkout origin/main -- skills/.skill-lock.json
+  git -C ~/.dotfiles merge --ff-only origin/main
+  ```
+
+  第一行不能省。此刻 lock 在工作区里相对 HEAD 仍是"已修改"，`merge` 只看这个脏标记、不管内容其实已经等于目标提交，直接 ff 会被拒；先把该路径对齐 origin/main（内容一致，落盘零变化）再 ff 才过得去。ff 不动说明本地 main 与远端有分歧，别强推，写进汇总。不在 main 上就保持原样，当前分支会留着 lock 的未提交改动（等它 rebase/merge 到 main 就没了），汇总里写一句分支名。
 
   push 失败（远端有分歧等）不要自己 rebase 或 force，如实写进汇总。
 - 单个 skill 更新失败先原地重试一次（`npx -y skills update -g -y <name>`），仍失败才算失败并在汇总里写明。
