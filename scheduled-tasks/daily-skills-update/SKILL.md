@@ -10,22 +10,22 @@ description: 每天 09:00 用 npx skills update 更新本机 agent skills
 
 约束：
 - 更新会改动 ~/.dotfiles 里的 lock 文件，这是预期行为。跑完必须提交，别把 diff 攒在仓库里。提交一律落在 main 上，只提交这一个文件，不要碰仓库里的其他改动。本任务直接 git commit，不走 ce-commit skill。
-  先看在哪个分支：`git -C ~/.dotfiles symbolic-ref --short HEAD`。
 
-  在 main 上，直接提交并 push：
-  `git -C ~/.dotfiles diff HEAD --quiet -- skills/.skill-lock.json || git -C ~/.dotfiles commit -m "chore(skills): bump lockfile from daily skills update" -- skills/.skill-lock.json`
-  `git -C ~/.dotfiles push`
+  不要 checkout 切分支（~/.dotfiles/skills/.skill-lock.json 就是 live 文件，切走会把它还原成旧版，跟 ~/.agents/skills/ 里已装的新 skill 对不上）。不管当前在哪个分支，都走同一条路：先 fetch，再用临时 worktree 基于**刚取回的 origin/main** 提交。绝不能基于本地 main —— 本地 main 可能落后远端，那样 push 必被拒，还会在本地攒下推不上去的滞留提交。
 
-  不在 main 上，不要 checkout 切分支（~/.dotfiles/skills/.skill-lock.json 就是 live 文件，切回来会把它还原成旧版，跟 ~/.agents/skills/ 里已装的新 skill 对不上）。改用临时 worktree 提到 main：
   ```
+  git -C ~/.dotfiles fetch -q origin main
   W=$(mktemp -d)/main
-  git -C ~/.dotfiles worktree add -q "$W" main
+  git -C ~/.dotfiles worktree add -q --detach "$W" origin/main
   cp ~/.dotfiles/skills/.skill-lock.json "$W/skills/.skill-lock.json"
-  git -C "$W" commit -m "chore(skills): bump lockfile from daily skills update" -- skills/.skill-lock.json
-  git -C "$W" push
+  git -C "$W" diff --quiet -- skills/.skill-lock.json || {
+    git -C "$W" commit -q -m "chore(skills): bump lockfile from daily skills update" -- skills/.skill-lock.json
+    git -C "$W" push origin HEAD:main
+  }
   git -C ~/.dotfiles worktree remove --force "$W"
   ```
-  走这条路时当前分支上会留着 lock 的未提交改动（等它 rebase/merge 到 main 就没了），汇总里写一句分支名。
+
+  push 成功后，如果当前就在 main 上，补一句 `git -C ~/.dotfiles merge --ff-only origin/main` 让本地 main 跟上，工作区里 lock 的未提交 diff 会自动消失；ff 不动说明本地 main 与远端有分歧，别强推，写进汇总。不在 main 上就保持原样，当前分支会留着 lock 的未提交改动（等它 rebase/merge 到 main 就没了），汇总里写一句分支名。
 
   push 失败（远端有分歧等）不要自己 rebase 或 force，如实写进汇总。
 - 单个 skill 更新失败先原地重试一次（`npx -y skills update -g -y <name>`），仍失败才算失败并在汇总里写明。
