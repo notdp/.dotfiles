@@ -24,9 +24,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "90a04258dc7a0c4572192962847e24036d3e2f6e",
+      "skillFolderHash": "6be5e821912c1379acff80024fdd53fff015e95e",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-19T01:03:55.316Z"
+      "updatedAt": "2026-08-20T01:03:31.153Z"
     },
     "check": {
       "source": "tw93/Waza",
@@ -250,18 +250,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-babysit-pr/SKILL.md",
-      "skillFolderHash": "9cb75cf41a0167686827d4b0bbf3e19363cb2c84",
+      "skillFolderHash": "542ab785996587766e4c26df3fb65f48dbd3d32f",
       "installedAt": "2026-08-03T07:47:10.935Z",
-      "updatedAt": "2026-08-19T01:04:00.995Z"
+      "updatedAt": "2026-08-20T01:03:35.456Z"
     },
     "ccd-account-switch": {
       "source": "notdp/.dotfiles",
       "sourceType": "github",
       "sourceUrl": "https://github.com/notdp/.dotfiles.git",
       "skillPath": "skills/ccd-account-switch/SKILL.md",
-      "skillFolderHash": "e1ea557de3d4bd95605ebfaef8d53eeecab40dfb",
+      "skillFolderHash": "d56665f9228b068df47db219d4cfdac3991c0ad5",
       "installedAt": "2026-08-09T03:08:47.892Z",
-      "updatedAt": "2026-08-18T01:07:28.490Z"
+      "updatedAt": "2026-08-20T01:03:39.936Z"
     },
     "lark-drive": {
       "source": "larksuite/cli",
