@@ -96,9 +96,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/lobehub/lobe-chat.git",
       "skillPath": ".agents/skills/react/SKILL.md",
-      "skillFolderHash": "879aedcdc855126c8d445668738c01f445a23341",
+      "skillFolderHash": "0e03f0f514a02bc87781ab8fb602a8f17d5aa8b7",
       "installedAt": "2026-07-14T15:34:52.165Z",
-      "updatedAt": "2026-08-15T01:04:16.974Z"
+      "updatedAt": "2026-08-20T13:21:14.038Z"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
@@ -142,9 +142,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "62cd8fb60cddb0d23b8b687556dd8ba7f62a68b4",
+      "skillFolderHash": "069bbc485cd4bde59aa99d9da8f60a373c6e97dd",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-19T01:04:09.107Z"
+      "updatedAt": "2026-08-20T13:21:34.331Z"
     },
     "lark-contact": {
       "source": "larksuite/cli",
