@@ -15,18 +15,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-commit-push-pr/SKILL.md",
-      "skillFolderHash": "486957b67ec5bfeb0481dc4c356ba3a5ab3fbc52",
+      "skillFolderHash": "c85b15a9ecf7a796fb0cd0a5cc05f42f8e787f73",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-19T01:03:47.528Z"
+      "updatedAt": "2026-08-21T01:03:23.375Z"
     },
     "ce-plan": {
       "source": "everyinc/compound-engineering-plugin",
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "6be5e821912c1379acff80024fdd53fff015e95e",
+      "skillFolderHash": "c319998c5d1abe798dba5a4569360707650a1219",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-20T01:03:31.153Z"
+      "updatedAt": "2026-08-21T01:03:33.693Z"
     },
     "check": {
       "source": "tw93/Waza",
@@ -142,9 +142,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "069bbc485cd4bde59aa99d9da8f60a373c6e97dd",
+      "skillFolderHash": "62c1bd7d5cb56dc0e1507997735ec5949b118685",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-20T13:21:34.331Z"
+      "updatedAt": "2026-08-21T01:03:56.154Z"
     },
     "lark-contact": {
       "source": "larksuite/cli",
@@ -250,9 +250,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-babysit-pr/SKILL.md",
-      "skillFolderHash": "542ab785996587766e4c26df3fb65f48dbd3d32f",
+      "skillFolderHash": "ffb91e85df5fc3c1a5f64f590d67743297898800",
       "installedAt": "2026-08-03T07:47:10.935Z",
-      "updatedAt": "2026-08-20T01:03:35.456Z"
+      "updatedAt": "2026-08-21T01:03:44.234Z"
     },
     "ccd-account-switch": {
       "source": "notdp/.dotfiles",
