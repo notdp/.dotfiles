@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
-"""传火：把上一棒账号的 session 索引传给当前账号。
+"""传火：把上一棒账号的 session 列表原样传给当前账号。
 
-默认只报数字不动文件，确认后加 --go 才真写。这个默认值是拿教训换的——
-从文档里抠命令出来跑很容易抠错块，默认安全就不会一跑就出事。
+传火不是合并两个目录，是整个火种传给下一位——传完 DST 就该跟 SRC 看到的一样。
 
-三条规则各挡一个坑，都是实测踩出来的：
+CCD 侧栏只认 local_<id>.json 在不在，完全不看 deleted_ 墓碑（实测：CCD 列出 302
+条，DST 的 local 文件 306 减 3 归档减 1 当前会话，精确吻合）。所以墓碑一个都不用
+搬，只拿来当"SRC 见过这个 id"的证据：
 
-  已删的不复活  传火链上 SRC 独有的会话几乎全是用户删的（实测 132 条独有，
-                132 条在 DST 都有 deleted_ 墓碑，零例外）。无脑全量 cp 会一次
-                复活上百条。
-  新的不盖旧的  local_*.json 里的 cliSessionId 指向 transcript，旧索引指着旧
-                transcript，会话打开后内容停在过去、轮数变少（实测一个 116 轮
-                的会话显示成 19 轮）。混在几百个文件里只有逐个开会话才看得出来。
-  在用的不误杀  SRC 的墓碑不能盖到 DST 还在用的同 id 会话上（实测 4 条中招）。
+  SRC 有 local、无墓碑   SRC 侧栏显示中     -> 拷给 DST
+  SRC 有墓碑             用户删过           -> DST 有的话也删掉
+  SRC 从没见过这个 id    DST 切号后新建的   -> 原样留着
 
-因为规则是"更新的赢"，多个旧目录任意顺序跑都行，重复跑也是幂等的。
-DST 是空目录时三条规则一条都不触发，结果跟全量 cp 逐字节一致。
+唯一的例外判断：切号后在 DST 里用过的会话，DST 版本更新，别拿 SRC 的旧版盖回去
+（旧索引指着旧 transcript，会话打开后轮数变少。实测 2026-08-21 有 1 条 146 轮的
+会被打回 145 轮）。
+
+旧版本比时间戳、判谁新谁旧、还把 SRC 的墓碑拷进 DST，是把传火写成了合并。后果是
+只加不减：用户在旧账号删掉的，新账号一直留着。2026-08-21 炸过一次——切到新账号后
+72 条已删会话（ordo_ai 占 51 条）挂在侧栏，因为新账号目录停在 08-16 的全量状态，
+而用户 08-18 才在旧账号删了 500 多条，删除动作从不跨账号同步。
+
+删掉的索引移到 claude-code-sessions-pruned/，不 rm，搬回来即可恢复。transcript
+正文在 ~/.claude/projects/ 里，本来就不受影响。
 
 用法: pass_fire.py <SRC> <DST> [--go]
 """
@@ -26,42 +32,38 @@ import shutil
 import sys
 
 ROOT = os.path.expanduser('~/Library/Application Support/Claude/claude-code-sessions')
-uid = lambda f: os.path.basename(f).replace('local_', '').replace('.json', '')
+PRUNED = os.path.expanduser('~/Library/Application Support/Claude/claude-code-sessions-pruned')
+ids = lambda d, pat: {os.path.basename(f).split('_', 1)[1].replace('.json', '')
+                      for f in glob.glob(os.path.join(d, pat))}
 
 
 def main(src, dst, go):
     src, dst = os.path.join(ROOT, src.rstrip('/')), os.path.join(ROOT, dst.rstrip('/'))
-    dead = {os.path.basename(x)[8:] for x in glob.glob(os.path.join(dst, 'deleted_*'))}
-    live = {uid(x) for x in glob.glob(os.path.join(dst, 'local_*.json'))}
+    dead = ids(src, 'deleted_*')
+    have = ids(src, 'local_*.json') - dead          # SRC 侧栏现在显示的
+    stale = ids(dst, 'local_*.json') & dead         # DST 还留着、但 SRC 已删的
 
-    sent = skipped_dead = skipped_new = 0
-    for f in glob.glob(os.path.join(src, 'local_*.json')):
-        i = uid(f)
-        target = os.path.join(dst, f'local_{i}.json')
-        if i in dead:                                              # 用户删过，不复活
-            skipped_dead += 1
-            continue
-        if i in live and json.load(open(target)).get('lastActivityAt', 0) >= \
-                json.load(open(f)).get('lastActivityAt', 0):        # DST 更新，不盖回旧的
-            skipped_new += 1
+    if go and stale:
+        os.makedirs(PRUNED, exist_ok=True)
+    for i in stale:
+        if go:
+            shutil.move(os.path.join(dst, f'local_{i}.json'),
+                        os.path.join(PRUNED, f'local_{i}.json'))
+    kept = 0
+    for i in have:
+        a, b = os.path.join(src, f'local_{i}.json'), os.path.join(dst, f'local_{i}.json')
+        if os.path.exists(b) and json.load(open(b)).get('lastActivityAt', 0) > \
+                                 json.load(open(a)).get('lastActivityAt', 0):
+            kept += 1                        # 切号后在 DST 用过，别拿 SRC 的旧版盖回去
             continue
         if go:
-            shutil.copyfile(f, target)
-        sent += 1
+            shutil.copyfile(a, b)
 
-    marks = 0
-    for f in glob.glob(os.path.join(src, 'deleted_*')):
-        b = os.path.basename(f)
-        if b[8:] in live or os.path.exists(os.path.join(dst, b)):   # 在用的别误杀，已有的不重传
-            continue
-        if go:
-            shutil.copyfile(f, os.path.join(dst, b))
-        marks += 1
-
-    print(f"{'' if go else '[dry] '}传入会话 {sent}  跳过(用户已删) {skipped_dead}  "
-          f"跳过(DST 更新) {skipped_new}  传入墓碑 {marks}")
+    mine = ids(dst, 'local_*.json') - have - dead
+    print(f"{'' if go else '[dry] '}传入 {len(have) - kept}  清掉 DST 里 SRC 已删的 {len(stale)}  "
+          f"DST 更新跳过 {kept}  DST 独有保留 {len(mine)}")
     if not go:
-        print("看着对就加 --go 真写。写之前记得先备份 DST。")
+        print(f"看着对就加 --go 真写。清掉的会移到 {PRUNED}，不是 rm。")
 
 
 if __name__ == '__main__':
