@@ -24,9 +24,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "63c54050af3dad6da950328c9d84a18bbf612561",
+      "skillFolderHash": "737623a02837c83b4efc8e52c1f8a23f968e7fc7",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-21T11:49:17.277Z"
+      "updatedAt": "2026-08-22T01:03:20.850Z"
     },
     "check": {
       "source": "tw93/Waza",
@@ -259,9 +259,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/notdp/.dotfiles.git",
       "skillPath": "skills/ccd-account-switch/SKILL.md",
-      "skillFolderHash": "d56665f9228b068df47db219d4cfdac3991c0ad5",
+      "skillFolderHash": "90ecc9cc7b2179a10b94ef26a4ae5944e3c1bb41",
       "installedAt": "2026-08-09T03:08:47.892Z",
-      "updatedAt": "2026-08-20T01:03:39.936Z"
+      "updatedAt": "2026-08-22T01:03:24.278Z"
     },
     "lark-drive": {
       "source": "larksuite/cli",
