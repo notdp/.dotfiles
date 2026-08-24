@@ -24,18 +24,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/everyinc/compound-engineering-plugin.git",
       "skillPath": "skills/ce-plan/SKILL.md",
-      "skillFolderHash": "737623a02837c83b4efc8e52c1f8a23f968e7fc7",
+      "skillFolderHash": "ff061af99afc6c8ff95711ef425d7f6bd865eced",
       "installedAt": "2026-07-14T15:32:16.903Z",
-      "updatedAt": "2026-08-22T01:03:20.850Z"
+      "updatedAt": "2026-08-24T01:03:22.678Z"
     },
     "check": {
       "source": "tw93/Waza",
       "sourceType": "github",
       "sourceUrl": "https://github.com/tw93/Waza.git",
       "skillPath": "skills/check/SKILL.md",
-      "skillFolderHash": "86e4070f9c11af7cdc540a94d7f6fa28f4b0ccfd",
+      "skillFolderHash": "c656fe90516cdc0b6167c900ef7101bc103ae524",
       "installedAt": "2026-07-14T15:32:26.455Z",
-      "updatedAt": "2026-08-15T19:11:12.379Z"
+      "updatedAt": "2026-08-24T01:03:30.728Z"
     },
     "hunt": {
       "source": "tw93/Waza",
