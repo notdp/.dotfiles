@@ -178,9 +178,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-im/SKILL.md",
-      "skillFolderHash": "c9f0e85e6a7de36aef1b4f0c9036759365c98aaf",
+      "skillFolderHash": "45252c37c2fc10eead2421fdbac3813bdeee81b8",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-08-21T11:49:36.714Z"
+      "updatedAt": "2026-08-27T01:04:27.921Z"
     },
     "lark-markdown": {
       "source": "larksuite/cli",
