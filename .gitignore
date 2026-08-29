@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 node_modules/
 scheduled-tasks/*/snapshot.json
+scheduled-tasks/retire-pages-baseurl-ai/
