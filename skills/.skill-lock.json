@@ -70,9 +70,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-base/SKILL.md",
-      "skillFolderHash": "502f5f4268b74db93d0028a2de18fa5fc2aa2d53",
+      "skillFolderHash": "15298a99fbe0d5ee8e7ff779a4d98fffef809bcd",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-27T17:00:26.187Z"
+      "updatedAt": "2026-09-01T01:03:58.667Z"
     },
     "lark-contact": {
       "source": "larksuite/cli",
@@ -88,9 +88,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/larksuite/cli.git",
       "skillPath": "skills/lark-doc/SKILL.md",
-      "skillFolderHash": "6d6f6ec71996a0e50be0a5d52cc7689eeae71b0c",
+      "skillFolderHash": "423eafd31ccead70054cb24189491e93cb20af54",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-08-21T11:49:29.981Z"
+      "updatedAt": "2026-09-01T01:04:07.733Z"
     },
     "lark-event": {
       "source": "larksuite/cli",
