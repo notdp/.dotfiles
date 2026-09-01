@@ -4,7 +4,7 @@ against the last snapshot. Silent (exit 0, no output) when nothing changed.
 
 Sources inside Contents/Resources/ion-dist/assets/v1/*.js (hashed filenames, so
 everything is located by content, never by name):
-  1. pane/composer table   -- array of {command,key,code,when}
+  1. pane/composer table   -- array of {command,key,code,when,mac,gate,matchBy}
   2. command registry      -- {name:{description,...,shortcut:{bindings:[...]}}}
   3. shortcuts modal       -- rows rendered in the Cmd+/ dialog
 """
@@ -37,23 +37,39 @@ def chunks():
 
 # --- 1. pane / composer table -------------------------------------------------
 
-PANE_RE = re.compile(
-    r'\{command:"(\w+)",key:"([^"]+)"(?:,code:"[^"]*")?'
-    r'(?:,when:"([^"]*)")?(?:,mac:(![01]))?(?:,gate:"([^"]*)")?\}'
-)
+# Entries are parsed in two steps instead of one order-sensitive pattern: an
+# earlier version spelled out `code?,when?,mac?,gate?` in order and silently
+# dropped every entry carrying an unlisted field (`matchBy:"key"` on
+# backgroundTasks / attachTerminalOutput). Anchor on `{command:"…"` , swallow the
+# whole object, then read fields by name — new fields can appear in any order.
+PANE_ENTRY_RE = re.compile(r'\{(command:"\w+"(?:,\w+:(?:"[^"]*"|!\d|\w+))*)\}')
+PANE_ATTR_RE = re.compile(r'(\w+):(?:"([^"]*)"|(!\d)|(\w+))')
+# Every real keybinding has command+key adjacent; used to detect silent drops.
+PANE_ANCHOR_RE = re.compile(r'\{command:"\w+",key:"')
+PANE_KEEP = ("when", "gate", "matchBy")
 
 
 def pane_table(src):
     out = []
-    for cmd, key, when, mac, gate in PANE_RE.findall(src):
-        e = {"command": cmd, "key": key}
-        if when:
-            e["when"] = when
-        if mac:
-            e["mac"] = mac == "!0"
-        if gate:
-            e["gate"] = gate
+    for body in PANE_ENTRY_RE.findall(src):
+        attrs = {}
+        for name, quoted, bang, bare in PANE_ATTR_RE.findall(body):
+            attrs[name] = quoted if quoted else (bang or bare)
+        if "key" not in attrs:
+            continue
+        e = {"command": attrs["command"], "key": attrs["key"]}
+        if "mac" in attrs:
+            e["mac"] = attrs["mac"] == "!0"
+        for k in PANE_KEEP:
+            if attrs.get(k):
+                e[k] = attrs[k]
         out.append(e)
+
+    anchors = len(PANE_ANCHOR_RE.findall(src))
+    if out and len(out) < anchors:
+        print(f"WARN: pane table parsed {len(out)} of {anchors} keybinding entries "
+              "— an entry shape changed; extract.py needs updating. The missing "
+              "rows are NOT removed shortcuts.", file=sys.stderr)
     return out
 
 
