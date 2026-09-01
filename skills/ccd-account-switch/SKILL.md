@@ -49,11 +49,18 @@ export SKILL_DIR="$HOME/.claude/skills/ccd-account-switch"
 
 ## 一、认账号
 
-`~/.claude.json` 的 oauthAccount 是 CLI 状态，CCD 切号后可能还停在旧账号（实测踩过，差点把方向搞反），**不能用它判断当前是谁**。当前账号以桌面版自己的存储为准：
+`~/.claude.json` 的 oauthAccount 是 CLI 状态，CCD 切号后可能还停在旧账号（实测踩过，差点把方向搞反），**不能用它判断当前是谁**。当前账号以桌面版自己的 leveldb 为准：
 
 ```bash
-strings -a "$HOME/Library/Application Support/Claude/Local Storage/leveldb/"* 2>/dev/null | grep -oE '"account_uuid":"[a-f0-9-]{36}","organization_uuid":"[a-f0-9-]{36}"' | sort | uniq -c | sort -rn
+python3 "$SKILL_DIR"/scripts/current.py
 ```
+
+**只有最新写入的那份记录作数，频次不作数。** 2026-09-02 栽过一次：原来这里是一行
+`strings 整个 leveldb 目录 | grep | uniq -c`，捞到的是 8 月的旧 .ldb（rira@franxx.ai），
+而当天 02:18 刚写的 `061265.log` 里的真账号（dp0x7ce@gmail.com）因为两个字段在字节流里
+不相邻，那条正则压根没匹配上。照那个结论 SRC 和 DST 正好反过来，当天全部工作的索引
+会被 8 月的旧状态覆盖。现在的脚本按 mtime 从新到旧扫，第一个含 account_uuid 的文件就是
+判据，文件内取偏移最大的那次出现，并把看到的旧账号单独列出来提醒不要拿来投票。
 
 然后列目录。这一步顺手把能捞到的 `accountUuid → 邮箱` 记进 `~/.claude/ccd-account-emails.json`——CCD 只保留当前登录账号的 profile，切号即覆盖，旧账号的邮箱不提前记就永远拿不到了：
 
@@ -61,7 +68,7 @@ strings -a "$HOME/Library/Application Support/Claude/Local Storage/leveldb/"* 2>
 python3 "$SKILL_DIR"/scripts/accounts.py
 ```
 
-- **DST** = 上一步 leveldb 查出的 accountUuid。别靠 mtime 猜，CCD 一启动就写当前账号目录，mtime 最新只是佐证。一个 accountUuid 下可能有多个 orgUuid，取有会话的那个。
+- **DST** = 上一步 `current.py` 报的那个 `accountUuid/orgUuid`。别靠会话目录的 mtime 猜，CCD 一启动就写当前账号目录，mtime 最新只是佐证；两边打架时以 leveldb 为准。一个 accountUuid 下可能有多个 orgUuid（传火会在旁边留下只含 `scheduled-tasks.json` 的空 org 目录），取有会话的那个，脚本已经挑好了。
 - **SRC** = 上一棒，即除 DST 外最后活动最近的那个。更早的不用管。
 - 邮箱对不上号就直接问用户当前登录的邮箱，别猜。
 
@@ -81,7 +88,8 @@ python3 "$SKILL_DIR"/scripts/table.py "$SRC"
 
 ## 三、传火
 
-**别纠结该不该传、是不是已经传过了。直接传。** 脚本是幂等的，火已经传过就传入 0 条。
+**别纠结该不该传、是不是已经传过了。直接传。** 重复传是安全的：SRC 可见的每条都无条件
+覆盖过去，覆盖成同样的内容而已。
 
 先备份 DST，这步不可逆：
 
@@ -97,14 +105,26 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST" --go     # 真写
 python3 "$SKILL_DIR"/scripts/merge_routines.py "$SRC" "$DST" --go
 ```
 
+merge_routines 不只补条目：DST 的配置按 SRC 对齐（cron 等，SRC 是刚交棒的火种，
+配置最新——2026-09-01 实测 DST 的 cron 停在旧值，靠 SRC 修回），时间戳取两边较晚
+的，然后把**其他所有账号目录**的 routine 掐灭（enabled=false + snuffedByPassFire
+标记）。掐灭是防重复跑的关键：调度状态按账号隔离，哪个目录的 lastRunAt 停在过去，
+CCD 在那个账号下醒来就当"错过了排期"补跑一遍——git log 里 08-20 21:21、08-21
+19:50 的第二次 daily-skills bump 都是切号补出来的。火把只有一支，只在当前账号烧；
+下次传火见到带标记的条目会自动重新点燃，用户手动关掉的（无标记）保持关闭。
+
 输出四个数：传入 / 清掉 DST 里 SRC 已删的 / DST 更新跳过 / DST 独有保留。清掉的索引移到
 `claude-code-sessions-pruned/`，是 move 不是 rm，搬回来即可恢复。
+
+**"传入"不是增量，别拿它判断传没传成功。** 它就等于 SRC 当前可见的会话数，传第二遍还是
+这个数（实测 2026-09-01 传完再跑，仍是 245）——脚本对 SRC 可见的每条都无条件 copyfile，
+只有"DST 版本更新"那一条例外会跳过。唯一的同步信号是下面的"清掉 0"。
 
 DST 独有的文件不受影响，当前正在跑的会话就在里面，所以别图省事 `rm -rf "$DST"` 再整个拷。
 
 ## 四、校验
 
-再跑一次 dry-run，"清掉 0" 就是同步了：
+再跑一次 dry-run，看"清掉 DST 里 SRC 已删的"是不是 0，是 0 就同步了（"传入"仍是满数，见上）：
 
 ```bash
 python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
@@ -119,4 +139,4 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 ## 之后
 
 - 工具授权按账号存，恢复的 routine 建议各 Run now 一次重新批权限
-- 旧账号目录里的残留注册无害，切回去仍然生效，不用清
+- 旧账号目录的 routine 已在传火时掐灭，切回旧账号不会自己跑（也不会补跑）；要在旧账号跑就再传一次火，或 UI 里手动开
