@@ -28,11 +28,11 @@
 
 ## Subagent Model (额度控制)
 
-Fable 最多占周额度的 50%，且消耗更快；但 Fable 和 Opus 能力断档，需要判断的实现、设计、review、refute、synthesis 仍用 `fable`，不为省额度降档。
+Fable 最多占周额度的 50%，且消耗更快；但它和 Opus 能力断档，判断型任务——实现、设计、review、refute、synthesis——仍用 `fable`，不为省额度降档。
 
-只把两类不需要 Fable 的活降档，派发时显式写 `model`：
+只把两类不需要 Fable 的任务降档，派发时显式写 `model`：
 
-- explore / 定位代码 / 读文件写摘要 / 跑测试回报输出 / 采集资料：`opus`。内置 Explore、Plan 会继承主会话，也显式传 `model: 'opus'`。
-- 几十个以上 item 按同一条写死规则做同构采集或批处理：`sonnet`。
+- explore / 定位代码 / 读文件写摘要 / 跑测试回报输出 / 采集资料：`opus`。内置 Explore、Plan 默认继承主会话，也显式传 `model: 'opus'`。
+- 几十个以上 item 按一条固定规则同构采集或批处理：`sonnet`。
 
-其他一律 `fable`。一个 Workflow 内并发的 Fable agent 不超过 5 个；若看似需要更多，先检查是否拆错任务或把采集类工作派给了 Fable，不要靠分批串行绕过上限，更不要盲目开十个 Fable 做 explore。
+其他一律 `fable`。每个 Workflow 最多并发 5 个 Fable agent；若需要更多，说明任务拆分或模型分配有误，不得分批串行绕过，也不得开十个 Fable 做 explore。
