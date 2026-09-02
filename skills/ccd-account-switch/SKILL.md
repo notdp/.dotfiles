@@ -49,18 +49,39 @@ export SKILL_DIR="$HOME/.claude/skills/ccd-account-switch"
 
 ## 一、认账号
 
-`~/.claude.json` 的 oauthAccount 是 CLI 状态，CCD 切号后可能还停在旧账号（实测踩过，差点把方向搞反），**不能用它判断当前是谁**。当前账号以桌面版自己的 leveldb 为准：
+`~/.claude.json` 的 oauthAccount 是 CLI 状态，CCD 切号后可能还停在旧账号（实测踩过，差点把方向搞反），**不能用它判断当前是谁**：
 
 ```bash
 python3 "$SKILL_DIR"/scripts/current.py
 ```
 
-**只有最新写入的那份记录作数，频次不作数。** 2026-09-02 栽过一次：原来这里是一行
-`strings 整个 leveldb 目录 | grep | uniq -c`，捞到的是 8 月的旧 .ldb（rira@franxx.ai），
-而当天 02:18 刚写的 `061265.log` 里的真账号（dp0x7ce@gmail.com）因为两个字段在字节流里
-不相邻，那条正则压根没匹配上。照那个结论 SRC 和 DST 正好反过来，当天全部工作的索引
-会被 8 月的旧状态覆盖。现在的脚本按 mtime 从新到旧扫，第一个含 account_uuid 的文件就是
-判据，文件内取偏移最大的那次出现，并把看到的旧账号单独列出来提醒不要拿来投票。
+脚本有两个判据，**锚点优先**：
+
+1. **锚点**：本会话自己的索引文件落在哪个目录，哪个就是当前账号。CCD 只往当前账号目录
+   写正在跑的会话。文件名由 `CLAUDE_CODE_HOST_SESSION_ID` 直接给出（形如 `local_<uuid>`，
+   就是索引文件名去掉 `.json`），退路是拿 `CLAUDE_CODE_SESSION_ID` 去 grep 索引里的
+   `cliSessionId`。
+2. **leveldb**：桌面版自己的 `Local Storage/leveldb`，按 mtime 从新到旧扫，第一个含
+   `account_uuid` 的文件作数，文件内取偏移最大的那次出现。频次不作数，旧文件不作数。
+
+两边打架时**锚点赢**，脚本会打一屏 `!!` 警告。锚点也没有（不是在 CCD 会话里跑的）就只
+剩 leveldb，这时候别闷头往下走，先跟用户核一遍邮箱。
+
+### 栽过的跟头：认账号认反了两次
+
+**2026-09-02 上午**，这里原本是一行 `strings 整个 leveldb 目录 | grep | uniq -c`，捞到的是
+8 月的旧 .ldb（rira@franxx.ai），而当天 02:18 刚写的 `061265.log` 里的真账号
+（dp0x7ce@gmail.com）因为两个字段在字节流里不相邻，那条正则压根没匹配上。照那个结论
+SRC 和 DST 正好反过来，当天全部工作的索引会被 8 月的旧状态覆盖。于是有了上面第 2 条。
+
+**2026-09-02 08:41**，只剩 leveldb 判据的版本又反了一次。用户 08:39 切号，08:41 跑
+`current.py` 时 CCD 还在追写 `061284.log`——那一刻文件 47306 字节，里面只有旧账号
+`d56e75fa` 的 10 条记录；新账号 `1e7f4a9f` 的 15 条（偏移 49448~60609）是几十秒后才落盘的。
+"取最新文件里偏移最大的那次"这条规则没错，**错在文件还没写完**。
+
+这个窗口不是小概率：用户跑这个 skill 的时机恰恰就是刚切完号，正撞在上面。当时是靠
+`grep -rl <本会话 id>` 发现本会话索引写在了 `1e7f4a9f` 下，才把方向翻回来。锚点就是把这
+一步固化进脚本——它不会半写，一个会话只可能属于一个账号。
 
 然后列目录。这一步顺手把能捞到的 `accountUuid → 邮箱` 记进 `~/.claude/ccd-account-emails.json`——CCD 只保留当前登录账号的 profile，切号即覆盖，旧账号的邮箱不提前记就永远拿不到了：
 
@@ -68,7 +89,7 @@ python3 "$SKILL_DIR"/scripts/current.py
 python3 "$SKILL_DIR"/scripts/accounts.py
 ```
 
-- **DST** = 上一步 `current.py` 报的那个 `accountUuid/orgUuid`。别靠会话目录的 mtime 猜，CCD 一启动就写当前账号目录，mtime 最新只是佐证；两边打架时以 leveldb 为准。一个 accountUuid 下可能有多个 orgUuid（传火会在旁边留下只含 `scheduled-tasks.json` 的空 org 目录），取有会话的那个，脚本已经挑好了。
+- **DST** = 上一步 `current.py` 报的那个 `accountUuid/orgUuid`。会话目录的 mtime 只是佐证，不当判据：CCD 一启动就写当前账号目录，传火本身也会把 SRC 的 mtime 顶上去。2026-09-02 那次 mtime 恰好指对了（DST 08:40 > SRC 08:37），指错的是 leveldb——所以顺序是**锚点 > mtime 佐证 > leveldb**，别再像旧版那样"打架时以 leveldb 为准"。一个 accountUuid 下可能有多个 orgUuid（传火会在旁边留下只含 `scheduled-tasks.json` 的空 org 目录），取有会话的那个，脚本已经挑好了。
 - **SRC** = 上一棒，即除 DST 外最后活动最近的那个。更早的不用管。
 - 邮箱对不上号就直接问用户当前登录的邮箱，别猜。
 
