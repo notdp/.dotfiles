@@ -28,11 +28,10 @@
 
 ## Subagent Model (额度控制)
 
-子 agent 不写 `model` 就继承主会话，不写 `effort` 就继承主会话的 xhigh。主会话是 Fable 时，每个没写的子 agent 都在烧 Fable，而 Fable 最多只能用周额度的 50%，且烧得更快。
-所以每次派子 agent——Agent 工具、Workflow 的 `agent()`、内置 Explore / Plan / claude-code-guide 都算——显式写 `model` 和 `effort`，按任务分档：
+Fable 最多用周额度的 50%，且烧得快。但 Fable 和 Opus 能力断档，所以需要判断的活——实现、设计、review、refute、synthesis——子 agent 照用 `fable`，不为省额度降档。
+省的只有两类不需要 Fable 的活，派的时候显式写 `model`：
 
-- **opus**：主力。实现、方案设计、写测试、review、explore / 定位代码、跑测试回报、摘要、常规 synthesis。主会话是 Fable 也不因此抬档。
-- **fable**：该用就用，条件是单个 agent、产出是后面所有人照着走的那一步：融合多份冲突方案的最终裁决、opus 试过不行的硬活、用户点名。一轮并行 ≤ 2 个；按 finding / 文件 / item 扇出的同类 agent 里不放 fable，refute 也不例外。
-- **sonnet**：只在大批量。几十个以上 item 套同一条写死的规则、爬一堆页面抽结构化数据。小批量或单个 item 需要判断的不降。
+- explore / 定位代码 / 读文件写摘要 / 跑测试回报输出 / 采集资料：`opus`。内置 Explore、Plan 默认继承主会话，也显式传 `model: 'opus'`。
+- 特别大批量的同构采集或批处理，几十个以上 item 套同一条写死的规则：`sonnet`。
 
-拿不准一律选 opus。effort 默认 `high`，sonnet 批处理 `low`，`xhigh` 只给 fable 那一步。同一 prompt 的 refuter 2 个够，扇出要封顶。
+其他一律 `fable`。别不加判断地一次开十个 Fable 去 explore。
