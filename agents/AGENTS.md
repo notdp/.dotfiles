@@ -34,4 +34,4 @@ Fable 最多用周额度的 50%，且烧得快。但 Fable 和 Opus 能力断档
 - explore / 定位代码 / 读文件写摘要 / 跑测试回报输出 / 采集资料：`opus`。内置 Explore、Plan 默认继承主会话，也显式传 `model: 'opus'`。
 - 特别大批量的同构采集或批处理，几十个以上 item 套同一条写死的规则：`sonnet`。
 
-其他一律 `fable`，但一个 Workflow 里同时跑的 Fable agent 不超过 5 个：fable 的 parallel / pipeline 扇出要封顶到 5，超出的分批串行。别不加判断地一次开十个 Fable 去 explore。
+其他一律 `fable`，但一个 Workflow 里同时跑的 Fable agent 不超过 5 个。单个阶段正常拆不出这么多需要判断的活；真超了，先回头看是不是拆法有问题，或者把采集类的活派给了 Fable，而不是分批串行硬跑。别不加判断地一次开十个 Fable 去 explore。
