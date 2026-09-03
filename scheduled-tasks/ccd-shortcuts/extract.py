@@ -107,12 +107,25 @@ def registry(src):
 
 # --- 3. Cmd+/ modal -----------------------------------------------------------
 
+# Anchor on the `{` that opens the row's props so a row can never start mid-object,
+# then take everything up to `,children:` as the key expression -- it may be a
+# string, an array (whose members can contain `]`), a ternary, or a helper call
+# like `RP("toggleTerminal",c)` / `LP("jumpNextPrompt",c,{promptJump:t})??[]`.
+# The gap before the label must not cross another shortcut anchor, otherwise a row
+# whose label is a variable (`children:t`) swallows the NEXT row's key.
 ROW_RE = re.compile(
-    # The array form is scanned string-by-string: a key can itself contain `]`
-    # (`["cmd+shift+]","ctrl+tab"]`), so a naive [^\]]* truncates it.
-    r'(?:shortcut:(\[(?:"[^"]*",?)*\]|"[^"]*"|[A-Za-z_$][^,]{0,70}?)|shortcutId:"(\w+)")'
-    r',children:[\s\S]{0,120}?defaultMessage:"([^"]*)"'
+    r'\{(?:shortcut:([\s\S]{0,120}?)|shortcutId:"(\w+)")'
+    r',children:((?:(?!shortcut(?:Id)?:)[\s\S]){0,120}?)defaultMessage:"([^"]*)"'
 )
+# Count of rows the modal actually renders, used to detect silent drops.
+ROW_ANCHOR_RE = re.compile(r'\{shortcut(?:Id)?:')
+# A row whose label was hoisted into a local (`let t=j(Z,{defaultMessage:"Settings"…});
+# return e?$({shortcut:"cmd+,",children:t}):$({shortcutId:"settings",children:t})`).
+# Both branches are the same row, so the first (desktop) one wins.
+VAR_ROW_RE = re.compile(
+    r'\{(?:shortcut:([\s\S]{0,120}?)|shortcutId:"(\w+)"),children:(\w+)\}'
+)
+VAR_LABEL_RE = r'\b{}=[^;]{{0,80}}?defaultMessage:"([^"]*)"'
 
 
 def modal_rows(src):
@@ -124,7 +137,7 @@ def modal_rows(src):
         return []
     seg = src[max(0, anchors[0] - 20000): anchors[-1] + 20000]
     out = []
-    for shortcut, sid, label in ROW_RE.findall(seg):
+    for shortcut, sid, _gap, label in ROW_RE.findall(seg):
         label = label.encode().decode("unicode_escape")
         key = shortcut.strip('"') if shortcut else f"@{sid}"
         # A bare identifier is a hoisted array of alternatives (var Ig=["a","b"]).
@@ -133,6 +146,24 @@ def modal_rows(src):
             if arr:
                 key = "[" + arr.group(1) + "]"
         out.append({"label": label, "key": key})
+
+    seen, dupes = {r["label"] for r in out}, 0
+    for shortcut, sid, var in VAR_ROW_RE.findall(seg):
+        lab = re.search(VAR_LABEL_RE.format(re.escape(var)), seg)
+        if not lab:
+            continue
+        label = lab.group(1).encode().decode("unicode_escape")
+        if label in seen:  # the other branch of the same platform ternary
+            dupes += 1
+            continue
+        seen.add(label)
+        out.append({"label": label, "key": shortcut.strip('"') if shortcut else f"@{sid}"})
+
+    rendered = len(ROW_ANCHOR_RE.findall(seg))
+    if out and len(out) + dupes < rendered:
+        print(f"WARN: modal parsed {len(out)} of {rendered} rendered rows — a row "
+              "shape changed; extract.py needs updating. The missing rows are NOT "
+              "removed shortcuts.", file=sys.stderr)
     return out
 
 
@@ -141,10 +172,31 @@ def modal_rows(src):
 # Modal rows are JSX props, so a key can be an array, a platform ternary, or a
 # `shortcutId` pointing into the registry. Normalise to a plain key string.
 TERNARY_RE = re.compile(r'^\w+\?(?:\w+\?)?"([^"]+)"')
+# The desktop branch of a ternary may itself be an array: n?["a","b"]:"b".
+TERNARY_ARR_RE = re.compile(r'^\w+\?(\[(?:"[^"]*",?)+\])')
 QUOTED_RE = re.compile(r'"([^"]+)"')
+# LP(cmd,isClaudeApp,gates)/RP(...) look the command up in the pane table at
+# runtime; LP takes the first hit, RP keeps them all.
+HELPER_RE = re.compile(r'^([LR])P\("(\w+)"')
 
 
-def resolve_key(key, reg):
+def pane_keys(command, pane):
+    """Replay RP(): desktop is isClaudeApp+mac, gates are always shown."""
+    keys = []
+    for e in pane:
+        if e["command"] != command:
+            continue
+        when = e.get("when")
+        if when == "!isClaudeApp" or (when and when != "isClaudeApp"):
+            continue
+        if e.get("mac") is False:
+            continue
+        if e["key"] not in keys:
+            keys.append(e["key"])
+    return keys
+
+
+def resolve_key(key, reg, pane=()):
     if "\\u" in key:
         key = key.encode().decode("unicode_escape")
     if key.startswith("@"):
@@ -154,6 +206,13 @@ def resolve_key(key, reg):
         return " / ".join(entry) if isinstance(entry, list) else key
     if key.startswith("["):
         return " / ".join(QUOTED_RE.findall(key))
+    m = HELPER_RE.match(key)
+    if m:
+        found = pane_keys(m.group(2), pane)
+        return found[0] if (m.group(1) == "L" and found) else " / ".join(found)
+    m = TERNARY_ARR_RE.match(key)
+    if m:
+        return " / ".join(QUOTED_RE.findall(m.group(1)))
     m = TERNARY_RE.match(key)  # desktop branch is always the first string
     return m.group(1) if m else key
 
@@ -170,7 +229,7 @@ def collect():
         if data["pane"] and data["registry"] and data["modal"]:
             break
     for row in data["modal"]:
-        row["key"] = resolve_key(row["key"], data["registry"])
+        row["key"] = resolve_key(row["key"], data["registry"], data["pane"])
     return data
 
 
