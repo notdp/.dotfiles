@@ -15,9 +15,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/OrdoAI/htmldrop.git",
       "skillPath": "skills/htmldrop/SKILL.md",
-      "skillFolderHash": "34c0f9f754826958b4de3bf39ace0c434c90b8d5",
+      "skillFolderHash": "08fa3e41dac993f632f78e87e7c06f49c057dc42",
       "installedAt": "2026-07-14T15:33:23.570Z",
-      "updatedAt": "2026-09-03T01:03:33.196Z"
+      "updatedAt": "2026-09-04T00:55:42.046Z"
     },
     "react": {
       "source": "lobehub/lobe-chat",
@@ -210,9 +210,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-apps/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:fb50eda4379d149e43fbc1be158ae2a7f66b95b0ab5754b0fa3300b1a63de85c",
+      "wellKnownDigest": "sha256:dbf5582bb027ea9df8e4d4542ab2100d48d08845bed6c5a0afc02080f703a6db",
       "installedAt": "2026-09-02T13:34:09.153Z",
-      "updatedAt": "2026-09-02T13:34:09.153Z"
+      "updatedAt": "2026-09-04T01:03:09.433Z"
     },
     "lark-attendance": {
       "source": "open.feishu.cn",
