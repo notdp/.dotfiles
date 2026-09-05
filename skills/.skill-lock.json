@@ -94,7 +94,7 @@
       "sourceBaseUrl": "https://open.feishu.cn",
       "wellKnownDigest": "sha256:4882023c9cda0879a7d218546ab8d34c1358d58e2ab97be14ba65657c38f72d8",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-09-02T13:34:09.188Z"
+      "updatedAt": "2026-09-05T01:03:20.293Z"
     },
     "lark-event": {
       "source": "open.feishu.cn",
@@ -242,7 +242,7 @@
       "sourceBaseUrl": "https://open.feishu.cn",
       "wellKnownDigest": "sha256:54f24d96fe5eb503f304f26df2894c3aff6a4af14be099911946c65f21c0a2eb",
       "installedAt": "2026-09-02T13:34:09.190Z",
-      "updatedAt": "2026-09-02T13:34:09.190Z"
+      "updatedAt": "2026-09-05T01:03:32.997Z"
     },
     "lark-meeting": {
       "source": "open.feishu.cn",
