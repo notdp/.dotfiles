@@ -1,0 +1,2 @@
+- [Rust 编译缓存配置](rust-build-cache-setup.md) — sccache 全局 wrapper + 每周日 23:00 cargo-sweep，起因是 hive worktree target 塞满 47G
+- [磁盘清理未动清单](disk-cleanup-leftovers.md) — 微信/Telegram/Cursor/vm_bundles/孤儿模拟器等大目录，下次清理从这里开始
