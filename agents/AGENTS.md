@@ -26,7 +26,7 @@
 - If you break this rule, say:
   > Correction: I made an unverified claim. That was incorrect.
 
-## Subagent Model (额度控制)
+## Workflow Model Choose
 
 Fable 最多占周额度的 50%，且消耗更快；但它和 Opus 能力断档，判断型任务——实现、设计、review、refute、synthesis——仍用 `fable`，不为省额度降档。
 
