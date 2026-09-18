@@ -72,9 +72,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-base/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:abe848e7c63800445913fbda0ebe467e84c40cc2d598269b8f24212d552fe259",
+      "wellKnownDigest": "sha256:30d0f21745654de06159411ea6da9f2b85ba670d78b3caf3acf69d5623104c9d",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-09-17T01:03:35.477Z"
+      "updatedAt": "2026-09-18T01:03:28.674Z"
     },
     "lark-contact": {
       "source": "open.feishu.cn",
@@ -92,9 +92,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-doc/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:51131ea7f449daf99422abf3b48166003010dacc5e74a3663198bf8db4535891",
+      "wellKnownDigest": "sha256:59bbe080ea02a1a1e95fb0fbaa0f6b4d36ef1764e40a0f1cfa26d6c842ba880d",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-09-17T01:03:47.157Z"
+      "updatedAt": "2026-09-18T01:03:36.091Z"
     },
     "lark-event": {
       "source": "open.feishu.cn",
@@ -112,9 +112,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-im/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:5f623c3f40dd677ef913f574cfd6be518cc3d620e0406fa9c551574b54154fe6",
+      "wellKnownDigest": "sha256:5f3d5885437c2b75043b77ac8d984210eaf8d651b9ee970ecd30cd53d35b4084",
       "installedAt": "2026-07-14T15:48:26.432Z",
-      "updatedAt": "2026-09-17T01:04:06.017Z"
+      "updatedAt": "2026-09-18T01:03:43.774Z"
     },
     "lark-markdown": {
       "source": "open.feishu.cn",
@@ -210,9 +210,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-apps/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:5040699c1c2e54d12ea5cf7f153cf48547ad4e6e402c6f5f3b33d19361ad105e",
+      "wellKnownDigest": "sha256:1391e222ea72a74ff4e841831aadd8d6579f5ba43ea78ecefa97bad73426212a",
       "installedAt": "2026-09-02T13:34:09.153Z",
-      "updatedAt": "2026-09-17T01:05:41.640Z"
+      "updatedAt": "2026-09-18T01:03:51.451Z"
     },
     "lark-attendance": {
       "source": "open.feishu.cn",
