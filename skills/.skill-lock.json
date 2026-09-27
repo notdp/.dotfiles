@@ -24,9 +24,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/lobehub/lobe-chat.git",
       "skillPath": ".agents/skills/react/SKILL.md",
-      "skillFolderHash": "9b863b9bdfcc93a17f6bd359f866a06306c03d95",
+      "skillFolderHash": "e22a6639728c2e8514f5fbce3a6eceedd0d8ee17",
       "installedAt": "2026-07-14T15:34:52.165Z",
-      "updatedAt": "2026-09-08T01:04:55.696Z"
+      "updatedAt": "2026-09-27T04:34:40.969Z"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
@@ -212,7 +212,7 @@
       "sourceBaseUrl": "https://open.feishu.cn",
       "wellKnownDigest": "sha256:1391e222ea72a74ff4e841831aadd8d6579f5ba43ea78ecefa97bad73426212a",
       "installedAt": "2026-09-02T13:34:09.153Z",
-      "updatedAt": "2026-09-22T01:09:11.516Z"
+      "updatedAt": "2026-09-27T04:33:49.915Z"
     },
     "lark-attendance": {
       "source": "open.feishu.cn",
