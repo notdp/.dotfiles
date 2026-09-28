@@ -28,6 +28,31 @@ def app_version() -> str:
         return "?"
 
 
+def unescape(s):
+    """JS string escapes survive the regex: `cmd+shift+\\\\`, `cmd+1\\u20269`."""
+    if "\\" not in s:
+        return s
+    try:
+        return s.encode().decode("unicode_escape")
+    except UnicodeDecodeError:  # already decoded (a lone trailing `\\`)
+        return s
+
+
+_CHUNKS = []
+
+
+def bundle_search(pattern):
+    """First match of `pattern` anywhere in the bundle — labels for a row can live
+    in a different chunk than the modal that renders it."""
+    if not _CHUNKS:
+        _CHUNKS.extend(src for _, src in chunks())
+    for src in _CHUNKS:
+        m = re.search(pattern, src)
+        if m:
+            return m
+    return None
+
+
 def chunks():
     """(name, source) for every JS chunk, largest first (hot ones are big)."""
     files = sorted(ASSETS.glob("*.js"), key=lambda p: -p.stat().st_size)
@@ -46,6 +71,20 @@ PANE_ENTRY_RE = re.compile(r'\{(command:"\w+"(?:,\w+:(?:"[^"]*"|!\d|\w+))*)\}')
 PANE_ATTR_RE = re.compile(r'(\w+):(?:"([^"]*)"|(!\d)|(\w+))')
 # Every real keybinding has command+key adjacent; used to detect silent drops.
 PANE_ANCHOR_RE = re.compile(r'\{command:"\w+",key:"')
+# Digit families are generated, not written out, so their keys are template
+# literals the static table cannot see:
+#   `nR.map(e=>({command:`selectBrowserTab${e}`,key:`cmd+${e}`,…}))`
+#   `[...nR,"0"].flatMap(e=>{let t=e==="0"?"newPreset":`selectPreset${e}`;…})`
+# They are expanded over the digit list and tagged `tpl` — hidden from the rendered
+# table (⌘1…9 as nine rows is noise) but still found by the modal rows that look
+# them up through the pane-table helpers ("Select preset", "Jump to Browser tab").
+PANE_TPL_RE = re.compile(
+    r'\{command:(?:`([^`]*)`|(\w+)),key:`([^`]*)`'
+    r'((?:,\w+:(?:"[^"]*"|`[^`]*`|!\d|\w+))*)\}')
+PANE_MAP_RE = re.compile(
+    r'(?:\[\.\.\.(\w+)(?:,"([^"]*)")?\]|(?<![\w$])(\w+))\.(?:flatMap|map)\(')
+PANE_ALT_RE = re.compile(r'let \w+=\w+==="([^"]*)"\?"(\w+)":`([^`]*)`')
+PLACEHOLDER_RE = re.compile(r'\$\{\w+\}')
 PANE_KEEP = ("when", "gate", "matchBy")
 
 
@@ -57,13 +96,15 @@ def pane_table(src):
             attrs[name] = quoted if quoted else (bang or bare)
         if "key" not in attrs:
             continue
-        e = {"command": attrs["command"], "key": attrs["key"]}
+        e = {"command": attrs["command"], "key": unescape(attrs["key"])}
         if "mac" in attrs:
             e["mac"] = attrs["mac"] == "!0"
         for k in PANE_KEEP:
             if attrs.get(k):
                 e[k] = attrs[k]
         out.append(e)
+
+    out += pane_families(src)
 
     anchors = len(PANE_ANCHOR_RE.findall(src))
     if out and len(out) < anchors:
@@ -73,14 +114,64 @@ def pane_table(src):
     return out
 
 
+def pane_families(src):
+    """Expand the generated digit families into concrete `tpl` entries."""
+    out = []
+    for m in PANE_TPL_RE.finditer(src):
+        cmd_tpl, cmd_var, key_tpl, tail = m.groups()
+        head = src[max(0, m.start() - 600):m.start()]
+        anchor = None
+        for a in PANE_MAP_RE.finditer(head):
+            anchor = a
+        if anchor is None:
+            continue
+        listvar = anchor.group(1) or anchor.group(3)
+        lit = re.search(r'(?<![\w$])' + re.escape(listvar) + r'=\[((?:"[^"]*",?)+)\]', src)
+        if not lit:
+            continue
+        values = QUOTED_RE.findall(lit.group(1))
+        if anchor.group(2):  # `[...nR,"0"]`
+            values.append(anchor.group(2))
+        alt = PANE_ALT_RE.search(head) if cmd_var else None
+        if cmd_var and alt is None:
+            continue
+        if alt:
+            cmd_tpl = alt.group(3)
+        attrs = {}
+        for name, quoted, bang, bare in PANE_ATTR_RE.findall(tail):
+            attrs[name] = quoted if quoted else (bang or bare)
+        for v in values:
+            command = (alt.group(2) if alt and v == alt.group(1)
+                       else PLACEHOLDER_RE.sub(v, cmd_tpl))
+            e = {"command": command, "key": PLACEHOLDER_RE.sub(v, key_tpl), "tpl": True}
+            if "mac" in attrs:
+                e["mac"] = attrs["mac"] == "!0"
+            for k in PANE_KEEP:
+                if attrs.get(k):
+                    e[k] = attrs[k]
+            out.append(e)
+    return out
+
+
 # --- 2. command registry ------------------------------------------------------
 
 # Entries without a `shortcut` must NOT swallow the next entry's bindings, so the
 # skipped span may not cross another `description:` — each entry has exactly one.
+# Both halves ship in several shapes and an unhandled one drops a whole command
+# (1.52386.6 moved the copy-link entries to a hoisted array, and the palette /
+# sidebar entries to a default-table helper):
+#   description: `NP.description` or `Xz.show`  -- hoisted message object, any field
+#                `{defaultMessage:"Ant tools"…}` -- inline
+#   bindings:    `[{key:"j",…}]`      -- inline array
+#                `lB`                 -- hoisted array, shared by several commands
+#                `dh("command_palette")` -- built from the default-shortcut table
 REG_RE = re.compile(
-    r'(\w+):\{description:([\w$]+)\.description,(?:(?!description:)[\s\S]){0,400}?'
-    r'shortcut:\{bindings:\[(.*?)\]\}'
+    r'(\w+):\{description:(?:([\w$]+)\.(\w+)|\{defaultMessage:"([^"]*)")'
+    r',(?:(?!description:)[\s\S]){0,400}?'
+    r'shortcut:\{bindings:(?:\[(.*?)\]\}|([\w$]+)\}|(\w+)\("(\w+)"\)\})'
 )
+# Every command that declares a shortcut, used to detect silent drops.
+REG_ANCHOR_RE = re.compile(r'shortcut:\{bindings:')
 # `app:"web"` bindings never fire in the desktop app, so they must be dropped the
 # same way `platform:"non-mac"` is — otherwise one command lists two keys and the
 # web-only one looks like a real desktop shortcut.
@@ -88,24 +179,74 @@ BIND_RE = re.compile(
     r'key:"([^"]+)"(?:,code:"[^"]*")?,modifiers:\[([^\]]*)\]'
     r'(?:,platform:"([^"]*)")?(?:,app:"([^"]*)")?'
 )
-# Labels live in separate minified consts: vS=$a({description:{defaultMessage:"..."
-DESC_RE = re.compile(r'([\w$]+)=\$?\w*\(\{description:\{defaultMessage:"([^"]*)"')
+# `function dh(e){let{key:t,shift:n}=uh[e]…}` over
+# `var uh={command_palette:{key:"k"},search_palette:{key:"k",shift:!0}…}` — the
+# palette and sidebar keys live in that table instead of in a binding array.
+DEFAULT_FN_RE = re.compile(r'function (\w+)\(\w\)\{let\{key:\w+,shift:\w+\}=(\w+)\[\w\]')
+DEFAULT_ENTRY_RE = re.compile(r'(\w+):\{key:"([^"]+)"(,shift:!0)?\}')
+
+
+def hoisted(src, name):
+    """`lB=[{…},{…}]` — the array body; one level of nesting (modifiers:[…])."""
+    m = re.search(r'(?<![\w$])' + re.escape(name)
+                  + r'=(\[(?:[^\[\]]|\[[^\[\]]*\])*\])', src)
+    return m.group(1) if m else None
+
+
+def default_tables(src):
+    """{helper: {command id: (key, shift)}} for `bindings:dh("id")`."""
+    out = {}
+    for fn, table in DEFAULT_FN_RE.findall(src):
+        body = re.search(r'(?<![\w$])' + re.escape(table)
+                         + r'=(\{(?:[^{}]|\{[^{}]*\})*\})', src)
+        if body:
+            out[fn] = {i: (k, bool(sh))
+                       for i, k, sh in DEFAULT_ENTRY_RE.findall(body.group(1))}
+    return out
+
+
+def label_for(src, var, field):
+    """`Xz=Ql({show:{defaultMessage:"Show terminal"…` — labels are hoisted consts."""
+    if not var:
+        return None
+    m = re.search(r'(?<![\w$])' + re.escape(var) + r'=[\w$]*\(\{[\s\S]{0,500}?'
+                  r'(?<![\w$])' + re.escape(field) + r':\{defaultMessage:"([^"]*)"', src)
+    return m.group(1) if m else None
 
 
 def registry(src):
-    labels = dict(DESC_RE.findall(src))
-    out = {}
-    for name, dvar, binds in REG_RE.findall(src):
+    defaults = default_tables(src)
+    out, parsed = {}, 0
+    for m in REG_RE.finditer(src):
+        name, lvar, lfield, linline, inline, var, helper, arg = m.groups()
+        parsed += 1
         keys = []
-        for key, mods, platform, app in BIND_RE.findall(binds):
-            if platform == "non-mac" or app == "web":
+        if helper:
+            entry = defaults.get(helper, {}).get(arg)
+            if entry:
+                key, shift = entry
+                keys = ["+".join(["cmd"] + (["shift"] if shift else []) + [key])]
+        else:
+            binds = inline if inline is not None else hoisted(src, var)
+            if binds is None:  # a hoisted array the regex could not follow
+                parsed -= 1
                 continue
-            mods = [m.strip('"') for m in mods.split(",") if m.strip()]
-            combo = "+".join(mods + [key])
-            if combo not in keys:
-                keys.append(combo)
+            for key, mods, platform, app in BIND_RE.findall(binds):
+                if platform == "non-mac" or app == "web":
+                    continue
+                mods = [x.strip('"') for x in mods.split(",") if x.strip()]
+                combo = "+".join(mods + [unescape(key)])
+                if combo not in keys:
+                    keys.append(combo)
         if keys:
-            out[name] = {"keys": keys, "label": labels.get(dvar, name)}
+            label = linline if linline is not None else label_for(src, lvar, lfield)
+            out[name] = {"keys": keys, "label": label or name}
+
+    anchors = len(REG_ANCHOR_RE.findall(src))
+    if out and parsed < anchors:
+        print(f"WARN: registry parsed {parsed} of {anchors} commands that declare a "
+              "shortcut — an entry shape changed; extract.py needs updating. The "
+              "missing rows are NOT removed shortcuts.", file=sys.stderr)
     return out
 
 
@@ -133,6 +274,60 @@ SPREAD_LABEL_RE = r'\b{}=\w+\(\{{[\s\S]{{0,400}}?\b{}:\{{defaultMessage:"([^"]*)
 # `{shortcutString:_}=_n("amber_tributary_lantern_overview_toggle")` — the key of a
 # feature-gated row is a local bound to a registry id, not a literal.
 SHORTCUT_STR_RE = re.compile(r'\{shortcutString:(\w+)\}=\w+\("(\w+)"\)')
+# `b=Bz("reopenClosed",c)` — a pane-table helper call hoisted into a local that
+# several rows then use as `shortcut:b`. Matched by shape because the helper names
+# are mangled and reshuffle every release; resolved through find_helpers().
+HELPER_VAR_RE = re.compile(r'(?<![\w$])(\w+)=(\w+)\("(\w+)",\w+(?:,[^)]*)?\)')
+# `{shortcutString:t,description:n}=d_()` — both halves of the row come from a hook
+# imported from another chunk, so neither the key nor the label is in this file.
+HOOK_ROW_RE = re.compile(r'\{shortcutString:(\w+),description:(\w+)\}=(\w+)\(\)')
+# `e=Mn("new_session_pane_right")` then `{shortcut:e.shortcutString,children:
+# e.description}` — both halves of the row come straight from the registry entry.
+REGVAR_RE = re.compile(r'(?<![\w$])(\w+)=\w+\("(\w+)"\)')
+FIELD_ROW_RE = re.compile(r'\{shortcut:(\w+)\.shortcutString,children:\1\.description\}')
+# `` shortcut:`${n}+q` `` with `function ER(){return kr()?"alt":"ctrl"}` — the
+# modifier is picked at runtime; the mac branch is the first string, as everywhere.
+MODFN_RE = re.compile(r'function (\w+)\(\)\{return \w+\(\)\?"([^"]+)":"[^"]+"\}')
+MODVAR_RE = re.compile(r'(?<![\w$])(\w+)=(\w+)\(\)[,;]')
+# `var RR="cmd+b"` / `let t=Yi(),n="cmd+r"` — a key written straight into a local
+# instead of into the row. Without this the row renders the identifier (`RR`).
+# The value guard keeps the pattern from picking up every `x.title="…"` assignment
+# in the segment: only a key-shaped string can be a shortcut.
+LOCAL_STR_RE = re.compile(r'(?<![\w$])(\w+)=("[a-z0-9+]+")[,;)]')
+KEYISH_RE = re.compile(r'[a-z0-9]+(?:\+[a-z0-9]+)*$')
+TEMPLATE_RE = re.compile(r'^`\$\{(\w+)\}([^`]*)`$')
+# `{shortcut:`${n}+q`,children:A(dr,{id:r})}` with `r="1eodd8i"` — a remote label
+# looked up through a local, which the inline-id branch of ROW_RE cannot see.
+REMOTE_ROW_RE = re.compile(
+    r'\{shortcut:(`[^`]*`|"[^"]*"|\w+),children:\w+\(\w+,\{id:(\w+)\}\)\}')
+IDVAR_RE = re.compile(r'(?<![\w$])(\w+)="([0-9a-z]{6,8})"[,;]')
+# `n.replace(/1$/,"1\u20269")` — the preset/tab rows widen a single key to a range.
+REPLACE_RE = re.compile(r'^(.*)\.replace\(/1\$/,"([^"]*)"\)$')
+# `import{vr as d_}from"./shared-12-BzDv77xE.js"` — followed to find that hook.
+IMPORT_RE = re.compile(r'import\{([^}]*)\}from"\./([\w.\-]+\.js)"')
+
+
+def hook_registry_id(src, hook):
+    """Follow `import{X as hook}from"./chunk.js"` -> that chunk's `Y as X` export ->
+    the registry id the hook wraps (`return $e("toggle_dictation",…)`)."""
+    for names, fname in IMPORT_RE.findall(src):
+        m = re.search(r'(?<![\w$])(\w+) as ' + re.escape(hook) + r'(?![\w$])', names)
+        if not m:
+            continue
+        path = ASSETS / fname
+        if not path.is_file():
+            return None
+        other = path.read_text(errors="ignore")
+        # The import name is the export alias; the export list sits at the end.
+        exp = re.findall(r'(?<![\w$])(\w+) as ' + re.escape(m.group(1)) + r'(?![\w$])', other)
+        if not exp:
+            return None
+        fn = re.search(r'function ' + re.escape(exp[-1]) + r'\(', other)
+        if not fn:
+            return None
+        ids = re.findall(r'\("([a-z][a-z0-9_]{3,})"', other[fn.start():fn.start() + 2000])
+        return ids[0] if ids else None
+    return None
 # Count of rows the modal actually renders, used to detect silent drops.
 ROW_ANCHOR_RE = re.compile(r'\{shortcut(?:Id)?:')
 # A row whose label was hoisted into a local (`let t=j(Z,{defaultMessage:"Settings"…});
@@ -144,7 +339,14 @@ VAR_ROW_RE = re.compile(
 VAR_LABEL_RE = r'\b{}=[^;]{{0,80}}?defaultMessage:"([^"]*)"'
 
 
-def modal_rows(src):
+def groups(m):
+    """`m.groups()` with None replaced by "" — the row parsers test group emptiness
+    and `findall()` (which these loops used before they needed match offsets) never
+    handed them None."""
+    return tuple(g or "" for g in m.groups())
+
+
+def modal_rows(src, reg=None):
     # Anchor on the modal's own row, not on the label "Keyboard shortcuts" — that
     # string also appears as a help-menu item in a different (larger) chunk, and
     # chunks are scanned largest-first.
@@ -152,41 +354,136 @@ def modal_rows(src):
     if not anchors:
         return []
     seg = src[max(0, anchors[0] - 20000): anchors[-1] + 20000]
-    strvars = dict(SHORTCUT_STR_RE.findall(seg))
+    # The segment spans every component that renders part of the modal, and they all
+    # use the same mangled single letters, so a name is not unique within it: `n` is
+    # `CR("selectPreset1",…)` in one component and the literal `"cmd+r"` in the next.
+    # Bindings are therefore recorded WITH their offset and resolved against the
+    # row's own offset — nearest binding before the row wins. A flat dict here made
+    # "Reload page in Browser" come out as ⌘⌥1 (selectPreset1) instead of ⌘R.
+    binds = {}
+
+    def bind(name, pos, value):
+        binds.setdefault(name, []).append((pos, value))
+
+    for m in SHORTCUT_STR_RE.finditer(seg):
+        bind(m.group(1), m.start(), f"@{m.group(2)}")
+    for m in HELPER_VAR_RE.finditer(seg):
+        bind(m.group(1), m.start(), f'{m.group(2)}("{m.group(3)}")')
+    for m in LOCAL_STR_RE.finditer(seg):
+        value = m.group(2).strip('"')
+        if KEYISH_RE.fullmatch(value):
+            bind(m.group(1), m.start(), value)
+    # A hook row carries both halves: its key resolves through the registry id and
+    # its label is the registry's own description.
+    hooklabels = {}
+    for m in HOOK_ROW_RE.finditer(seg):
+        kvar, lvar, hook = m.groups()
+        rid = hook_registry_id(src, hook)
+        if rid is None:
+            continue
+        bind(kvar, m.start(), f"@{rid}")
+        hooklabels[lvar] = (reg or {}).get(rid, {}).get("label", rid)
+    for cands in binds.values():
+        cands.sort()
+
+    def nearest(name, at):
+        """The binding of `name` closest above `at`; a module-level const declared
+        below its use (hoisted `var`) falls back to the first one."""
+        cands = binds.get(name)
+        if not cands:
+            return None
+        before = [v for pos, v in cands if pos < at]
+        return before[-1] if before else cands[0][1]
+    # Locals holding a registry entry, and locals holding a platform modifier.
+    regvars = {loc: rid for loc, rid in REGVAR_RE.findall(seg) if rid in (reg or {})}
+    modfns = dict(MODFN_RE.findall(src))
+    modvars = {loc: modfns[fn] for loc, fn in MODVAR_RE.findall(seg) if fn in modfns}
+
+    def local(key, at):
+        """`b` / `_??[]` -> the key, registry id, helper call or array it was bound
+        to at offset `at` (the row's own position; see `binds` above)."""
+        m = TEMPLATE_RE.match(key)  # `${n}+q` -> "alt+q"
+        if m and m.group(1) in modvars:
+            return modvars[m.group(1)] + m.group(2)
+        m = re.fullmatch(r"(\w+)(\..+)", key)  # `n.replace(/1$/,…)`
+        if m:
+            head = local(m.group(1), at)
+            return head + m.group(2) if head != m.group(1) else key
+        bare = key[:-4] if key.endswith("??[]") else key
+        found = nearest(bare, at)
+        if found is not None:
+            return found
+        # A bare identifier can also be a hoisted array of alternatives (Ig=["a","b"]).
+        if re.fullmatch(r"[A-Za-z_$]\w*", bare):
+            arr = re.search(rf'\b{re.escape(bare)}=\[("[^\]]*")\]', src)
+            if arr:
+                return "[" + arr.group(1) + "]"
+        return key
+
     out = []
-    for shortcut, sid, _gap, label, sp_var, sp_key, remote in ROW_RE.findall(seg):
+    for row in ROW_RE.finditer(seg):
+        # `groups()` yields None for a group that did not participate, where
+        # `findall()` used to yield "" — every branch below tests emptiness.
+        shortcut, sid, _gap, label, sp_var, sp_key, remote = groups(row)
         if not label and sp_var:
-            m = re.search(SPREAD_LABEL_RE.format(re.escape(sp_var), re.escape(sp_key)), src)
-            label = m.group(1) if m else f"{sp_var}.{sp_key}"
+            # `_n.description` where `_n=Mn("<registry id>")`. Only `description`:
+            # any other field is a message object's own key, and single-letter
+            # locals collide across components.
+            if sp_key == "description" and sp_var in regvars:
+                label = (reg or {})[regvars[sp_var]]["label"]
+            else:
+                m = re.search(SPREAD_LABEL_RE.format(re.escape(sp_var), re.escape(sp_key)), src)
+                # The object may be a local (a prop), so fall back to the field
+                # name — but only a distinctive one; `description` matches anything.
+                if not m and sp_key != "description":
+                    m = bundle_search(r'(?<![\w$])' + re.escape(sp_key)
+                                      + r':\{defaultMessage:"([^"]*)"')
+                label = m.group(1) if m else f"{sp_var}.{sp_key}"
         label = label.encode().decode("unicode_escape")
         if not label and remote:
             # Label ships from the server, not the bundle; keep the id so the row
             # still shows up instead of silently vanishing. Applied after the
             # escape decode — running non-ASCII text through it mangles it.
             label = f"[远程文案 {remote}]"
+        if sid and label == f"{sp_var}.{sp_key}" and sid in (reg or {}):
+            # `{shortcutId:"new_code_session_from_current",children:{..._n.description}}`
+            # — the label object is a local, but the row names its registry entry.
+            label = reg[sid]["label"]
         key = shortcut.strip('"') if shortcut else f"@{sid}"
-        # `_??[]` / `_` -> the registry id that local was bound to.
-        bare = key[:-4] if key.endswith("??[]") else key
-        if bare in strvars:
-            key = f"@{strvars[bare]}"
-        # A bare identifier is a hoisted array of alternatives (var Ig=["a","b"]).
-        if re.fullmatch(r"[A-Za-z_$]\w*", key):
-            arr = re.search(rf'\b{re.escape(key)}=\[("[^\]]*")\]', src)
-            if arr:
-                key = "[" + arr.group(1) + "]"
-        out.append({"label": label, "key": key})
+        out.append({"label": label, "key": local(key, row.start())})
+
+    # A remote label addressed through a local (`{id:r}` with `r="1eodd8i"`).
+    idvars = dict(IDVAR_RE.findall(seg))
+    for row in REMOTE_ROW_RE.finditer(seg):
+        shortcut, var = groups(row)
+        if var not in idvars:
+            continue
+        out.append({"label": f"[远程文案 {idvars[var]}]",
+                    "key": local(shortcut.strip('"'), row.start())})
+
+    # `{shortcut:e.shortcutString,children:e.description}` — key and label both
+    # come from the registry entry the local was bound to.
+    for var in FIELD_ROW_RE.findall(seg):
+        rid = regvars.get(var)
+        if rid is None:
+            continue
+        out.append({"label": (reg or {})[rid]["label"], "key": f"@{rid}"})
 
     seen, dupes = {r["label"] for r in out}, 0
-    for shortcut, sid, var in VAR_ROW_RE.findall(seg):
-        lab = re.search(VAR_LABEL_RE.format(re.escape(var)), seg)
-        if not lab:
-            continue
-        label = lab.group(1).encode().decode("unicode_escape")
+    for row in VAR_ROW_RE.finditer(seg):
+        shortcut, sid, var = groups(row)
+        label = hooklabels.get(var)
+        if label is None:
+            lab = re.search(VAR_LABEL_RE.format(re.escape(var)), seg)
+            if not lab:
+                continue
+            label = lab.group(1).encode().decode("unicode_escape")
         if label in seen:  # the other branch of the same platform ternary
             dupes += 1
             continue
         seen.add(label)
-        out.append({"label": label, "key": shortcut.strip('"') if shortcut else f"@{sid}"})
+        key = shortcut.strip('"') if shortcut else f"@{sid}"
+        out.append({"label": label, "key": local(key, row.start())})
 
     rendered = len(ROW_ANCHOR_RE.findall(seg))
     if out and len(out) + dupes < rendered:
@@ -242,8 +539,13 @@ def pane_keys(command, pane):
 
 
 def resolve_key(key, reg, pane=(), helpers=None):
-    if "\\u" in key:
-        key = key.encode().decode("unicode_escape")
+    key = unescape(key)
+    m = REPLACE_RE.match(key)
+    if m:
+        widened = unescape(m.group(2))
+        resolved = resolve_key(m.group(1), reg, pane, helpers)
+        return " / ".join(k[:-1] + widened if k.endswith("1") else k
+                          for k in resolved.split(" / "))
     if key.startswith("@"):
         entry = reg.get(key[1:])
         if isinstance(entry, dict):
@@ -255,7 +557,7 @@ def resolve_key(key, reg, pane=(), helpers=None):
     if m and m.group(1) in (helpers or {}):
         found = pane_keys(m.group(2), pane)
         first = helpers[m.group(1)] == "first"
-        return found[0] if (first and found) else " / ".join(found)
+        return found[0] if (first and found) else (" / ".join(found) or key)
     m = TERNARY_ARR_RE.match(key)
     if m:
         return " / ".join(QUOTED_RE.findall(m.group(1)))
@@ -263,20 +565,26 @@ def resolve_key(key, reg, pane=(), helpers=None):
     return m.group(1) if m else key
 
 
+MODAL_ANCHOR_RE = re.compile(r'shortcutId:"shortcuts_modal"')
+
+
 def collect():
     data = {"version": app_version(), "pane": [], "registry": {}, "modal": []}
-    helpers = {}
+    helpers, modal_src = {}, None
     for _, src in chunks():
         if not data["pane"]:
             data["pane"] = pane_table(src)
         if not data["registry"]:
             data["registry"] = registry(src)
-        if not data["modal"]:
-            data["modal"] = modal_rows(src)
-            if data["modal"]:
-                helpers = find_helpers(src)
-        if data["pane"] and data["registry"] and data["modal"]:
+        if modal_src is None and MODAL_ANCHOR_RE.search(src):
+            modal_src = src
+        if data["pane"] and data["registry"] and modal_src is not None:
             break
+    # The modal is parsed after the loop: a hook row resolves its key AND its label
+    # through the registry, which lives in a different chunk than the modal.
+    if modal_src is not None:
+        data["modal"] = modal_rows(modal_src, data["registry"])
+        helpers = find_helpers(modal_src)
     for row in data["modal"]:
         row["key"] = resolve_key(row["key"], data["registry"], data["pane"], helpers)
     return data
@@ -290,6 +598,8 @@ def flatten(snap):
     out = {s: {} for s in SECTIONS}
 
     for e in snap.get("pane", []):
+        if e.get("tpl"):  # generated digit family: lookup-only, never rendered
+            continue
         # Same command binds different keys per platform/context, so `when`/`mac`
         # are part of the identity — otherwise the variants overwrite each other.
         ident = e["command"]
@@ -303,7 +613,16 @@ def flatten(snap):
             tag = "（仅网页版）"
         elif e.get("mac") is False:
             tag = "（仅非 mac）"
-        out["pane"][ident] = (e["command"] + tag, e["key"])
+        # One command can bind several keys in the same context (⌫ and delete
+        # for sketchDeleteSelection), and they share an identity — aggregate them
+        # instead of letting the last one win, so a key change still reads as ✏️
+        # rather than as an addition plus a removal.
+        prev = out["pane"].get(ident)
+        keys = prev[1].split(" / ") if prev else []
+        key = unescape(e["key"])  # older snapshots stored the escaped form
+        if key not in keys:
+            keys.append(key)
+        out["pane"][ident] = (e["command"] + tag, " / ".join(keys))
 
     for name, v in snap.get("registry", {}).items():
         # Older snapshots stored a bare key list; tolerate both shapes.
@@ -455,6 +774,19 @@ def demo():
         f"live extraction empty: { {k: len(v) for k, v in live.items() if k != 'version'} }"
     assert sum(1 for v in live["registry"].values() if v["label"] != "?") > 15, \
         "registry labels failed to resolve"
+    # Bindings behind a hoisted array (`bindings:lB`) or the default-shortcut table
+    # (`bindings:dh("command_palette")`) must resolve, not vanish.
+    assert any(k.startswith("copy_") for k in live["registry"]), \
+        "hoisted binding arrays no longer resolve"
+    assert live["registry"].get("command_palette", {}).get("keys") == ["cmd+k"], \
+        "default-table bindings no longer resolve"
+    # A modal key left as a bare identifier means a local was never followed —
+    # single-word key literals (enter, esc, …) are not identifiers in that sense.
+    LITERAL = set(PRETTY) | {"enter", "esc", "escape", "space", "delete", "tab",
+                             "backspace", "esc esc"}
+    stray = [r for r in live["modal"]
+             if re.fullmatch(r"[A-Za-z_$]\w*", r["key"]) and r["key"] not in LITERAL]
+    assert not stray, f"unresolved modal locals: {stray}"
     probe = {s: {} for s in SECTIONS}
     probe["modal"][next(iter(flatten(live)["modal"]))] = "added"
     assert "🆕" in render(live, probe, []), "render dropped the change marker"
