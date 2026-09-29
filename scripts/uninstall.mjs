@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
+import { allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,6 @@ const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s
 const shorten = (s) => s.replace(HOME, '~');
 
 const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
-const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
@@ -61,7 +60,6 @@ async function main() {
   log.info(`Detected source: ${shorten(DOTFILES_DIR)}`);
 
   const targets = [
-    ...allSkillPaths().map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
     ...allCommandPaths().map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
     ...allAgentPaths().map(p => ({ path: p, target: AGENTS_FILE, type: 'agent' })),
   ];
@@ -80,16 +78,10 @@ async function main() {
     return;
   }
 
-  const skillLinks = linked.filter(t => t.type === 'skill');
   const cmdLinks = linked.filter(t => t.type === 'command');
   const agentLinks = linked.filter(t => t.type === 'agent');
   const summaryLines = [];
-  if (skillLinks.length) {
-    summaryLines.push(`Skills (${skillLinks.length}):`);
-    skillLinks.forEach(t => summaryLines.push(`  → ${t.path}`));
-  }
   if (cmdLinks.length) {
-    if (summaryLines.length) summaryLines.push('');
     summaryLines.push(`Commands (${cmdLinks.length}):`);
     cmdLinks.forEach(t => summaryLines.push(`  → ${t.path}`));
   }

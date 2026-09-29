@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, note, log } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
+import { allCommandPaths, allAgentPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,7 +12,6 @@ const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s
 const shorten = (s) => s.replace(HOME, '~');
 
 const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
-const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
@@ -56,7 +55,6 @@ intro('.dotfiles status');
 log.info(`Detected source: ${shorten(DOTFILES_DIR)}`);
 
 const sections = [
-  { title: 'Skills', results: checkSection(allSkillPaths(), SKILLS_DIR) },
   { title: 'Commands', results: checkSection(allCommandPaths(), COMMANDS_DIR) },
   { title: 'Instructions', results: checkSection(allAgentPaths(), AGENTS_FILE) },
 ];

@@ -3,49 +3,44 @@ export const UNIVERSAL_AGENTS = [
 ];
 
 export const UNIVERSAL = {
-  skills: '~/.agents/skills',
   commands: '~/.agents/commands',
 };
 
 export const AGENTS = [
-  { name: 'AdaL',         skills: '~/.adal/skills',                    commands: '~/.adal/commands' },
-  { name: 'Antigravity',  skills: '~/.agent/skills',                   commands: '~/.agent/commands' },
-  { name: 'Augment',      skills: '~/.augment/skills',                 commands: '~/.augment/commands' },
-  { name: 'Claude Code',  skills: '~/.claude/skills',                  commands: '~/.claude/commands',                  instructions: '~/.claude/CLAUDE.md' },
-  { name: 'Cline',        skills: '~/.cline/skills',                   commands: '~/.cline/commands' },
-  { name: 'CodeBuddy',    skills: '~/.codebuddy/skills',               commands: '~/.codebuddy/commands' },
-  { name: 'Codex',        skills: '~/.codex/skills',                   commands: '~/.codex/prompts',                   instructions: '~/.codex/AGENTS.md' },
-  { name: 'Command Code', skills: '~/.commandcode/skills',             commands: '~/.commandcode/commands' },
-  { name: 'Continue',     skills: '~/.continue/skills',                commands: '~/.continue/commands' },
-  { name: 'Crush',        skills: '~/.crush/skills',                   commands: '~/.crush/commands' },
-  { name: 'Cursor',       skills: '~/.cursor/skills',                  commands: '~/.cursor/commands' },
-  { name: 'Droid',        skills: '~/.factory/skills',                 commands: '~/.factory/commands',                 instructions: '~/.factory/AGENTS.md' },
-  { name: 'Gemini CLI',   skills: '~/.gemini/antigravity/skills',      commands: '~/.gemini/antigravity/global_workflows' },
-  { name: 'Goose',        skills: '~/.goose/skills',                   commands: '~/.goose/commands' },
-  { name: 'iFlow CLI',    skills: '~/.iflow/skills',                   commands: '~/.iflow/commands' },
-  { name: 'Junie',        skills: '~/.junie/skills',                   commands: '~/.junie/commands' },
-  { name: 'Kilo Code',    skills: '~/.kilocode/skills',                commands: '~/.kilocode/commands' },
-  { name: 'Kiro CLI',     skills: '~/.kiro/skills',                    commands: '~/.kiro/commands' },
-  { name: 'Kode',         skills: '~/.kode/skills',                    commands: '~/.kode/commands' },
-  { name: 'MCPJam',       skills: '~/.mcpjam/skills',                  commands: '~/.mcpjam/commands' },
-  { name: 'Mistral Vibe', skills: '~/.vibe/skills',                    commands: '~/.vibe/commands' },
-  { name: 'Mux',          skills: '~/.mux/skills',                     commands: '~/.mux/commands' },
-  { name: 'Neovate',      skills: '~/.neovate/skills',                 commands: '~/.neovate/commands' },
-  { name: 'OpenClaw',     skills: '~/skills',                          commands: '~/commands' },
-  { name: 'OpenHands',    skills: '~/.openhands/skills',               commands: '~/.openhands/commands' },
-  { name: 'Pi',           skills: '~/.pi/skills',                      commands: '~/.pi/commands' },
-  { name: 'Pochi',        skills: '~/.pochi/skills',                   commands: '~/.pochi/commands' },
-  { name: 'Qoder',        skills: '~/.qoder/skills',                   commands: '~/.qoder/commands' },
-  { name: 'Qwen Code',    skills: '~/.qwen/skills',                    commands: '~/.qwen/commands' },
-  { name: 'Roo Code',     skills: '~/.roo/skills',                     commands: '~/.roo/commands' },
-  { name: 'Trae',         skills: '~/.trae/skills',                    commands: '~/.trae/commands' },
-  { name: 'Windsurf',     skills: '~/.windsurf/skills',                commands: '~/.windsurf/commands' },
-  { name: 'Zencoder',     skills: '~/.zencoder/skills',                commands: '~/.zencoder/commands' },
+  { name: 'AdaL',         commands: '~/.adal/commands' },
+  { name: 'Antigravity',  commands: '~/.agent/commands' },
+  { name: 'Augment',      commands: '~/.augment/commands' },
+  { name: 'Claude Code',  commands: '~/.claude/commands',                  instructions: '~/.claude/CLAUDE.md' },
+  { name: 'Cline',        commands: '~/.cline/commands' },
+  { name: 'CodeBuddy',    commands: '~/.codebuddy/commands' },
+  { name: 'Codex',        commands: '~/.codex/prompts',                    instructions: '~/.codex/AGENTS.md' },
+  { name: 'Command Code', commands: '~/.commandcode/commands' },
+  { name: 'Continue',     commands: '~/.continue/commands' },
+  { name: 'Crush',        commands: '~/.crush/commands' },
+  { name: 'Cursor',       commands: '~/.cursor/commands' },
+  { name: 'Droid',        commands: '~/.factory/commands',                 instructions: '~/.factory/AGENTS.md' },
+  { name: 'Gemini CLI',   commands: '~/.gemini/antigravity/global_workflows' },
+  { name: 'Goose',        commands: '~/.goose/commands' },
+  { name: 'iFlow CLI',    commands: '~/.iflow/commands' },
+  { name: 'Junie',        commands: '~/.junie/commands' },
+  { name: 'Kilo Code',    commands: '~/.kilocode/commands' },
+  { name: 'Kiro CLI',     commands: '~/.kiro/commands' },
+  { name: 'Kode',         commands: '~/.kode/commands' },
+  { name: 'MCPJam',       commands: '~/.mcpjam/commands' },
+  { name: 'Mistral Vibe', commands: '~/.vibe/commands' },
+  { name: 'Mux',          commands: '~/.mux/commands' },
+  { name: 'Neovate',      commands: '~/.neovate/commands' },
+  { name: 'OpenClaw',     commands: '~/commands' },
+  { name: 'OpenHands',    commands: '~/.openhands/commands' },
+  { name: 'Pi',           commands: '~/.pi/commands' },
+  { name: 'Pochi',        commands: '~/.pochi/commands' },
+  { name: 'Qoder',        commands: '~/.qoder/commands' },
+  { name: 'Qwen Code',    commands: '~/.qwen/commands' },
+  { name: 'Roo Code',     commands: '~/.roo/commands' },
+  { name: 'Trae',         commands: '~/.trae/commands' },
+  { name: 'Windsurf',     commands: '~/.windsurf/commands' },
+  { name: 'Zencoder',     commands: '~/.zencoder/commands' },
 ];
-
-export function allSkillPaths() {
-  return [UNIVERSAL.skills, ...AGENTS.map(a => a.skills)];
-}
 
 export function allCommandPaths() {
   return [UNIVERSAL.commands, ...AGENTS.map(a => a.commands)];
@@ -59,19 +54,32 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// Infer the dotfiles dir from whatever is already linked. Votes on link
+// *targets*, not the agent-side paths: a commands link always points at
+// <dotfiles>/commands and an instructions link at <dotfiles>/agents/AGENTS.md,
+// regardless of what the agent calls its own directory (prompts,
+// global_workflows, ...).
 export function detectDotfilesDir() {
   const HOME = os.homedir();
   const expand = (s) => (s === '~' ? HOME : s.startsWith('~/') ? path.join(HOME, s.slice(2)) : s);
   const votes = {};
-  for (const p of allSkillPaths()) {
-    const full = expand(p);
-    try {
-      if (fs.lstatSync(full).isSymbolicLink()) {
-        const dir = fs.readlinkSync(full).replace(/\/skills$/, '');
+
+  const tally = (paths, strip) => {
+    for (const p of paths) {
+      try {
+        const full = expand(p);
+        if (!fs.lstatSync(full).isSymbolicLink()) continue;
+        const target = fs.readlinkSync(full);
+        if (!strip.test(target)) continue;
+        const dir = target.replace(strip, '');
         votes[dir] = (votes[dir] || 0) + 1;
-      }
-    } catch {}
-  }
+      } catch {}
+    }
+  };
+
+  tally(allCommandPaths(), /\/commands$/);
+  tally(allAgentPaths(), /\/agents\/AGENTS\.md$/);
+
   let best = null;
   let max = 0;
   for (const [dir, count] of Object.entries(votes)) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { intro, outro, confirm, spinner, note, log } from '@clack/prompts';
-import { allSkillPaths, allCommandPaths, detectDotfilesDir } from './lib/catalog.mjs';
+import { allCommandPaths, detectDotfilesDir } from './lib/catalog.mjs';
 import pc from 'picocolors';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -14,14 +14,10 @@ const shorten = (s) => s.replace(HOME, '~');
 
 const DOTFILES_DIR = detectDotfilesDir() || expand('~/.dotfiles');
 const COMMANDS_DIR = path.join(DOTFILES_DIR, 'commands');
-const SKILLS_DIR = path.join(DOTFILES_DIR, 'skills');
 const AGENTS_FILE = path.join(DOTFILES_DIR, 'agents', 'AGENTS.md');
 
 function findFixable() {
-  const targets = [
-    ...allSkillPaths().map(p => ({ path: p, target: SKILLS_DIR, type: 'skill' })),
-    ...allCommandPaths().map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' })),
-  ];
+  const targets = allCommandPaths().map(p => ({ path: p, target: COMMANDS_DIR, type: 'command' }));
 
   return targets.filter(t => {
     const full = expand(t.path);
