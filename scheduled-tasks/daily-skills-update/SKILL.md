@@ -6,20 +6,20 @@ description: 每天 09:00 用 npx skills update 更新本机 agent skills
 每日更新本机通过 npx skills 安装的 agent skills。
 
 执行：`npx -y skills update -g -y`（非交互，全局 scope）。
-实体目录为 ~/.agents/skills/，lock 文件为 ~/.dotfiles/skills/.skill-lock.json（symlink 进 ~/.claude/skills/）。
+实体目录为 ~/.agents/skills/，lock 文件为 ~/.dotfiles/state/.skill-lock.json（symlink 进 ~/.claude/skills/）。
 
 约束：
 - 更新会改动 ~/.dotfiles 里的 lock 文件，这是预期行为。跑完必须提交，别把 diff 攒在仓库里。提交一律落在 main 上，只提交这一个文件，不要碰仓库里的其他改动。本任务直接 git commit，不走 ce-commit skill。
 
-  不要 checkout 切分支（~/.dotfiles/skills/.skill-lock.json 就是 live 文件，切走会把它还原成旧版，跟 ~/.agents/skills/ 里已装的新 skill 对不上）。不管当前在哪个分支，都走同一条路：先 fetch，再用临时 worktree 基于**刚取回的 origin/main** 提交。绝不能基于本地 main —— 本地 main 可能落后远端，那样 push 必被拒，还会在本地攒下推不上去的滞留提交。
+  不要 checkout 切分支（~/.dotfiles/state/.skill-lock.json 就是 live 文件，切走会把它还原成旧版，跟 ~/.agents/skills/ 里已装的新 skill 对不上）。不管当前在哪个分支，都走同一条路：先 fetch，再用临时 worktree 基于**刚取回的 origin/main** 提交。绝不能基于本地 main —— 本地 main 可能落后远端，那样 push 必被拒，还会在本地攒下推不上去的滞留提交。
 
   ```
   git -C ~/.dotfiles fetch -q origin main
   W=$(mktemp -d)/main
   git -C ~/.dotfiles worktree add -q --detach "$W" origin/main
-  cp ~/.dotfiles/skills/.skill-lock.json "$W/skills/.skill-lock.json"
-  git -C "$W" diff --quiet -- skills/.skill-lock.json || {
-    git -C "$W" commit -q -m "chore(skills): bump lockfile from daily skills update" -- skills/.skill-lock.json
+  cp ~/.dotfiles/state/.skill-lock.json "$W/state/.skill-lock.json"
+  git -C "$W" diff --quiet -- state/.skill-lock.json || {
+    git -C "$W" commit -q -m "chore(skills): bump lockfile from daily skills update" -- state/.skill-lock.json
     git -C "$W" push origin HEAD:main
   }
   git -C ~/.dotfiles worktree remove --force "$W"
@@ -28,7 +28,7 @@ description: 每天 09:00 用 npx skills update 更新本机 agent skills
   push 成功后，如果当前就在 main 上，让本地 main 跟上远端：
 
   ```
-  git -C ~/.dotfiles checkout origin/main -- skills/.skill-lock.json
+  git -C ~/.dotfiles checkout origin/main -- state/.skill-lock.json
   git -C ~/.dotfiles merge --ff-only origin/main
   ```
 

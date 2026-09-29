@@ -60,7 +60,7 @@ npx skills update -g                     # 把全局 skills 更新到 upstream H
 ~/.claude/skills/<name>          → ~/.agents/skills/<name>
 ~/.codex/skills/<name>           → ~/.agents/skills/<name>
 ~/.factory/skills/<name>         → ~/.agents/skills/<name>
-~/.dotfiles/skills/.skill-lock.json  ← 可移植的锁文件，已 commit 用来追踪版本
+~/.dotfiles/state/.skill-lock.json  ← 可移植的锁文件，已 commit 用来追踪版本
 ```
 
 ## Terminal dotfiles (stow)

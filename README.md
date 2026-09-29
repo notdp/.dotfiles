@@ -60,7 +60,7 @@ Layout:
 ~/.claude/skills/<name>          → ~/.agents/skills/<name>
 ~/.codex/skills/<name>           → ~/.agents/skills/<name>
 ~/.factory/skills/<name>         → ~/.agents/skills/<name>
-~/.dotfiles/skills/.skill-lock.json  ← portable lock file, committed to track versions
+~/.dotfiles/state/.skill-lock.json  ← portable lock file, committed to track versions
 ```
 
 ## Terminal dotfiles (stow)
