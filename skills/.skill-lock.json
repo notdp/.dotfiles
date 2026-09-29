@@ -362,6 +362,16 @@
       "skillFolderHash": "0f2c3f9565a887077f3aa9397a9ac43c5a152686",
       "installedAt": "2026-09-15T14:04:01.278Z",
       "updatedAt": "2026-09-15T14:04:01.278Z"
+    },
+    "test-audit": {
+      "source": "openclaw/openclaw",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/openclaw.git",
+      "ref": "main",
+      "skillPath": ".agents/skills/test-audit/SKILL.md",
+      "skillFolderHash": "8015421942bcd215db0e73a13ec944d50ce01ec5",
+      "installedAt": "2026-09-29T14:20:03.334Z",
+      "updatedAt": "2026-09-29T14:20:03.334Z"
     }
   },
   "lastSelectedAgents": [
