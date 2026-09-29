@@ -1,2 +1,3 @@
 [build]
 rustc-wrapper = "sccache"
+target-dir = "/Users/notdp/.cargo/target"
