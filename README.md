@@ -2,7 +2,7 @@
 
 [中文](./README.zh-CN.md)
 
-Share commands, skills, and global agent instructions across 30+ AI coding agents.
+Share slash commands and global agent instructions across 37 AI coding agents. Skills are **not** handled here — they are managed by the standalone [`skills`](https://www.npmjs.com/package/skills) CLI (see [Skills](#skills)).
 
 ## Install
 
@@ -12,7 +12,7 @@ npx github:notdp/.dotfiles install
 
 Interactive installer with two setup modes:
 
-- **Create new** — start with pre-made skills & commands, pick what you need
+- **Create new** — start with pre-made commands, pick what you need
 - **Import existing** — clone your own git repository
 
 ## Uninstall
@@ -33,6 +33,7 @@ npx -y github:notdp/.dotfiles fix      # merge standalone dirs into dotfiles
 Symlinks a single source directory to every agent's config path:
 
 ```
+~/.agents/commands   → ~/.dotfiles/commands     ← universal pool (Amp, Codex, Gemini CLI, …)
 ~/.claude/commands   → ~/.dotfiles/commands
 ~/.codex/prompts     → ~/.dotfiles/commands
 ~/.factory/commands  → ~/.dotfiles/commands
@@ -41,9 +42,9 @@ Symlinks a single source directory to every agent's config path:
 ~/.factory/AGENTS.md → ~/.dotfiles/agents/AGENTS.md
 ```
 
-Edit once, apply everywhere.
+Edit once, apply everywhere. `commands/` is currently empty — the fanout is wired up, the content isn't there yet.
 
-### Skills
+## Skills
 
 Skills are managed by the standalone [`skills`](https://www.npmjs.com/package/skills) CLI, not this installer. It pulls skill packages from GitHub into a universal pool and symlinks them into each agent:
 
@@ -56,12 +57,31 @@ npx skills update -g                     # refresh global skills to upstream HEA
 Layout:
 
 ```
-~/.agents/skills/<name>/         ← skill content (one dir per skill, fetched from upstream)
-~/.claude/skills/<name>          → ~/.agents/skills/<name>
-~/.codex/skills/<name>           → ~/.agents/skills/<name>
-~/.factory/skills/<name>         → ~/.agents/skills/<name>
-~/.dotfiles/state/.skill-lock.json  ← portable lock file, committed to track versions
+~/.agents/skills/<name>/     ← skill content (one dir per skill, fetched from upstream)
+~/.claude/skills/<name>      → ~/.agents/skills/<name>
+~/.factory/skills/<name>     → ~/.agents/skills/<name>
 ```
+
+Universal agents (Amp, Codex, Gemini CLI, …) read `~/.agents/skills` directly and get no per-agent symlink.
+
+The lock file is this repo's only piece of that setup. It lives outside `skills/` so the publish catalog stays clean, and is hand-linked into both paths the CLI reads:
+
+```
+~/.agents/.skill-lock.json          → ~/.dotfiles/state/.skill-lock.json
+~/.claude/skills/.skill-lock.json   → ~/.dotfiles/state/.skill-lock.json
+```
+
+A daily routine runs `npx skills update -g -y` and commits the bump.
+
+## Scheduled tasks
+
+Claude Code routines live in `scheduled-tasks/`, hand-linked (not by the installer):
+
+```
+~/.claude/scheduled-tasks → ~/.dotfiles/scheduled-tasks
+```
+
+Two of them are machine-local and gitignored.
 
 ## Terminal dotfiles (stow)
 
@@ -81,14 +101,34 @@ Each package mirrors home:
 
 Edit the file under `~/.dotfiles/config/...` (the home paths are symlinks pointing here), commit, done. `stow -d config -t ~ -D <pkg>` removes the symlinks.
 
-## Supported Agents
+## Layout
 
-33 agents + 6 universal agents. Full list:
+| Path | What | Wired by |
+|------|------|----------|
+| `commands/` | slash commands, shared by every agent | installer |
+| `agents/AGENTS.md` | global agent instructions | installer |
+| `skills/` | skills **published** from this repo — `npx skills add notdp/.dotfiles` | skills CLI |
+| `state/` | machine state, currently just `.skill-lock.json` | hand-linked |
+| `scheduled-tasks/` | Claude Code routines | hand-linked |
+| `config/` | stow packages for terminal dotfiles | stow |
+| `bin/` | helper executables, referenced by absolute path | — |
+| `statusline.sh` | Claude Code statusline, set in `~/.claude/settings.json` | — |
+| `scripts/` | the installer itself | — |
+| `.arch/` | older scaffolding (duoduo dual-agent PR review), not referenced by anything here | — |
+
+## Supported agents
+
+37 agents. Six of them (Amp, Codex, Gemini CLI, GitHub Copilot, Kimi Code CLI, OpenCode) read from the universal `~/.agents` pool, so they need no per-agent symlink.
 
 AdaL, Amp, Antigravity, Augment, Claude Code, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, iFlow CLI, Junie, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, Neovate, OpenClaw, OpenCode, OpenHands, Pi, Pochi, Qoder, Qwen Code, Roo Code, Trae, Windsurf, Zencoder
 
 ## Skills published here
 
+```bash
+npx skills add notdp/.dotfiles -g
+```
+
 | Skill | Description |
 |-------|-------------|
 | **polish** | Strip AI-speak out of PRs, commits, docs, and messages |
+| **ccd-account-switch** | After switching Claude accounts, carry sessions and routines over to the new one |
