@@ -12,7 +12,7 @@ npx github:notdp/.dotfiles install
 
 交互式安装器，两种模式：
 
-- **新建** — 从预置 commands 开始，选择需要的
+- **新建** — 把本仓库的 `commands/` 和 `agents/` 复制过去当起点
 - **导入** — 克隆你自己的 git 仓库
 
 ## 卸载
@@ -33,7 +33,7 @@ npx -y github:notdp/.dotfiles fix      # 合并独立目录到 dotfiles
 将单一源目录软链到每个 agent 的配置路径：
 
 ```
-~/.agents/commands   → ~/.dotfiles/commands     ← 通用池（Amp、Codex、Gemini CLI……）
+~/.agents/commands   → ~/.dotfiles/commands     ← 通用池（Amp、OpenCode……）
 ~/.claude/commands   → ~/.dotfiles/commands
 ~/.codex/prompts     → ~/.dotfiles/commands
 ~/.factory/commands  → ~/.dotfiles/commands
@@ -118,7 +118,7 @@ cd ~/.dotfiles && stow -d config -t ~ tmux ghostty
 
 ## 支持的 Agent
 
-37 个。其中 6 个（Amp、Codex、Gemini CLI、GitHub Copilot、Kimi Code CLI、OpenCode）直接读通用池 `~/.agents`，不需要单独软链。
+37 个：33 个有自己的路径，6 个（Amp、Codex、Gemini CLI、GitHub Copilot、Kimi Code CLI、OpenCode）读通用池 `~/.agents`。Codex 和 Gemini CLI 两边都算——既有自己的软链，也读通用池。
 
 AdaL, Amp, Antigravity, Augment, Claude Code, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, iFlow CLI, Junie, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, Neovate, OpenClaw, OpenCode, OpenHands, Pi, Pochi, Qoder, Qwen Code, Roo Code, Trae, Windsurf, Zencoder
 

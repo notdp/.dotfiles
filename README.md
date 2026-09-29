@@ -12,7 +12,7 @@ npx github:notdp/.dotfiles install
 
 Interactive installer with two setup modes:
 
-- **Create new** — start with pre-made commands, pick what you need
+- **Create new** — copy this repo's `commands/` and `agents/` as a starting point
 - **Import existing** — clone your own git repository
 
 ## Uninstall
@@ -33,7 +33,7 @@ npx -y github:notdp/.dotfiles fix      # merge standalone dirs into dotfiles
 Symlinks a single source directory to every agent's config path:
 
 ```
-~/.agents/commands   → ~/.dotfiles/commands     ← universal pool (Amp, Codex, Gemini CLI, …)
+~/.agents/commands   → ~/.dotfiles/commands     ← universal pool (Amp, OpenCode, …)
 ~/.claude/commands   → ~/.dotfiles/commands
 ~/.codex/prompts     → ~/.dotfiles/commands
 ~/.factory/commands  → ~/.dotfiles/commands
@@ -118,7 +118,7 @@ Edit the file under `~/.dotfiles/config/...` (the home paths are symlinks pointi
 
 ## Supported agents
 
-37 agents. Six of them (Amp, Codex, Gemini CLI, GitHub Copilot, Kimi Code CLI, OpenCode) read from the universal `~/.agents` pool, so they need no per-agent symlink.
+37 agents: 33 have a path of their own, and 6 (Amp, Codex, Gemini CLI, GitHub Copilot, Kimi Code CLI, OpenCode) read from the universal `~/.agents` pool. Codex and Gemini CLI are in both groups — they get a per-agent symlink *and* read the pool.
 
 AdaL, Amp, Antigravity, Augment, Claude Code, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, iFlow CLI, Junie, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, Neovate, OpenClaw, OpenCode, OpenHands, Pi, Pochi, Qoder, Qwen Code, Roo Code, Trae, Windsurf, Zencoder
 

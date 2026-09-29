@@ -21,8 +21,6 @@ const PACKAGE_ROOT = path.resolve(SCRIPT_DIR, '..');
 
 import { UNIVERSAL_AGENTS, UNIVERSAL, AGENTS } from './lib/catalog.mjs';
 
-const IGNORE_DIRS = new Set(['.system', '.git', '.github', '.ruff_cache', 'node_modules']);
-
 // ── Path helpers ─────────────────────────────────────────────
 
 function toProjectPath(p) {
@@ -98,13 +96,6 @@ function ensureFrontMatter(dir) {
 }
 
 // ── Initialization helpers ───────────────────────────────────
-
-function scanDir(dir) {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && !d.name.startsWith('.') && !IGNORE_DIRS.has(d.name))
-    .map(d => d.name);
-}
 
 function needsInit(dotfilesDir) {
   const commandsDir = path.join(dotfilesDir, 'commands');
