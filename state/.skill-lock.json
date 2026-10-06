@@ -33,9 +33,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/millionco/react-doctor.git",
       "skillPath": "skills/react-doctor/SKILL.md",
-      "skillFolderHash": "cb97b38cae6ea421990b46f2160eae6b77475de5",
+      "skillFolderHash": "844cbbdf2da2c29a38c1447e83889dc45b361a24",
       "installedAt": "2026-07-14T15:35:09.981Z",
-      "updatedAt": "2026-10-05T01:11:58.271Z"
+      "updatedAt": "2026-10-06T01:10:18.735Z"
     },
     "shadcn-ui": {
       "source": "giuseppe-trisciuoglio/developer-kit",
