@@ -15,9 +15,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/OrdoAI/htmldrop.git",
       "skillPath": "skills/htmldrop/SKILL.md",
-      "skillFolderHash": "32ea6e8b7d0cd2ab32648adc56ac8bd545bb2a7f",
+      "skillFolderHash": "6ea6018e43b554e8cb84a801c6dc9b0f91e47e5b",
       "installedAt": "2026-07-14T15:33:23.570Z",
-      "updatedAt": "2026-09-21T01:04:11.131Z"
+      "updatedAt": "2026-10-10T01:09:40.833Z"
     },
     "react": {
       "source": "lobehub/lobe-chat",
@@ -33,9 +33,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/millionco/react-doctor.git",
       "skillPath": "skills/react-doctor/SKILL.md",
-      "skillFolderHash": "844cbbdf2da2c29a38c1447e83889dc45b361a24",
+      "skillFolderHash": "eb949ff795074223ee4b9d3c6e4a77ffe1e8f849",
       "installedAt": "2026-07-14T15:35:09.981Z",
-      "updatedAt": "2026-10-06T01:10:18.735Z"
+      "updatedAt": "2026-10-10T01:09:53.892Z"
     },
     "shadcn-ui": {
       "source": "giuseppe-trisciuoglio/developer-kit",
