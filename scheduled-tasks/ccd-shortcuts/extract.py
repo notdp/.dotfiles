@@ -39,6 +39,17 @@ def unescape(s):
 
 
 _CHUNKS = []
+_BY_NAME = {}
+
+
+def chunk_src(fname):
+    """Source of one chunk by file name, read once and kept. The bundle is 149MB
+    across 3000+ files, so cross-chunk lookups resolve a named import rather than
+    sweeping everything."""
+    if fname not in _BY_NAME:
+        path = ASSETS / fname
+        _BY_NAME[fname] = path.read_text(errors="ignore") if path.is_file() else None
+    return _BY_NAME[fname]
 
 
 def bundle_search(pattern):
@@ -328,6 +339,73 @@ def hook_registry_id(src, hook):
         ids = re.findall(r'\("([a-z][a-z0-9_]{3,})"', other[fn.start():fn.start() + 2000])
         return ids[0] if ids else None
     return None
+def import_pairs(names):
+    """`"Ha as e,aa as t,plain"` -> (exported name, local name) per binding."""
+    for part in names.split(","):
+        part = part.strip()
+        m = re.fullmatch(r"(\w+) as (\w+)", part)
+        if m:
+            yield m.group(1), m.group(2)
+        elif re.fullmatch(r"\w+", part):
+            yield part, part
+
+
+def internals_for(other, exported):
+    """f.js's `internal as exported` export list -> the internal names. One export
+    name can be re-exported from several internals (`ju as nt`, `q7 as nt`), so
+    every candidate comes back and the caller picks the one that fits."""
+    return re.findall(r"(?<![\w$])(\w+) as " + re.escape(exported) + r"(?![\w$])", other)
+
+
+def imported_from(src, local):
+    """`local` -> (defining chunk's source, [its internal names]) by following
+    `import{X as local}from"./f.js"` into f.js's export list."""
+    for names, fname in IMPORT_RE.findall(src):
+        for exported, name in import_pairs(names):
+            if name != local:
+                continue
+            other = chunk_src(fname)
+            return (other, internals_for(other, exported)) if other else None
+    return None
+
+
+def spread_label(src, var, key):
+    """`{...re.close}` -> the `defaultMessage` of `close` in the object `var` holds.
+    The object may be declared in this chunk or imported from another one; in
+    2.31226.1 the split-view labels moved out, and without the import hop the
+    generic fallback picked up an unrelated "Close" from the biggest chunk."""
+    m = re.search(SPREAD_LABEL_RE.format(re.escape(var), re.escape(key)), src)
+    if m:
+        return m.group(1)
+    found = imported_from(src, var)
+    if not found:
+        return None
+    other, internals = found
+    for internal in internals:
+        m = re.search(SPREAD_LABEL_RE.format(re.escape(internal), re.escape(key)), other)
+        if m:
+            return m.group(1)
+    return None
+
+
+def modifier_fns(src):
+    """{name in `src`: the mac modifier it returns} for `function X(){return
+    isSomething()?"alt":"ctrl"}`, declared here or imported."""
+    out = dict(MODFN_RE.findall(src))
+    for names, fname in IMPORT_RE.findall(src):
+        other = chunk_src(fname)
+        if other is None:
+            continue
+        defs = dict(MODFN_RE.findall(other))
+        if not defs:
+            continue
+        for exported, local in import_pairs(names):
+            for internal in internals_for(other, exported):
+                if internal in defs:
+                    out[local] = defs[internal]
+    return out
+
+
 # Count of rows the modal actually renders, used to detect silent drops.
 ROW_ANCHOR_RE = re.compile(r'\{shortcut(?:Id)?:')
 # A row whose label was hoisted into a local (`let t=j(Z,{defaultMessage:"Settings"…});
@@ -396,7 +474,7 @@ def modal_rows(src, reg=None):
         return before[-1] if before else cands[0][1]
     # Locals holding a registry entry, and locals holding a platform modifier.
     regvars = {loc: rid for loc, rid in REGVAR_RE.findall(seg) if rid in (reg or {})}
-    modfns = dict(MODFN_RE.findall(src))
+    modfns = modifier_fns(src)
     modvars = {loc: modfns[fn] for loc, fn in MODVAR_RE.findall(seg) if fn in modfns}
 
     def local(key, at):
@@ -432,13 +510,14 @@ def modal_rows(src, reg=None):
             if sp_key == "description" and sp_var in regvars:
                 label = (reg or {})[regvars[sp_var]]["label"]
             else:
-                m = re.search(SPREAD_LABEL_RE.format(re.escape(sp_var), re.escape(sp_key)), src)
+                found = spread_label(src, sp_var, sp_key)
                 # The object may be a local (a prop), so fall back to the field
                 # name — but only a distinctive one; `description` matches anything.
-                if not m and sp_key != "description":
+                if found is None and sp_key != "description":
                     m = bundle_search(r'(?<![\w$])' + re.escape(sp_key)
                                       + r':\{defaultMessage:"([^"]*)"')
-                label = m.group(1) if m else f"{sp_var}.{sp_key}"
+                    found = m.group(1) if m else None
+                label = found if found is not None else f"{sp_var}.{sp_key}"
         label = label.encode().decode("unicode_escape")
         if not label and remote:
             # Label ships from the server, not the bundle; keep the id so the row
@@ -512,14 +591,55 @@ HELPER_DEF_RE = re.compile(
 
 
 def find_helpers(src):
-    """{minified name: 'first'|'all'} for the pane-table lookup helpers."""
+    """{name as `src` calls it: 'first'|'all'} for the pane-table lookup helpers.
+
+    They used to be declared in the modal's own chunk. In 2.31226.1 they moved to
+    a shared chunk and reach the modal through an import, so they are looked for
+    here and in every chunk the modal imports from, then mapped back through the
+    import alias (`C6` -> exported `R` -> local `g`)."""
+    out = {}
     m = HELPER_DEF_RE.search(src)
-    if not m:
+    if m:
+        out = {m.group(1): "first", m.group(5): "all"}
+    for names, fname in IMPORT_RE.findall(src):
+        other = chunk_src(fname)
+        if other is None:
+            continue
+        m = HELPER_DEF_RE.search(other)
+        if not m:
+            continue
+        kinds = {m.group(1): "first", m.group(5): "all"}
+        for exported, local in import_pairs(names):
+            for internal in internals_for(other, exported):
+                if internal in kinds:
+                    out[local] = kinds[internal]
+    if not out:
         print("WARN: could not locate the pane-table lookup helpers — modal rows "
               "that call them will show a raw JS expression; extract.py needs "
               "updating. Those rows are NOT removed shortcuts.", file=sys.stderr)
-        return {}
-    return {m.group(1): "first", m.group(5): "all"}
+    return out
+
+
+# The flags a pane entry's `when` is tested against here: the Claude desktop app
+# on macOS. An unknown flag counts as off.
+WHEN_ENV = {"isClaudeApp": True, "isMac": True,
+            "isLinux": False, "isWindows": False, "isWeb": False}
+WHEN_SAFE = re.compile(r"[\sTrueFalsandot()]+")
+
+
+def when_true(expr):
+    """`!isLinux` / `isClaudeApp || !isLinux` -> is this binding live on this
+    machine. Whitelisting only `isClaudeApp` dropped the ⌥f5 diff-navigation keys."""
+    if not expr:
+        return True
+    py = re.sub(r"[A-Za-z_]\w*", lambda m: str(WHEN_ENV.get(m.group(0), False)), expr)
+    py = py.replace("||", " or ").replace("&&", " and ").replace("!", " not ")
+    if not WHEN_SAFE.fullmatch(py):
+        return True  # an unfamiliar shape: show the key rather than drop it
+    try:
+        return bool(eval(py, {"__builtins__": {}}, {}))
+    except SyntaxError:
+        return True
 
 
 def pane_keys(command, pane):
@@ -528,8 +648,7 @@ def pane_keys(command, pane):
     for e in pane:
         if e["command"] != command:
             continue
-        when = e.get("when")
-        if when == "!isClaudeApp" or (when and when != "isClaudeApp"):
+        if not when_true(e.get("when")):
             continue
         if e.get("mac") is False:
             continue
