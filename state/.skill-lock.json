@@ -33,9 +33,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/millionco/react-doctor.git",
       "skillPath": "skills/react-doctor/SKILL.md",
-      "skillFolderHash": "eb949ff795074223ee4b9d3c6e4a77ffe1e8f849",
+      "skillFolderHash": "187e1404e0761bb79b39b7e1b19ea8a79cdcc96b",
       "installedAt": "2026-07-14T15:35:09.981Z",
-      "updatedAt": "2026-10-10T01:09:53.892Z"
+      "updatedAt": "2026-10-13T01:10:02.556Z"
     },
     "shadcn-ui": {
       "source": "giuseppe-trisciuoglio/developer-kit",
@@ -369,9 +369,9 @@
       "sourceUrl": "https://github.com/openclaw/openclaw.git",
       "ref": "main",
       "skillPath": ".agents/skills/test-audit/SKILL.md",
-      "skillFolderHash": "b6dfdc0bdcf7c7ae5643efea117cc4235f5395c3",
+      "skillFolderHash": "509839e1d46fca89dff01fa4a28f42415d15ba20",
       "installedAt": "2026-09-29T14:20:03.334Z",
-      "updatedAt": "2026-10-11T01:11:21.880Z"
+      "updatedAt": "2026-10-13T01:11:46.173Z"
     }
   },
   "lastSelectedAgents": [
