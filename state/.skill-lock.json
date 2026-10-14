@@ -15,18 +15,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/OrdoAI/htmldrop.git",
       "skillPath": "skills/htmldrop/SKILL.md",
-      "skillFolderHash": "6ea6018e43b554e8cb84a801c6dc9b0f91e47e5b",
+      "skillFolderHash": "a25c5445d193dc6c94ff7328b848cc359d74b99b",
       "installedAt": "2026-07-14T15:33:23.570Z",
-      "updatedAt": "2026-10-10T01:09:40.833Z"
+      "updatedAt": "2026-10-14T01:10:07.625Z"
     },
     "react": {
       "source": "lobehub/lobe-chat",
       "sourceType": "github",
       "sourceUrl": "https://github.com/lobehub/lobe-chat.git",
       "skillPath": ".agents/skills/react/SKILL.md",
-      "skillFolderHash": "e22a6639728c2e8514f5fbce3a6eceedd0d8ee17",
+      "skillFolderHash": "d7668a0d26089117e3f90136cf87aba6102002a2",
       "installedAt": "2026-07-14T15:34:52.165Z",
-      "updatedAt": "2026-09-27T04:34:40.969Z"
+      "updatedAt": "2026-10-14T01:10:52.376Z"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
@@ -72,9 +72,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-base/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:30d0f21745654de06159411ea6da9f2b85ba670d78b3caf3acf69d5623104c9d",
+      "wellKnownDigest": "sha256:09902e7c25076ea64a27685efbeab98d7cf347152e592a85a8d4c464fe6a4cb7",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-09-18T01:03:28.674Z"
+      "updatedAt": "2026-10-14T01:09:18.793Z"
     },
     "lark-contact": {
       "source": "open.feishu.cn",
@@ -92,9 +92,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-doc/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:59bbe080ea02a1a1e95fb0fbaa0f6b4d36ef1764e40a0f1cfa26d6c842ba880d",
+      "wellKnownDigest": "sha256:0a57f7657514a5a9092005fa45ce73b4c9384b9a26ca87ce1bb7ec32c1bad569",
       "installedAt": "2026-07-14T15:48:26.431Z",
-      "updatedAt": "2026-09-20T01:03:57.329Z"
+      "updatedAt": "2026-10-14T01:09:27.509Z"
     },
     "lark-event": {
       "source": "open.feishu.cn",
@@ -162,9 +162,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-task/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:8e0c9814d6b1cc863f051d74811d22054a03fcac9c1dba10b2cea286885d6398",
+      "wellKnownDigest": "sha256:6a3b8999d8fb09bb364cc18a2eb810cadcc8f5ae84517eace334d28c58f99d44",
       "installedAt": "2026-07-14T15:48:26.434Z",
-      "updatedAt": "2026-09-17T01:06:17.837Z"
+      "updatedAt": "2026-10-14T01:09:34.799Z"
     },
     "lark-wiki": {
       "source": "open.feishu.cn",
@@ -210,9 +210,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-apps/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:6f2fbc920b73f15bef31071b2cf849c32f8952c7db7a8ad535c69021a61978de",
+      "wellKnownDigest": "sha256:6420845c3ddd2f6fee5402a6e12393da5e46772a311700b5476b1e3f85227b8a",
       "installedAt": "2026-09-02T13:34:09.153Z",
-      "updatedAt": "2026-10-09T01:09:40.864Z"
+      "updatedAt": "2026-10-14T01:09:42.089Z"
     },
     "lark-attendance": {
       "source": "open.feishu.cn",
@@ -369,9 +369,9 @@
       "sourceUrl": "https://github.com/openclaw/openclaw.git",
       "ref": "main",
       "skillPath": ".agents/skills/test-audit/SKILL.md",
-      "skillFolderHash": "509839e1d46fca89dff01fa4a28f42415d15ba20",
+      "skillFolderHash": "c03e9e2763b288bae6ab3af5475b4e7a89fe8905",
       "installedAt": "2026-09-29T14:20:03.334Z",
-      "updatedAt": "2026-10-13T01:11:46.173Z"
+      "updatedAt": "2026-10-14T01:12:41.007Z"
     }
   },
   "lastSelectedAgents": [
