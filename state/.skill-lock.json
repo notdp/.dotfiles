@@ -210,9 +210,9 @@
       "sourceUrl": "https://open.feishu.cn/.well-known/skills/lark-apps/SKILL.md",
       "skillFolderHash": "",
       "sourceBaseUrl": "https://open.feishu.cn",
-      "wellKnownDigest": "sha256:6420845c3ddd2f6fee5402a6e12393da5e46772a311700b5476b1e3f85227b8a",
+      "wellKnownDigest": "sha256:2fb1e9b440d5db0620c79fd5159fd4b51903f3454cc4655bfd24848f73aec67d",
       "installedAt": "2026-09-02T13:34:09.153Z",
-      "updatedAt": "2026-10-14T01:09:42.089Z"
+      "updatedAt": "2026-10-15T02:11:33.889Z"
     },
     "lark-attendance": {
       "source": "open.feishu.cn",
