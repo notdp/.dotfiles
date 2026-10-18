@@ -12,7 +12,7 @@ python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py        # 先看�
 python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py --go   # 用户按了确认再跑
 ```
 
-它自己完成：认当前账号（DST）→ 选上一棒（SRC = 其余目录里最后活动最近的）→ 备份 DST → 传 session 索引 → 传 routine 并掐灭其他目录的火把 → 复核"DST 里 SRC 已删的 = 0，DST 独有但别处有墓碑的 = 0"。
+它自己完成：认当前账号（DST）→ 选上一棒（SRC = 其余目录里最后活动最近的）→ 备份 DST → 传 session 索引 → 传 routine 并掐灭其他目录的火把 → 传环境选择器里自建的环境 → 复核"DST 里 SRC 已删的 = 0，DST 独有但别处有墓碑的 = 0"。
 
 **agent 要做的只有五件事，第二步必须有按钮**：
 1. 先跑不带 `--go` 的。把输出里 SRC / DST 两行（邮箱 + uuid 前 8 位 + 最后活动时间）和五个数（传入 / 清掉 SRC 已删 / 清掉早几棒已删 / 跳过 / 独有）原样贴给用户，一个字不总结。

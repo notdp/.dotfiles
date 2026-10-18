@@ -154,6 +154,14 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 
 最后重启 CCD 才会读到新索引，重启后随手开一个轮数多的会话，确认内容是最新的而不是停在过去。
 
+## 环境（session preset）
+
+环境选择器里自建的环境（"New environment" 建的 fleet / hive / otto 这类，SSH 或本地文件夹 + 模型/effort）按账号存在 `ccd-session-presets.json` 的 `byAccount.<accountUuid>` 下，切号后新账号是空的。2026-10-19 实测旧号 9 个、新号 0 个，会话索引里的 `envScopeId` 指向的环境也跟着没了。`merge_presets.py` 跟 routine 同一套规则：同 id 以 SRC 为准，DST 独有保留，只改 DST 那一个 key。
+
+前端把环境列表缓存在内存，写完要重启 CCD 才看得到；重启前别在环境选择器里增删改，否则前端会拿旧列表把 DST 那一项整份写回去。
+
+搬不了的：Cloud 环境和 Remote Control 下的机器在 claude.ai 服务端、归账号所有，跟 artifact 一样，切号后新账号看不到。SSH 连接本身（`ssh_configs.json`）不分账号，不用搬。
+
 ## 五、对账 pin
 
 侧栏不直接用索引里的 `isStarred` 显示 Pinned，它有自己的 pin 存储（IndexedDB `https_claude.ai` 里的 `store:pin-state:dframe-starred-code`，`starredIds`）。切号重启后它从索引重新收 pin，2026-10-19 实测 27 条只收进 23 条：漏掉的 4 条索引里仍是 pinned、能搜到，就是不在 Pinned 区。不是按时间截断（最旧的 08-10 那条收进去了），原因不明。

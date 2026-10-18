@@ -14,6 +14,7 @@ SRC = 除 DST 外最后活动最近的那个账号目录。同账号下的空 or
   accounts.record_emails       → 邮箱账本（顺手记账，切号后旧账号邮箱只有这里有）
   pass_fire.main               → session 索引（先 dry 再 --go）
   merge_routines.main          → routine 注册表 + 掐灭其他目录
+  merge_presets.main           → 环境选择器里自建的环境（按账号存在 ccd-session-presets.json）
 复核：传完再算一次"DST 里 SRC 已删的"，必须是 0。
 """
 import contextlib
@@ -29,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import accounts          # noqa: E402
 import current           # noqa: E402
+import merge_presets     # noqa: E402
 import merge_routines    # noqa: E402
 import pass_fire         # noqa: E402
 
@@ -106,6 +108,8 @@ def main():
     pass_fire.main(src_rel, dst_rel, go)
     print('routine 注册表:')
     merge_routines.main(src_rel, dst_rel, go)
+    print('环境（session preset）:')
+    merge_presets.main(src_rel, dst_rel, go)
 
     stale = pass_fire.ids(dst_dir, 'local_*.json') & pass_fire.ids(src_dir, 'deleted_*')
     src_seen = pass_fire.ids(src_dir, 'local_*.json') | pass_fire.ids(src_dir, 'deleted_*')
