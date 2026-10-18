@@ -9,7 +9,7 @@ CCD 侧栏只认 local_<id>.json 在不在，完全不看 deleted_ 墓碑（实�
 
   SRC 有 local、无墓碑   SRC 侧栏显示中     -> 拷给 DST
   SRC 有墓碑             用户删过           -> DST 有的话也删掉
-  SRC 从没见过这个 id    DST 切号后新建的   -> 原样留着
+  SRC 从没见过这个 id    DST 独有          -> 任一账号目录有墓碑就删掉，否则原样留着
 
 唯一的例外判断：切号后在 DST 里用过的会话，DST 版本更新，别拿 SRC 的旧版盖回去
 （旧索引指着旧 transcript，会话打开后轮数变少。实测 2026-08-21 有 1 条 146 轮的
@@ -19,6 +19,11 @@ CCD 侧栏只认 local_<id>.json 在不在，完全不看 deleted_ 墓碑（实�
 只加不减：用户在旧账号删掉的，新账号一直留着。2026-08-21 炸过一次——切到新账号后
 72 条已删会话（ordo_ai 占 51 条）挂在侧栏，因为新账号目录停在 08-16 的全量状态，
 而用户 08-18 才在旧账号删了 500 多条，删除动作从不跨账号同步。
+
+"SRC 从没见过 = DST 切号后新建" 不成立：墓碑不随传火搬，传火链上更早几棒删掉的会话，
+SRC 既没有 local 也没有墓碑。2026-10-19 切回 08 月的旧目录 ef26a102，146 条 8 月就在
+d56e75fa / e54b0e69 删掉的会话被当成"DST 独有"留在侧栏。所以 DST 独有的要再查一遍
+所有账号目录的墓碑（CCD 自己算 id 归属时也是把所有账号目录的墓碑并在一起）。
 
 删掉的索引移到 claude-code-sessions-pruned/，不 rm，搬回来即可恢复。transcript
 正文在 ~/.claude/projects/ 里，本来就不受影响。
@@ -37,15 +42,25 @@ ids = lambda d, pat: {os.path.basename(f).split('_', 1)[1].replace('.json', '')
                       for f in glob.glob(os.path.join(d, pat))}
 
 
+def tombstones_anywhere():
+    """所有账号目录的墓碑并集。墓碑不随传火搬，只看 SRC 会漏掉更早几棒删的。"""
+    out = set()
+    for d in glob.glob(os.path.join(ROOT, '*', '*')):
+        if os.path.isdir(d):
+            out |= ids(d, 'deleted_*')
+    return out
+
+
 def main(src, dst, go):
     src, dst = os.path.join(ROOT, src.rstrip('/')), os.path.join(ROOT, dst.rstrip('/'))
     dead = ids(src, 'deleted_*')
     have = ids(src, 'local_*.json') - dead          # SRC 侧栏现在显示的
     stale = ids(dst, 'local_*.json') & dead         # DST 还留着、但 SRC 已删的
+    ghost = (ids(dst, 'local_*.json') - have - dead) & tombstones_anywhere()   # DST 独有、但早几棒删过的
 
-    if go and stale:
+    if go and (stale or ghost):
         os.makedirs(PRUNED, exist_ok=True)
-    for i in stale:
+    for i in stale | ghost:
         if go:
             shutil.move(os.path.join(dst, f'local_{i}.json'),
                         os.path.join(PRUNED, f'local_{i}.json'))
@@ -59,9 +74,9 @@ def main(src, dst, go):
         if go:
             shutil.copyfile(a, b)
 
-    mine = ids(dst, 'local_*.json') - have - dead
+    mine = ids(dst, 'local_*.json') - have - dead - ghost
     print(f"{'' if go else '[dry] '}传入 {len(have) - kept}  清掉 DST 里 SRC 已删的 {len(stale)}  "
-          f"DST 更新跳过 {kept}  DST 独有保留 {len(mine)}")
+          f"清掉 DST 独有但早几棒删过的 {len(ghost)}  DST 更新跳过 {kept}  DST 独有保留 {len(mine)}")
     if not go:
         print(f"看着对就加 --go 真写。清掉的会移到 {PRUNED}，不是 rm。")
 

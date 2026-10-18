@@ -108,9 +108,12 @@ def main():
     merge_routines.main(src_rel, dst_rel, go)
 
     stale = pass_fire.ids(dst_dir, 'local_*.json') & pass_fire.ids(src_dir, 'deleted_*')
+    src_seen = pass_fire.ids(src_dir, 'local_*.json') | pass_fire.ids(src_dir, 'deleted_*')
+    ghost = (pass_fire.ids(dst_dir, 'local_*.json') - src_seen) & pass_fire.tombstones_anywhere()
     print()
     if go:
-        print(f"复核: DST 里 SRC 已删的 = {len(stale)}（应为 0）" + ('  OK' if not stale else '  !! 没清干净'))
+        print(f"复核: DST 里 SRC 已删的 = {len(stale)}，DST 独有但别处有墓碑的 = {len(ghost)}（都应为 0）"
+              + ('  OK' if not (stale or ghost) else '  !! 没清干净'))
         print('重启 CCD 才会读到新索引；恢复的 routine 各 Run now 一次重新批权限。')
     else:
         print('看着对就加 --go。')
