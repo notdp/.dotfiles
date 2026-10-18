@@ -154,6 +154,12 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 
 最后重启 CCD 才会读到新索引，重启后随手开一个轮数多的会话，确认内容是最新的而不是停在过去。
 
+## 五、对账 pin
+
+侧栏不直接用索引里的 `isStarred` 显示 Pinned，它有自己的 pin 存储（IndexedDB `https_claude.ai` 里的 `store:pin-state:dframe-starred-code`，`starredIds`）。切号重启后它从索引重新收 pin，2026-10-19 实测 27 条只收进 23 条：漏掉的 4 条索引里仍是 pinned、能搜到，就是不在 Pinned 区。不是按时间截断（最旧的 08-10 那条收进去了），原因不明。
+
+`pins.py <DST>` 只读对账，列出侧栏漏掉的；补救走 app 自己的接口 `mcp__ccd_sidebar__set_pinned`，别直接改 IndexedDB。补完 3 秒内侧栏存储就更新了，再跑一次应是"漏掉 0"。
+
 ## 之后
 
 - 工具授权按账号存，恢复的 routine 建议各 Run now 一次重新批权限
