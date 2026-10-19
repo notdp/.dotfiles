@@ -166,6 +166,8 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
    - Chromium localStorage 编码：key = `_https://claude.ai\x00\x01` + key 名；value = `\x01` + latin1，含 >0xFF 字符时 `\x00` + UTF-16LE。2026-10-19 在副本上读写、并用独立 headless Chrome 读回验证（118 个 key 都在、改的值读得出）。
    - CCD 开着时 LevelDB 有 LOCK，`lsset` 打不开就退出码 2、什么都不写（对真实库实测过）——用户抢先手动重开也安全。读回不一致会从备份整目录还原。
    - 对真实 CCD 的整条链 2026-10-19 在同一账号上实测过：写入时给某个环境的 `lastUsedAt` 加 1ms 当记号，Cmd+Q 后 12:33:18 写入 LevelDB，12:33:23 页面重开后把带记号的值写进镜像文件，说明页面读的就是写进去的值；日志最后一行 OK。真切号场景还没跑过。
+   - **自动重启**：passfire `--go` 默认让守护进程 30 秒后用 `osascript -e 'tell application "Claude" to quit'` 正常退出 CCD（跟 Cmd+Q 一样会走退出流程，弹确认要用户点），没有环境要写也照样重开。这样整条传火链用户不用按键；代价是会打断其他正在跑的会话，所以确认按钮前要先列出来。`--no-restart` 关掉。2026-10-19 用假 CCD 进程测过「延时退出→写→重开」和「只重启」两条路径。
+
 2. **兜底**：同时生成 `~/.claude/ccd-restore-env.js`，自动失败时用户在 CCD 里右键 → Inspect Element → Console（连在 `https://claude.ai`）粘贴执行：备份原值到 `<key>.bak-ccd-env`，只替换该账号的 presets，重载界面；结构对不上就报错停止。需要 `developer_settings.json` 里 `allowDevTools: true`。（2026-10-19 也实测成功过。）
 
 事后单独改环境（批量改名之类）也走这条路：把想要的 DST 那一项存成 JSON，`merge_presets.py --catalog <file> <DST> --go`。

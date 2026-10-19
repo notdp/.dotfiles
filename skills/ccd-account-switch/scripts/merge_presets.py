@@ -49,6 +49,7 @@ E = os.environ.get          # 下面几个可用环境变量覆盖，只为测�
 LS_DIR = E('CCD_LS_DIR', os.path.expanduser('~/Library/Application Support/Claude/Local Storage/leveldb'))
 CCD_BIN = E('CCD_BIN', '/Applications/Claude.app/Contents/MacOS/Claude')
 OPEN_CMD = E('CCD_OPEN', 'open -a Claude').split()
+QUIT_CMD = E('CCD_QUIT', "osascript -e 'tell application \"Claude\" to quit'")   # 跟 Cmd+Q 一样是正常退出
 MIRROR = E('CCD_MIRROR', None)
 DEP_DIR = os.path.expanduser('~/.cache/ccd-account-switch/node')
 LOG = os.path.expanduser(E('CCD_PRESET_LOG', '~/.claude/ccd-preset-apply.log'))
@@ -138,10 +139,12 @@ def ensure_dep():
     return node
 
 
-def daemon(node, dst_acct, presets):
-    """脱离 CCD 进程组；等 CCD 退出 → 备份 → 写 LevelDB → 重开 → 复核。"""
-    with open(PENDING, 'w') as fh:
-        json.dump(presets, fh, ensure_ascii=False)
+def daemon(node, dst_acct, presets, quit_after=None):
+    """脱离 CCD 进程组；[quit_after 秒后让 CCD 正常退出] → 等 CCD 退出 → 备份 → 写 LevelDB → 重开 → 复核。
+    presets 或 node 为 None 时不写 LevelDB，只负责重开（自动重启用）。"""
+    if presets is not None:
+        with open(PENDING, 'w') as fh:
+            json.dump(presets, fh, ensure_ascii=False)
     pid = os.fork()
     if pid:
         os.waitpid(pid, 0)
@@ -154,7 +157,12 @@ def daemon(node, dst_acct, presets):
         os.dup2(devnull, fd)
     fallback = f'FALLBACK：在 CCD 控制台粘贴 {JS_OUT}'
     try:
-        log(f'守护 pid={os.getpid()} 等 CCD 退出，DST={dst_acct[:8]}，{len(presets)} 个环境')
+        what = f'{len(presets)} 个环境' if presets is not None and node else '不写环境，只重启'
+        log(f'守护 pid={os.getpid()} DST={dst_acct[:8]}，{what}')
+        if quit_after:
+            time.sleep(quit_after)
+            subprocess.run(['/bin/sh', '-c', QUIT_CMD], capture_output=True)
+            log(f'{quit_after}s 到了，已请求 CCD 退出（弹退出确认的话要用户点一下）')
         t0 = time.time()
         while ccd_running():
             if time.time() - t0 > WAIT:
@@ -162,6 +170,10 @@ def daemon(node, dst_acct, presets):
                 os._exit(0)
             time.sleep(2)
         time.sleep(3)
+        if presets is None or not node:
+            subprocess.run(OPEN_CMD)
+            log('已重开 CCD' + ('（没有环境要写）' if presets is None else f'（环境没写：node 不可用。{fallback}）'))
+            os._exit(0)
         backup = os.path.expanduser(time.strftime('~/.claude/ccd-ls-backup-%m%d-%H%M%S'))
         shutil.copytree(LS_DIR, backup, ignore=shutil.ignore_patterns('LOCK'))
         r = subprocess.run([node, os.path.join(HERE, 'lsset.mjs'), DEP_DIR, LS_DIR, dst_acct, PENDING],
@@ -192,7 +204,7 @@ def daemon(node, dst_acct, presets):
     os._exit(0)
 
 
-def main(src, dst, go, catalog=None, manual=False):
+def main(src, dst, go, catalog=None, manual=False, quit_after=None):
     tag = '' if go else '[dry] '
     da = dst.split('/')[0]
     if catalog:
@@ -203,15 +215,21 @@ def main(src, dst, go, catalog=None, manual=False):
         entry, note = merged(src.split('/')[0], da, data)
         print(f'{tag}{note}')
         if entry is None:
+            if go and quit_after:
+                daemon(None, da, None, quit_after)
+                print(f'{quit_after} 秒后自动退出并重开 CCD。')
             return
     if go:
         out = write_js(da, entry)
         node = None if manual else ensure_dep()
         if node:
-            daemon(node, da, entry['presets'])
-            print(f'环境：已起守护进程，Cmd+Q 后自动写入并重开 CCD，结果看 {LOG} 最后一行（OK / FALLBACK）。'
+            daemon(node, da, entry['presets'], quit_after)
+            when = f'{quit_after} 秒后自动退出 CCD' if quit_after else '等用户 Cmd+Q'
+            print(f'环境：已起守护进程，{when}，退出后自动写入并重开 CCD，结果看 {LOG} 最后一行（OK / FALLBACK）。'
                   f'兜底脚本 {out}。')
         else:
+            if quit_after:
+                daemon(None, da, entry['presets'], quit_after)
             print(f'环境：没法自动写（{"指定了 --manual" if manual else "node / classic-level 不可用"}），'
                   f'重启后在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴 {out}。')
 

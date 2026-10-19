@@ -17,8 +17,9 @@ python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py --go   # 用户�
 **agent 要做的只有六件事，第二步必须有按钮**：
 1. 先跑不带 `--go` 的。把输出里 SRC / DST 两行（邮箱 + uuid 前 8 位 + 最后活动时间）和五个数（传入 / 清掉 SRC 已删 / 清掉早几棒已删 / 跳过 / 独有）原样贴给用户，一个字不总结。
 2. 用 AskUserQuestion 出确认按钮，选项固定三个：`确认传火`（推荐，写明"SRC=<邮箱> → DST=<邮箱>"）/ `换一个 SRC`（列出输出里的其他候选）/ `取消`。**没有这一步不许带 `--go`**——这条命令几秒就写完，快到没有反悔窗口，按钮就是反悔窗口。
+   出按钮前先用 `mcp__ccd_session_mgmt__list_sessions` 查有没有别的会话 `isRunning: true`（本会话除外），有就在问题里点名：`--go` 30 秒后会自动让 CCD 退出，这些会话会被打断。
 3. 用户点了确认才跑 `--go`；选了换 SRC 就用 `--src <accountUuid>/<orgUuid>` 重走第 1、2 步。复核不是 0 就把整段输出贴出来，别自己补救。
-4. 提醒**立刻 Cmd+Q 重启 CCD，重启前不要点任何会话**；恢复的 routine 各 Run now 一次重新批权限。
+4. `--go` 跑完立刻结束这一轮回复，告诉用户：**30 秒后 CCD 会自动退出并重开，期间别点任何会话；弹出退出确认就点退出**（加 `--no-restart` 则改为用户自己 Cmd+Q，退出后同样自动写环境并重开）；恢复的 routine 各 Run now 一次重新批权限。
    CCD 把索引整份放内存，点开会话、退出时都会按内存写回盘：传火后点过的会话会被旧版本盖回去（2026-09-13 实测，122 轮被盖成 88 轮）。
    已经被盖的补救：在新会话里起一个盯 CCD 主进程 pid 的守护（`os.kill(pid,0)` 轮询，别用 pgrep -f 带 `$` 锚点，会误判），等它真退出后再从 SRC 拷那一条，然后用户重开 CCD。
 5. 用户重启回来后复核环境：`tail -3 ~/.claude/ccd-preset-apply.log`。最后一行是 `OK` 就完事；是 `FALLBACK` 或「镜像里 DST 是 N 个」对不上，就让用户 `pbcopy < ~/.claude/ccd-restore-env.js`，在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴执行。（环境存在页面 localStorage；`--go` 已起守护进程，Cmd+Q 后自动备份并直接写 LevelDB、再重开 CCD。用户 Cmd+Q 后等它自己重开。）

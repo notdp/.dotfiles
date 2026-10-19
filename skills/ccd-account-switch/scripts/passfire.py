@@ -4,6 +4,7 @@
     python3 passfire.py          # 只看数字，不写
     python3 passfire.py --go     # 真写
     python3 passfire.py --src <accountUuid>/<orgUuid> [--go]   # 不信自动选的 SRC 时手动指定
+    python3 passfire.py --go --no-restart                       # 不自动退出，用户自己 Cmd+Q
 
 只在 CCD 会话内可用：DST 靠本会话索引文件所在目录（锚点）判定，这个信号不会半写；
 终端里没有锚点直接退出，不退回 leveldb（刚切完号时 leveldb 还在追写，2026-09-02 判反过两次）。
@@ -35,6 +36,7 @@ import merge_routines    # noqa: E402
 import pass_fire         # noqa: E402
 
 ROOT = current.ROOT
+RESTART_AFTER = 30      # --go 后多少秒自动让 CCD 退出并重开；--no-restart 关掉，改为用户自己 Cmd+Q
 BACKUP = os.path.expanduser('~/Library/Application Support/Claude/claude-code-sessions-backup')
 
 
@@ -109,7 +111,7 @@ def main():
     print('routine 注册表:')
     merge_routines.main(src_rel, dst_rel, go)
     print('环境（session preset）:')
-    merge_presets.main(src_rel, dst_rel, go)
+    merge_presets.main(src_rel, dst_rel, go, quit_after=None if '--no-restart' in sys.argv else RESTART_AFTER)
 
     stale = pass_fire.ids(dst_dir, 'local_*.json') & pass_fire.ids(src_dir, 'deleted_*')
     src_seen = pass_fire.ids(src_dir, 'local_*.json') | pass_fire.ids(src_dir, 'deleted_*')
@@ -118,7 +120,11 @@ def main():
     if go:
         print(f"复核: DST 里 SRC 已删的 = {len(stale)}，DST 独有但别处有墓碑的 = {len(ghost)}（都应为 0）"
               + ('  OK' if not (stale or ghost) else '  !! 没清干净'))
-        print('重启 CCD 才会读到新索引；恢复的 routine 各 Run now 一次重新批权限。')
+        if '--no-restart' in sys.argv:
+            print('现在 Cmd+Q 重启 CCD（重启前别点任何会话）；环境会在退出后自动写入，CCD 自动重开。')
+        else:
+            print(f'{RESTART_AFTER} 秒后 CCD 自动退出并重开，期间别点任何会话；弹出退出确认就点退出。')
+        print('恢复的 routine 各 Run now 一次重新批权限。')
     else:
         print('看着对就加 --go。')
 
