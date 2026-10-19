@@ -158,7 +158,13 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 
 环境选择器里自建的环境（"New environment" 建的 fleet / hive / otto 这类，SSH 或本地文件夹 + 模型/effort）按账号存在 `ccd-session-presets.json` 的 `byAccount.<accountUuid>` 下，切号后新账号是空的。2026-10-19 实测旧号 9 个、新号 0 个，会话索引里的 `envScopeId` 指向的环境也跟着没了。`merge_presets.py` 跟 routine 同一套规则：同 id 以 SRC 为准，DST 独有保留，只改 DST 那一个 key。
 
-前端把环境列表缓存在内存，写完要重启 CCD 才看得到；重启前别在环境选择器里增删改，否则前端会拿旧列表把 DST 那一项整份写回去。
+**`ccd-session-presets.json` 只是镜像，改它没用**：环境列表真正存在 claude.ai 页面自己的 localStorage 里，key 是 `persisted.ccd-session-presets.<accountUuid>`（值里带 `fileMirrored` 标记，账号 uuid 只在 key 名里），界面用 `SessionPresets.replaceAll` 把它写成这个文件。2026-10-19 实测两次：CCD 运行中写进 9 个，Cmd+R 后被写回 0；等 CCD 退出后再写、重开 30 秒复查还是 9，几小时后又被写回 0。
+
+所以 `merge_presets.py --go` 不写文件，而是生成 `~/.claude/ccd-restore-env.js`：用户在 CCD 里右键 → Inspect Element → Console 粘贴执行。它找到存着该账号 presets 的 localStorage key，备份原值到 `<key>.bak-ccd-env`，只替换该账号的 presets，再重载界面；结构对不上就报错停止，什么都不改。前提是 `developer_settings.json` 里 `allowDevTools: true`，控制台要连在 `https://claude.ai` 那层页面上（输入行上方的 top 下拉框可切）。
+
+**改 skill 要改 `~/.dotfiles/skills/` 并提交**：daily-skills-update routine 会按 dotfiles 已推送的版本重装 `~/.agents/skills/`，只改 `~/.agents` 或没提交的改动会被冲掉（2026-10-19 11:26 实测）。执行后界面会刷新镜像文件，可以拿镜像文件里 DST 的数量复核。
+
+事后单独改环境（批量改名之类）也走这条路：把想要的 DST 那一项存成 JSON，`merge_presets.py --catalog <file> <DST> --go`。
 
 搬不了的：Cloud 环境和 Remote Control 下的机器在 claude.ai 服务端、归账号所有，跟 artifact 一样，切号后新账号看不到。SSH 连接本身（`ssh_configs.json`）不分账号，不用搬。
 
