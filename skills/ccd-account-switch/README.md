@@ -160,9 +160,13 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 
 **`ccd-session-presets.json` 只是镜像，改它没用**：环境列表真正存在 claude.ai 页面自己的 localStorage 里，key 是 `persisted.ccd-session-presets.<accountUuid>`（值里带 `fileMirrored` 标记，账号 uuid 只在 key 名里），界面用 `SessionPresets.replaceAll` 把它写成这个文件。2026-10-19 实测两次：CCD 运行中写进 9 个，Cmd+R 后被写回 0；等 CCD 退出后再写、重开 30 秒复查还是 9，几小时后又被写回 0。
 
-所以 `merge_presets.py --go` 不写文件，而是生成 `~/.claude/ccd-restore-env.js`：用户在 CCD 里右键 → Inspect Element → Console 粘贴执行。它找到存着该账号 presets 的 localStorage key，备份原值到 `<key>.bak-ccd-env`，只替换该账号的 presets，再重载界面；结构对不上就报错停止，什么都不改。前提是 `developer_settings.json` 里 `allowDevTools: true`，控制台要连在 `https://claude.ai` 那层页面上（输入行上方的 top 下拉框可切）。
+所以写入走页面存储。`merge_presets.py --go`（passfire 里的那一步）做两件事：
 
-**改 skill 要改 `~/.dotfiles/skills/` 并提交**：daily-skills-update routine 会按 dotfiles 已推送的版本重装 `~/.agents/skills/`，只改 `~/.agents` 或没提交的改动会被冲掉（2026-10-19 11:26 实测）。执行后界面会刷新镜像文件，可以拿镜像文件里 DST 的数量复核。
+1. **自动**：起一个脱离 CCD 进程组的守护进程，等用户 Cmd+Q、CCD 主进程真正退出后，把 `Local Storage/leveldb` 整目录备份到 `~/.claude/ccd-ls-backup-<时间>`，用 `lsset.mjs`（node + classic-level，首次自动装到 `~/.cache/ccd-account-switch/node`）直接改 LevelDB 里那个 key 的 presets，再 `open -a Claude`，等页面把镜像文件刷新后比对环境 id。日志 `~/.claude/ccd-preset-apply.log`，最后一行 `OK` 或 `FALLBACK`。
+   - Chromium localStorage 编码：key = `_https://claude.ai\x00\x01` + key 名；value = `\x01` + latin1，含 >0xFF 字符时 `\x00` + UTF-16LE。2026-10-19 在副本上读写、并用独立 headless Chrome 读回验证（118 个 key 都在、改的值读得出）。
+   - CCD 开着时 LevelDB 有 LOCK，`lsset` 打不开就退出码 2、什么都不写（对真实库实测过）——用户抢先手动重开也安全。读回不一致会从备份整目录还原。
+   - 对真实 CCD 的整条链 2026-10-19 在同一账号上实测过：写入时给某个环境的 `lastUsedAt` 加 1ms 当记号，Cmd+Q 后 12:33:18 写入 LevelDB，12:33:23 页面重开后把带记号的值写进镜像文件，说明页面读的就是写进去的值；日志最后一行 OK。真切号场景还没跑过。
+2. **兜底**：同时生成 `~/.claude/ccd-restore-env.js`，自动失败时用户在 CCD 里右键 → Inspect Element → Console（连在 `https://claude.ai`）粘贴执行：备份原值到 `<key>.bak-ccd-env`，只替换该账号的 presets，重载界面；结构对不上就报错停止。需要 `developer_settings.json` 里 `allowDevTools: true`。（2026-10-19 也实测成功过。）
 
 事后单独改环境（批量改名之类）也走这条路：把想要的 DST 那一项存成 JSON，`merge_presets.py --catalog <file> <DST> --go`。
 

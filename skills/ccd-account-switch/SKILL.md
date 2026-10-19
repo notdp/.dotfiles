@@ -21,7 +21,7 @@ python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py --go   # 用户�
 4. 提醒**立刻 Cmd+Q 重启 CCD，重启前不要点任何会话**；恢复的 routine 各 Run now 一次重新批权限。
    CCD 把索引整份放内存，点开会话、退出时都会按内存写回盘：传火后点过的会话会被旧版本盖回去（2026-09-13 实测，122 轮被盖成 88 轮）。
    已经被盖的补救：在新会话里起一个盯 CCD 主进程 pid 的守护（`os.kill(pid,0)` 轮询，别用 pgrep -f 带 `$` 锚点，会误判），等它真退出后再从 SRC 拷那一条，然后用户重开 CCD。
-5. 用户重启回来后补环境：`--go` 生成了 `~/.claude/ccd-restore-env.js`，让用户在 CCD 里右键 → Inspect Element → Console 粘贴执行（环境存在页面 localStorage，改文件会被冲掉）。
+5. 用户重启回来后复核环境：`tail -3 ~/.claude/ccd-preset-apply.log`。最后一行是 `OK` 就完事；是 `FALLBACK` 或「镜像里 DST 是 N 个」对不上，就让用户 `pbcopy < ~/.claude/ccd-restore-env.js`，在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴执行。（环境存在页面 localStorage；`--go` 已起守护进程，Cmd+Q 后自动备份并直接写 LevelDB、再重开 CCD。用户 Cmd+Q 后等它自己重开。）
 6. 对账 pin：`python3 ~/.claude/skills/ccd-account-switch/scripts/pins.py <DST>`。侧栏有自己的 pin 存储，切号后会漏收几条（索引里还是 pinned、能搜到，但不在 Pinned 区）。对输出里每条调 `mcp__ccd_sidebar__set_pinned(session_id, true)`，再跑一次确认"侧栏漏掉 0"。
 
 不去读 README、不去逐个跑 `current.py` / `accounts.py` / `pass_fire.py`——那些是 passfire.py 的内部函数。只有两种情况需要人工：自动选的 SRC 不是用户想要的那棒（加 `--src <accountUuid>/<orgUuid>` 重跑，`accounts.py` 能列目录），或者用户只是想看某个账号里有什么（`table.py <accountUuid>/<orgUuid>`）。
