@@ -190,9 +190,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/notdp/.dotfiles.git",
       "skillPath": "skills/ccd-account-switch/SKILL.md",
-      "skillFolderHash": "d0250de0f4b6f3bcc2f1fa18e5415883f2374877",
+      "skillFolderHash": "4be719d2916075a05d7d0924c6c7a064d8efaa68",
       "installedAt": "2026-08-09T03:08:47.892Z",
-      "updatedAt": "2026-10-19T03:26:47.580Z"
+      "updatedAt": "2026-10-20T03:06:26.013Z"
     },
     "lark-drive": {
       "source": "open.feishu.cn",
