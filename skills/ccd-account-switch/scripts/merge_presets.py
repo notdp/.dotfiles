@@ -139,9 +139,10 @@ def ensure_dep():
     return node
 
 
-def daemon(node, dst_acct, presets, quit_after=None):
+def daemon(node, dst_acct, presets, quit_after=None, src_acct=None):
     """脱离 CCD 进程组；[quit_after 秒后让 CCD 正常退出] → 等 CCD 退出 → 备份 → 写 LevelDB → 重开 → 复核。
-    presets 或 node 为 None 时不写 LevelDB，只负责重开（自动重启用）。"""
+    presets 或 node 为 None 时不写 LevelDB，只负责重开（自动重启用）。
+    src_acct 给了的话，退出后还用 env_stars.restore 把 SRC 账号快照里的环境 star 写回 IndexedDB。"""
     if presets is not None:
         with open(PENDING, 'w') as fh:
             json.dump(presets, fh, ensure_ascii=False)
@@ -170,6 +171,13 @@ def daemon(node, dst_acct, presets, quit_after=None):
                 os._exit(0)
             time.sleep(2)
         time.sleep(3)
+        if src_acct:
+            try:
+                sys.path.insert(0, HERE)
+                import env_stars
+                log('环境 star: ' + env_stars.restore(src_acct))
+            except Exception as e:  # noqa: BLE001
+                log(f'环境 star 没写: {e!r}')
         if presets is None or not node:
             subprocess.run(OPEN_CMD)
             log('已重开 CCD' + ('（没有环境要写）' if presets is None else f'（环境没写：node 不可用。{fallback}）'))
@@ -216,20 +224,20 @@ def main(src, dst, go, catalog=None, manual=False, quit_after=None):
         print(f'{tag}{note}')
         if entry is None:
             if go and quit_after:
-                daemon(None, da, None, quit_after)
+                daemon(None, da, None, quit_after, src.split('/')[0])
                 print(f'{quit_after} 秒后自动退出并重开 CCD。')
             return
     if go:
         out = write_js(da, entry)
         node = None if manual else ensure_dep()
         if node:
-            daemon(node, da, entry['presets'], quit_after)
+            daemon(node, da, entry['presets'], quit_after, src.split('/')[0] if src else None)
             when = f'{quit_after} 秒后自动退出 CCD' if quit_after else '等用户 Cmd+Q'
             print(f'环境：已起守护进程，{when}，退出后自动写入并重开 CCD，结果看 {LOG} 最后一行（OK / FALLBACK）。'
                   f'兜底脚本 {out}。')
         else:
             if quit_after:
-                daemon(None, da, entry['presets'], quit_after)
+                daemon(None, da, entry['presets'], quit_after, src.split('/')[0] if src else None)
             print(f'环境：没法自动写（{"指定了 --manual" if manual else "node / classic-level 不可用"}），'
                   f'重启后在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴 {out}。')
 

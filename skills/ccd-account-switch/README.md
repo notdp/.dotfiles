@@ -174,6 +174,17 @@ python3 "$SKILL_DIR"/scripts/pass_fire.py "$SRC" "$DST"
 
 搬不了的：Cloud 环境和 Remote Control 下的机器在 claude.ai 服务端、归账号所有，跟 artifact 一样，切号后新账号看不到。SSH 连接本身（`ssh_configs.json`）不分账号，不用搬。
 
+## 环境 star
+
+环境选择器里的 Starred 存在页面 IndexedDB：`keyval-store` / `keyval` / `store:pin-state:epitaxy-starred-environments`，值是 JSON 字符串，`starredIds` 里是 `machine-preset:<环境 id>`。环境按账号存，star 挂在环境上，自然也按账号走；而且**切号时页面会把整个 IndexedDB 清空重建**（2026-10-19 18:51 实测：库里最早一条记录正好是切号那刻），所以传火跑的时候旧号的 star 已经没了，只能靠切号前的快照。
+
+- **快照（事件驱动）**：`env_stars.py install` 装 launchd 常驻任务 `com.ccd-account-switch.env-stars`（KeepAlive），跑 `watch_stars.mjs`：用 kqueue 盯 IndexedDB 当前的 `NNNNNN.log` 文件，每次写入防抖 3 秒后直接在原始文件里读最新的 star 记录（key 是大端 UTF-16），`updatedAt` 变新了才调 `env_stars.py snapshot`，按账号存进 `~/.claude/ccd-env-stars.json`。读到空列表而已有非空快照时不覆盖（切号那一刻 config 可能还是旧账号、库已经清空）。
+  - 2026-10-20 实测：`fs.watch(目录, {recursive:true})`（FSEvents）点星时一个事件都不报；盯 `.log` 文件本身（kqueue）每次点星都有 change。`.log` 会被 LevelDB 轮换（rename），切号时目录会被删了重建，所以同时盯 leveldb 目录和上一级 IndexedDB 目录，出事件就重新挂，外加每 60 秒自检一次。
+  - 之前是每 30 分钟轮询：浪费，而且快照后、切号前点的星会丢（实测取消 5 个星后快照还停在 6 个）。
+- **写回**：`merge_presets` 的守护进程在 CCD 退出后、重开前调 `env_stars.restore(SRC)`：备份 IndexedDB 到 `~/.claude/ccd-idb-backup-<时间>` → 拷到临时目录 → 用 `idbset.js` 合并 starredIds → 读回确认 → 替换真实目录。
+- **为什么要同版本 Electron**：IndexedDB 的 LevelDB 用 Chromium 自定义排序规则 `idb_cmp1`、值是 V8 序列化，外部 LevelDB 库打不开；版本更高的 Chrome 可能把库格式升级掉、CCD 再读不了。所以从 `Electron Framework` 里读出 CCD 的 Electron 版本（2026-10-20 是 44.7.2 / Chromium 152），按需装到 `~/.cache/ccd-account-switch/electron-<版本>`（约 300MB；npm 有时不跑 electron 的 postinstall，脚本会手动补跑 `install.js`）。CCD 升级换了 Electron 版本会自动装新的。
+- 2026-10-20 实测：真实 CCD 退出后写回 5 个 star，重开后 Starred 显示 6 个；守护进程整条链（延时退出→写 star→重开）用假 CCD 进程 + IndexedDB 副本测过。真切号场景还没跑过。
+
 ## 五、对账 pin
 
 侧栏不直接用索引里的 `isStarred` 显示 Pinned，它有自己的 pin 存储（IndexedDB `https_claude.ai` 里的 `store:pin-state:dframe-starred-code`，`starredIds`）。切号重启后它从索引重新收 pin，2026-10-19 实测 27 条只收进 23 条：漏掉的 4 条索引里仍是 pinned、能搜到，就是不在 Pinned 区。不是按时间截断（最旧的 08-10 那条收进去了），原因不明。

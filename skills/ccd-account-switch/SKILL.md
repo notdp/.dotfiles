@@ -14,6 +14,8 @@ python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py --go   # 用户�
 
 它自己完成：认当前账号（DST）→ 选上一棒（SRC = 其余目录里最后活动最近的）→ 备份 DST → 传 session 索引 → 传 routine 并掐灭其他目录的火把 → 传环境选择器里自建的环境 → 复核"DST 里 SRC 已删的 = 0，DST 独有但别处有墓碑的 = 0"。
 
+**前置（每台机器一次）**：环境 star 切号时会被清空，只能靠切号前的快照搬。确认 `~/Library/LaunchAgents/com.ccd-account-switch.env-stars.plist` 存在；没有就跑 `python3 ~/.claude/skills/ccd-account-switch/scripts/env_stars.py install`（装一个常驻的 launchd 任务，star 一变就快照，要先跟用户说一声）。
+
 **agent 要做的只有六件事，第二步必须有按钮**：
 1. 先跑不带 `--go` 的。把输出里 SRC / DST 两行（邮箱 + uuid 前 8 位 + 最后活动时间）和五个数（传入 / 清掉 SRC 已删 / 清掉早几棒已删 / 跳过 / 独有）原样贴给用户，一个字不总结。
 2. 用 AskUserQuestion 出确认按钮，选项固定三个：`确认传火`（推荐，写明"SRC=<邮箱> → DST=<邮箱>"）/ `换一个 SRC`（列出输出里的其他候选）/ `取消`。**没有这一步不许带 `--go`**——这条命令几秒就写完，快到没有反悔窗口，按钮就是反悔窗口。
@@ -22,7 +24,7 @@ python3 ~/.claude/skills/ccd-account-switch/scripts/passfire.py --go   # 用户�
 4. `--go` 跑完立刻结束这一轮回复，告诉用户：**30 秒后 CCD 会自动退出并重开，期间别点任何会话；弹出退出确认就点退出**（加 `--no-restart` 则改为用户自己 Cmd+Q，退出后同样自动写环境并重开）；恢复的 routine 各 Run now 一次重新批权限。
    CCD 把索引整份放内存，点开会话、退出时都会按内存写回盘：传火后点过的会话会被旧版本盖回去（2026-09-13 实测，122 轮被盖成 88 轮）。
    已经被盖的补救：在新会话里起一个盯 CCD 主进程 pid 的守护（`os.kill(pid,0)` 轮询，别用 pgrep -f 带 `$` 锚点，会误判），等它真退出后再从 SRC 拷那一条，然后用户重开 CCD。
-5. 用户重启回来后复核环境：`tail -3 ~/.claude/ccd-preset-apply.log`。最后一行是 `OK` 就完事；是 `FALLBACK` 或「镜像里 DST 是 N 个」对不上，就让用户 `pbcopy < ~/.claude/ccd-restore-env.js`，在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴执行。（环境存在页面 localStorage；`--go` 已起守护进程，Cmd+Q 后自动备份并直接写 LevelDB、再重开 CCD。用户 Cmd+Q 后等它自己重开。）
+5. 用户重启回来后复核环境和环境 star：`tail -4 ~/.claude/ccd-preset-apply.log`。「环境 star: 已写回 N 个」就是 star 也搬好了；说没有快照或没写的，让用户在环境选择器里手动点星。最后一行是 `OK` 就完事；是 `FALLBACK` 或「镜像里 DST 是 N 个」对不上，就让用户 `pbcopy < ~/.claude/ccd-restore-env.js`，在 CCD 里右键 → Inspect Element → Console（连在 https://claude.ai）粘贴执行。（环境存在页面 localStorage；`--go` 已起守护进程，Cmd+Q 后自动备份并直接写 LevelDB、再重开 CCD。用户 Cmd+Q 后等它自己重开。）
 6. 对账 pin：`python3 ~/.claude/skills/ccd-account-switch/scripts/pins.py <DST>`。侧栏有自己的 pin 存储，切号后会漏收几条（索引里还是 pinned、能搜到，但不在 Pinned 区）。对输出里每条调 `mcp__ccd_sidebar__set_pinned(session_id, true)`，再跑一次确认"侧栏漏掉 0"。
 
 不去读 README、不去逐个跑 `current.py` / `accounts.py` / `pass_fire.py`——那些是 passfire.py 的内部函数。只有两种情况需要人工：自动选的 SRC 不是用户想要的那棒（加 `--src <accountUuid>/<orgUuid>` 重跑，`accounts.py` 能列目录），或者用户只是想看某个账号里有什么（`table.py <accountUuid>/<orgUuid>`）。
