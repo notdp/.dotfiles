@@ -295,7 +295,15 @@ HOOK_ROW_RE = re.compile(r'\{shortcutString:(\w+),description:(\w+)\}=(\w+)\(\)'
 # `e=Mn("new_session_pane_right")` then `{shortcut:e.shortcutString,children:
 # e.description}` — both halves of the row come straight from the registry entry.
 REGVAR_RE = re.compile(r'(?<![\w$])(\w+)=\w+\("(\w+)"\)')
-FIELD_ROW_RE = re.compile(r'\{shortcut:(\w+)\.shortcutString,children:\1\.description\}')
+FIELD_ROW_RE = re.compile(
+    r'\{shortcut:(\w+)\.shortcutString,children:(?:\w+\?[\s\S]{0,200}?:)?\1\.description\}')
+# `let o=a()==="rtl"` — a row key or label picked by text direction. The LTR
+# branch is the `else` one, the opposite of the platform ternaries.
+RTL_VAR_RE = re.compile(r'(?<![\w$])(\w+)=\w+\(\)==="rtl"')
+# The row's own `strip('"')` has already eaten the closing quote by the time
+# the key gets here, hence the optional one.
+RTL_TERNARY_RE = re.compile(r'^(\w+)\?"([^"]+)":"([^"]+)"?$')
+FIELD_KEY_RE = re.compile(r'^(\w+)\.shortcutString$')
 # `` shortcut:`${n}+q` `` with `function ER(){return kr()?"alt":"ctrl"}` — the
 # modifier is picked at runtime; the mac branch is the first string, as everywhere.
 MODFN_RE = re.compile(r'function (\w+)\(\)\{return \w+\(\)\?"([^"]+)":"[^"]+"\}')
@@ -322,7 +330,7 @@ def hook_registry_id(src, hook):
     """Follow `import{X as hook}from"./chunk.js"` -> that chunk's `Y as X` export ->
     the registry id the hook wraps (`return $e("toggle_dictation",…)`)."""
     for names, fname in IMPORT_RE.findall(src):
-        m = re.search(r'(?<![\w$])(\w+) as ' + re.escape(hook) + r'(?![\w$])', names)
+        m = re.search(r'(?<![\w$])([\w$]+) as ' + re.escape(hook) + r'(?![\w$])', names)
         if not m:
             continue
         path = ASSETS / fname
@@ -330,7 +338,7 @@ def hook_registry_id(src, hook):
             return None
         other = path.read_text(errors="ignore")
         # The import name is the export alias; the export list sits at the end.
-        exp = re.findall(r'(?<![\w$])(\w+) as ' + re.escape(m.group(1)) + r'(?![\w$])', other)
+        exp = re.findall(r'(?<![\w$])([\w$]+) as ' + re.escape(m.group(1)) + r'(?![\w$])', other)
         if not exp:
             return None
         fn = re.search(r'function ' + re.escape(exp[-1]) + r'\(', other)
@@ -343,10 +351,10 @@ def import_pairs(names):
     """`"Ha as e,aa as t,plain"` -> (exported name, local name) per binding."""
     for part in names.split(","):
         part = part.strip()
-        m = re.fullmatch(r"(\w+) as (\w+)", part)
+        m = re.fullmatch(r"([\w$]+) as ([\w$]+)", part)
         if m:
             yield m.group(1), m.group(2)
-        elif re.fullmatch(r"\w+", part):
+        elif re.fullmatch(r"[\w$]+", part):
             yield part, part
 
 
@@ -354,7 +362,7 @@ def internals_for(other, exported):
     """f.js's `internal as exported` export list -> the internal names. One export
     name can be re-exported from several internals (`ju as nt`, `q7 as nt`), so
     every candidate comes back and the caller picks the one that fits."""
-    return re.findall(r"(?<![\w$])(\w+) as " + re.escape(exported) + r"(?![\w$])", other)
+    return re.findall(r"(?<![\w$])([\w$]+) as " + re.escape(exported) + r"(?![\w$])", other)
 
 
 def imported_from(src, local):
@@ -474,6 +482,12 @@ def modal_rows(src, reg=None):
         return before[-1] if before else cands[0][1]
     # Locals holding a registry entry, and locals holding a platform modifier.
     regvars = {loc: rid for loc, rid in REGVAR_RE.findall(seg) if rid in (reg or {})}
+    rtlvars = [(m.start(), m.group(1)) for m in RTL_VAR_RE.finditer(seg)]
+
+    def is_rtl(var, at):
+        """`var` is the text-direction flag of the component that renders the row
+        at `at` — the declaration sits a few hundred chars above its use."""
+        return any(var == name and 0 <= at - pos <= 800 for pos, name in rtlvars)
     modfns = modifier_fns(src)
     modvars = {loc: modfns[fn] for loc, fn in MODVAR_RE.findall(seg) if fn in modfns}
 
@@ -529,6 +543,15 @@ def modal_rows(src, reg=None):
             # — the label object is a local, but the row names its registry entry.
             label = reg[sid]["label"]
         key = shortcut.strip('"') if shortcut else f"@{sid}"
+        m = RTL_TERNARY_RE.match(key)
+        if m and is_rtl(m.group(1), row.start()):
+            key = m.group(3)  # the LTR branch is the `else` one
+        m = FIELD_KEY_RE.match(key)
+        if m and m.group(1) in regvars:
+            # `{shortcut:t.shortcutString,children:<rtl>?"…":t.description}` — the
+            # FIELD_ROW_RE pass below renders this row from its registry entry;
+            # here only the RTL label is in reach.
+            continue
         out.append({"label": label, "key": local(key, row.start())})
 
     # A remote label addressed through a local (`{id:r}` with `r="1eodd8i"`).
@@ -585,7 +608,7 @@ QUOTED_RE = re.compile(r'"([^"]+)"')
 # reshuffled on every release (LP/RP -> VP/HP in 1.46388.4), so find them by body.
 HELPER_RE = re.compile(r'^(\w+)\("(\w+)"')
 HELPER_DEF_RE = re.compile(
-    r'function (\w+)\((\w),(\w),(\w)\)\{return (\w+)\(\2,\3,\4\)\[0\]\}'
+    r'function ([\w$]+)\((\w),(\w),(\w)\)\{return ([\w$]+)\(\2,\3,\4\)\[0\]\}'
     r'function \5\([\s\S]{0,400}?\.command===[\s\S]{0,200}?\.push\(\w+\.key\)'
 )
 
