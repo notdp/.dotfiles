@@ -24,9 +24,9 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/lobehub/lobe-chat.git",
       "skillPath": ".agents/skills/react/SKILL.md",
-      "skillFolderHash": "f9dce0ddffe50b6937b33e72d8c0e552b731ff47",
+      "skillFolderHash": "724f61b87be47ed73d476ff33a394ecfa706ffac",
       "installedAt": "2026-07-14T15:34:52.165Z",
-      "updatedAt": "2026-11-05T01:10:28.373Z"
+      "updatedAt": "2026-11-08T13:37:29.797Z"
     },
     "react-doctor": {
       "source": "millionco/react-doctor",
