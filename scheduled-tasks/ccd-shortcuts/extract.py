@@ -1,23 +1,59 @@
 #!/usr/bin/env python3
-"""Extract Claude Code Desktop keyboard shortcuts from the app bundle and diff
-against the last snapshot. Silent (exit 0, no output) when nothing changed.
+"""Extract Claude Code Desktop keyboard shortcuts and diff against the last
+snapshot. Silent (exit 0, no output) when nothing changed.
 
-Sources inside Contents/Resources/ion-dist/assets/v1/*.js (hashed filenames, so
-everything is located by content, never by name):
+The app stopped shipping its UI locally in 6.x: Contents/Resources/ion-dist is
+now a one-page "Claude was updated" placeholder, and the packed
+main_window/index.html says in so many words that "everything else gets loaded
+from claude.ai". The renderer bundle is fetched from assets-proxy.anthropic.com
+and lands in Electron's HTTP cache, so that cache is the source now.
+
+Cache entries are Chromium "simple cache" files: a 24-byte header, the request
+URL as the key, then the response body exactly as served — zstd, in practice.
+
+The catch worth remembering: this corpus is "every chunk this Mac loaded
+recently", not a complete bundle. A screen nobody opened can be missing
+entirely, and `--sources` prints which chunk each section came from and how old
+it is so that case is visible rather than silent.
+
+Sources (located by content, never by file name — names carry a build hash):
   1. pane/composer table   -- array of {command,key,code,when,mac,gate,matchBy}
   2. command registry      -- {name:{description,...,shortcut:{bindings:[...]}}}
   3. shortcuts modal       -- rows rendered in the Cmd+/ dialog
 """
 
 import json
+import os
 import plistlib
 import re
+import struct
 import sys
+import time
+import zlib
+from compression import zstd  # stdlib, Python 3.14+
 from pathlib import Path
 
 APP = Path("/Applications/Claude.app")
-ASSETS = APP / "Contents/Resources/ion-dist/assets/v1"
+CACHE = Path.home() / "Library/Application Support/Claude/Cache/Cache_Data"
+ASSET_PREFIX = "https://assets-proxy.anthropic.com/claude-ai/"
 SNAPSHOT = Path(__file__).with_name("snapshot.json")
+
+# Sections whose parse came out incomplete this run. A row this script
+# failed to read is not a shortcut that was taken away, so a section in
+# here never contributes removals: the previous snapshot's rows are kept.
+DRIFT = set()
+
+# How far back to take cached chunks; 0 means no limit, which is the default.
+# A window looks tempting and is a trap: reading an entry does not rewrite its
+# file, so a chunk that is still current but was first fetched months ago keeps
+# its old mtime, and any window quietly drops it (a 30-day one cost three of the
+# modal chunk's imports). mtime says when a copy was written, never whether it
+# is still part of the deployed build.
+WINDOW_DAYS = float(os.environ.get("CCD_SHORTCUTS_CACHE_DAYS", "0"))
+
+SIMPLE_CACHE_MAGIC = struct.pack("<Q", 0xFCFB6D1BA7725C30)
+ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+GZIP_MAGIC = b"\x1f\x8b\x08"
 
 
 def app_version() -> str:
@@ -38,26 +74,125 @@ def unescape(s):
         return s
 
 
-_CHUNKS = []
-_BY_NAME = {}
+def cache_key(head):
+    """Request URL of a Chromium simple-cache entry, or None if the file is not
+    one. Layout: magic u64, version u32, key_length u32, key_hash u32, four bytes
+    of padding, then the key. An isolated entry prefixes the key with its cache
+    partition (`1/0/https://…`), hence the search for the scheme rather than a
+    fixed offset."""
+    if not head.startswith(SIMPLE_CACHE_MAGIC):
+        return None
+    klen = struct.unpack_from("<I", head, 12)[0]
+    if not 0 < klen <= 1000 or 24 + klen > len(head):
+        return None
+    key = head[24:24 + klen].decode("utf-8", "replace")
+    i = key.find("https://")
+    return key[i:] if i >= 0 else None
+
+
+def decompress(blob):
+    """Entry body as text. The body is stored as served, so it carries the
+    response's content-encoding; zstd and gzip cover everything the asset host
+    sends. The compressed stream is found by magic instead of by walking the
+    stream layout — a magic that lands inside the header stream simply fails to
+    decompress, so a few candidate offsets are tried before giving up."""
+    for magic, expand in (
+        (ZSTD_MAGIC, lambda b: zstd.ZstdDecompressor().decompress(b)),
+        (GZIP_MAGIC, lambda b: zlib.decompress(b, 16 + zlib.MAX_WBITS)),
+    ):
+        at = blob.find(magic)
+        for _ in range(4):
+            if at < 0:
+                break
+            try:
+                out = expand(blob[at:])
+                if out:
+                    return out.decode("utf-8", "replace")
+            except Exception:
+                pass
+            at = blob.find(magic, at + 4)
+    return blob.decode("utf-8", "replace")  # identity-encoded
+
+
+# `shared-1-Br76wQvv.js` -> `shared-1`. The build hash is eight characters and
+# may itself contain a dash (`shared-39-nl-1lpZw.js`, `shared-frame-CJfW4IE-.js`),
+# so it is cut by length from the end rather than at the last dash.
+HASHED_NAME_RE = re.compile(r"^(.*)-[A-Za-z0-9_-]{8}\.js$")
+
+
+def logical_name(fname):
+    m = HASHED_NAME_RE.match(fname)
+    return m.group(1) if m else fname.removesuffix(".js")
+
+
+_INDEX = None   # logical chunk name -> (path, mtime, file name)
+_BY_FILE = {}   # "name-BUILDHASH.js" -> logical chunk name
+_SRC = {}       # logical chunk name -> decompressed source
+
+
+def index():
+    """Newest cached copy of every asset chunk. The same logical chunk is cached
+    once per build it was served from, so entries are collapsed by the name with
+    the build hash stripped (`shared-1-Br76wQvv.js` -> `shared-1`) and the newest
+    mtime wins."""
+    global _INDEX
+    if _INDEX is not None:
+        return _INDEX
+    _INDEX = {}
+    floor = time.time() - WINDOW_DAYS * 86400 if WINDOW_DAYS > 0 else 0
+    if not CACHE.is_dir():
+        return _INDEX
+    for path in CACHE.iterdir():
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        if not path.is_file() or st.st_mtime < floor:
+            continue
+        try:
+            with open(path, "rb") as f:
+                url = cache_key(f.read(1024))
+        except OSError:
+            continue
+        if not url or not url.startswith(ASSET_PREFIX) or not url.endswith(".js"):
+            continue
+        fname = url.rsplit("/", 1)[-1]
+        logical = logical_name(fname)
+        _BY_FILE[fname] = logical
+        prev = _INDEX.get(logical)
+        if prev is None or st.st_mtime > prev[1]:
+            _INDEX[logical] = (path, st.st_mtime, fname)
+    return _INDEX
+
+
+def chunk_mtime(fname):
+    entry = index().get(_BY_FILE.get(fname) or logical_name(fname))
+    return entry[1] if entry else None
 
 
 def chunk_src(fname):
-    """Source of one chunk by file name, read once and kept. The bundle is 149MB
-    across 3000+ files, so cross-chunk lookups resolve a named import rather than
-    sweeping everything."""
-    if fname not in _BY_NAME:
-        path = ASSETS / fname
-        _BY_NAME[fname] = path.read_text(errors="ignore") if path.is_file() else None
-    return _BY_NAME[fname]
+    """Source of one chunk by the file name an import spells it with, read once
+    and kept. The build hash in that name may not be the copy the cache holds;
+    another build of the same logical chunk is accepted, because what this
+    resolves — an export list, a message object — survives a rebuild far better
+    than it survives being absent."""
+    logical = _BY_FILE.get(fname) or logical_name(fname)
+    entry = index().get(logical)
+    if entry is None:
+        return None
+    if logical not in _SRC:
+        _SRC[logical] = decompress(entry[0].read_bytes())
+    return _SRC[logical]
 
 
-def bundle_search(pattern):
-    """First match of `pattern` anywhere in the bundle — labels for a row can live
-    in a different chunk than the modal that renders it."""
-    if not _CHUNKS:
-        _CHUNKS.extend(src for _, src in chunks())
-    for src in _CHUNKS:
+def bundle_search(pattern, literal=None):
+    """First match of `pattern` anywhere in the cached bundle — labels for a row
+    can live in a different chunk than the modal that renders it. `literal` is a
+    plain substring every match must contain; it skips the regex on the chunks
+    that cannot match, which is nearly all of them."""
+    for _, src in chunks():
+        if literal is not None and literal not in src:
+            continue
         m = re.search(pattern, src)
         if m:
             return m
@@ -65,10 +200,15 @@ def bundle_search(pattern):
 
 
 def chunks():
-    """(name, source) for every JS chunk, largest first (hot ones are big)."""
-    files = sorted(ASSETS.glob("*.js"), key=lambda p: -p.stat().st_size)
-    for p in files:
-        yield p.name, p.read_text(errors="ignore")
+    """(file name, source) for every cached chunk, most recently fetched first.
+    Ordering by recency rather than by size is what keeps a module that was
+    dropped from the build months ago from answering before the chunk the app
+    loaded this morning."""
+    for logical, (path, _mtime, fname) in sorted(
+            index().items(), key=lambda kv: -kv[1][1]):
+        if logical not in _SRC:
+            _SRC[logical] = decompress(path.read_bytes())
+        yield fname, _SRC[logical]
 
 
 # --- 1. pane / composer table -------------------------------------------------
@@ -119,6 +259,7 @@ def pane_table(src):
 
     anchors = len(PANE_ANCHOR_RE.findall(src))
     if out and len(out) < anchors:
+        DRIFT.add("pane")
         print(f"WARN: pane table parsed {len(out)} of {anchors} keybinding entries "
               "— an entry shape changed; extract.py needs updating. The missing "
               "rows are NOT removed shortcuts.", file=sys.stderr)
@@ -179,21 +320,42 @@ def pane_families(src):
 REG_RE = re.compile(
     r'(\w+):\{description:(?:([\w$]+)\.(\w+)|\{defaultMessage:"([^"]*)")'
     r',(?:(?!description:)[\s\S]){0,400}?'
-    r'shortcut:\{bindings:(?:\[(.*?)\]\}|([\w$]+)\}|(\w+)\("(\w+)"\)\})'
+    # Minified names can contain `$` (`v$("command_palette")`), so every name
+    # group here takes `[\w$]`, not `\w`.
+    r'shortcut:\{bindings:(?:\[(.*?)\]\}|([\w$]+)\}|([\w$]+)\("([\w$]+)"\)\})'
 )
 # Every command that declares a shortcut, used to detect silent drops.
 REG_ANCHOR_RE = re.compile(r'shortcut:\{bindings:')
 # `app:"web"` bindings never fire in the desktop app, so they must be dropped the
 # same way `platform:"non-mac"` is — otherwise one command lists two keys and the
 # web-only one looks like a real desktop shortcut.
-BIND_RE = re.compile(
-    r'key:"([^"]+)"(?:,code:"[^"]*")?,modifiers:\[([^\]]*)\]'
-    r'(?:,platform:"([^"]*)")?(?:,app:"([^"]*)")?'
-)
+# One binding object, taken whole and read by field name. Spelling the fields
+# out in order is what broke in 6.x: `matchBy:"char"` appeared between `code` and
+# `modifiers`, the ordered pattern stopped matching, and sixteen commands —
+# pin/rename/fork/archive_code_session and friends — silently lost their keys,
+# which in turn left every modal row that looks them up unresolved.
+BIND_OBJ_RE = re.compile(r'\{(key:"[^"]*"[^{}]*)\}')
+BIND_FIELD_RE = re.compile(r'(\w+):(?:"([^"]*)"|\[([^\]]*)\])')
+
+
+def bindings_of(text):
+    """(key, modifiers, platform, app) for every binding object in `text`."""
+    for body in BIND_OBJ_RE.findall(text):
+        fields = {}
+        for m in BIND_FIELD_RE.finditer(body):
+            fields[m.group(1)] = m.group(2) if m.group(2) is not None else m.group(3)
+        if "key" in fields:
+            yield (fields["key"], fields.get("modifiers", ""),
+                   fields.get("platform", ""), fields.get("app", ""))
 # `function dh(e){let{key:t,shift:n}=uh[e]…}` over
 # `var uh={command_palette:{key:"k"},search_palette:{key:"k",shift:!0}…}` — the
 # palette and sidebar keys live in that table instead of in a binding array.
-DEFAULT_FN_RE = re.compile(r'function (\w+)\(\w\)\{let\{key:\w+,shift:\w+\}=(\w+)\[\w\]')
+# The helper is sometimes a declaration and sometimes an assigned function
+# expression (`v$=(function(e){let{key:t,shift:n}=TG[e]…` in 6.x), so both the
+# name before `=` and the name after `function` are tried.
+DEFAULT_FN_RE = re.compile(
+    r'(?:function ([\w$]+)|([\w$]+)=\(?function\s*)\(\w\)\{'
+    r'let\{key:\w+,shift:\w+\}=([\w$]+)\[\w\]')
 DEFAULT_ENTRY_RE = re.compile(r'(\w+):\{key:"([^"]+)"(,shift:!0)?\}')
 
 
@@ -207,7 +369,8 @@ def hoisted(src, name):
 def default_tables(src):
     """{helper: {command id: (key, shift)}} for `bindings:dh("id")`."""
     out = {}
-    for fn, table in DEFAULT_FN_RE.findall(src):
+    for declared, assigned, table in DEFAULT_FN_RE.findall(src):
+        fn = declared or assigned
         body = re.search(r'(?<![\w$])' + re.escape(table)
                          + r'=(\{(?:[^{}]|\{[^{}]*\})*\})', src)
         if body:
@@ -242,7 +405,7 @@ def registry(src):
             if binds is None:  # a hoisted array the regex could not follow
                 parsed -= 1
                 continue
-            for key, mods, platform, app in BIND_RE.findall(binds):
+            for key, mods, platform, app in bindings_of(binds):
                 if platform == "non-mac" or app == "web":
                     continue
                 mods = [x.strip('"') for x in mods.split(",") if x.strip()]
@@ -255,6 +418,7 @@ def registry(src):
 
     anchors = len(REG_ANCHOR_RE.findall(src))
     if out and parsed < anchors:
+        DRIFT.add("registry")
         print(f"WARN: registry parsed {parsed} of {anchors} commands that declare a "
               "shortcut — an entry shape changed; extract.py needs updating. The "
               "missing rows are NOT removed shortcuts.", file=sys.stderr)
@@ -355,10 +519,9 @@ def hook_registry_id(src, hook):
         m = re.search(r'(?<![\w$])([\w$]+) as ' + re.escape(hook) + r'(?![\w$])', names)
         if not m:
             continue
-        path = ASSETS / fname
-        if not path.is_file():
+        other = chunk_src(fname)
+        if other is None:
             return None
-        other = path.read_text(errors="ignore")
         # The import name is the export alias; the export list sits at the end.
         exp = re.findall(r'(?<![\w$])([\w$]+) as ' + re.escape(m.group(1)) + r'(?![\w$])', other)
         if not exp:
@@ -648,7 +811,8 @@ def modal_rows(src, reg=None):
         found = spread_label(src, sp_var, sp_key)
         if found is None and sp_key != "description":
             m = bundle_search(r'(?<![\w$])' + re.escape(sp_key)
-                              + r':\{defaultMessage:"([^"]*)"')
+                              + r':\{defaultMessage:"([^"]*)"',
+                              literal=sp_key + ':{defaultMessage:"')
             found = m.group(1) if m else None
         return found
 
@@ -733,7 +897,8 @@ def modal_rows(src, reg=None):
                 # name — but only a distinctive one; `description` matches anything.
                 if found is None and sp_key != "description":
                     m = bundle_search(r'(?<![\w$])' + re.escape(sp_key)
-                                      + r':\{defaultMessage:"([^"]*)"')
+                                      + r':\{defaultMessage:"([^"]*)"',
+                                      literal=sp_key + ':{defaultMessage:"')
                     found = m.group(1) if m else None
                 label = found if found is not None else f"{sp_var}.{sp_key}"
         label = label.encode().decode("unicode_escape")
@@ -801,6 +966,7 @@ def modal_rows(src, reg=None):
         out.append({"label": label, "key": resolve_local(key, row.start())})
 
     if unlabelled:
+        DRIFT.add("modal")
         print(f"WARN: modal rows whose label did not resolve ({len(unlabelled)}), "
               "keys: " + ", ".join(unlabelled)
               + " — their label is passed in as a prop and extract.py cannot follow "
@@ -808,12 +974,14 @@ def modal_rows(src, reg=None):
     stray = [r["label"] for r in out
              if BARE_IDENT_RE.fullmatch(r["key"]) and r["key"] not in LITERAL_KEYS]
     if stray:
+        DRIFT.add("modal")
         print(f"WARN: modal rows whose key stayed an identifier ({len(stray)}): "
               + ", ".join(stray[:8])
               + " — a binding shape changed; extract.py needs updating. Those rows "
                 "are NOT removed shortcuts.", file=sys.stderr)
     rendered = len(ROW_ANCHOR_RE.findall(seg))
     if out and len(out) + dupes < rendered:
+        DRIFT.add("modal")
         print(f"WARN: modal parsed {len(out)} of {rendered} rendered rows — a row "
               "shape changed; extract.py needs updating. The missing rows are NOT "
               "removed shortcuts.", file=sys.stderr)
@@ -832,10 +1000,30 @@ QUOTED_RE = re.compile(r'"([^"]+)"')
 # the first hit, the other keeps them all. Their names are mangled and get
 # reshuffled on every release (LP/RP -> VP/HP in 1.46388.4), so find them by body.
 HELPER_RE = re.compile(r'^(\w+)\("(\w+)"')
-HELPER_DEF_RE = re.compile(
-    r'function ([\w$]+)\((\w),(\w),(\w)\)\{return ([\w$]+)\(\2,\3,\4\)\[0\]\}'
-    r'function \5\([\s\S]{0,400}?\.command===[\s\S]{0,200}?\.push\(\w+\.key\)'
-)
+# The "all" helper walks the pane table and collects every key bound to a
+# command; the "first" helper is a one-liner that takes its first hit. They are
+# matched apart and by name reference, because 6.x turned both into assigned
+# function expressions, stopped keeping them adjacent, and put the "all" one
+# first — the single pattern that spelled out `function FIRST…function ALL`
+# matched none of that, which left every modal row that calls them unresolved.
+HELPER_ALL_RE = re.compile(
+    r'(?:function ([\w$]+)|([\w$]+)=\(?function\s*)\(\w+,\w+,\w+\)\{'
+    r'[\s\S]{0,800}?\.command===[\s\S]{0,400}?\.push\(\w+\.key\)')
+HELPER_FIRST_TPL = (r'(?:function ([\w$]+)|([\w$]+)=\(?function\s*)'
+                    r'\(\w+,\w+,\w+\)\{return %s\(\w+,\w+,\w+\)\[0\]\}')
+
+
+def helper_names(text):
+    """{name: 'first'|'all'} for the two pane-table lookup helpers in `text`."""
+    m = HELPER_ALL_RE.search(text)
+    if not m:
+        return {}
+    every = m.group(1) or m.group(2)
+    out = {every: "all"}
+    first = re.search(HELPER_FIRST_TPL % re.escape(every), text)
+    if first:
+        out[first.group(1) or first.group(2)] = "first"
+    return out
 
 
 def find_helpers(src):
@@ -845,23 +1033,20 @@ def find_helpers(src):
     a shared chunk and reach the modal through an import, so they are looked for
     here and in every chunk the modal imports from, then mapped back through the
     import alias (`C6` -> exported `R` -> local `g`)."""
-    out = {}
-    m = HELPER_DEF_RE.search(src)
-    if m:
-        out = {m.group(1): "first", m.group(5): "all"}
+    out = dict(helper_names(src))
     for names, fname in IMPORT_RE.findall(src):
         other = chunk_src(fname)
         if other is None:
             continue
-        m = HELPER_DEF_RE.search(other)
-        if not m:
+        kinds = helper_names(other)
+        if not kinds:
             continue
-        kinds = {m.group(1): "first", m.group(5): "all"}
         for exported, local in import_pairs(names):
             for internal in internals_for(other, exported):
                 if internal in kinds:
                     out[local] = kinds[internal]
     if not out:
+        DRIFT.add("modal")
         print("WARN: could not locate the pane-table lookup helpers — modal rows "
               "that call them will show a raw JS expression; extract.py needs "
               "updating. Those rows are NOT removed shortcuts.", file=sys.stderr)
@@ -921,10 +1106,17 @@ def resolve_key(key, reg, pane=(), helpers=None):
     if key.startswith("["):
         return " / ".join(QUOTED_RE.findall(key))
     m = HELPER_RE.match(key)
-    if m and m.group(1) in (helpers or {}):
+    if m:
+        kind = (helpers or {}).get(m.group(1))
         found = pane_keys(m.group(2), pane)
-        first = helpers[m.group(1)] == "first"
-        return found[0] if (first and found) else (" / ".join(found) or key)
+        # An unrecognised helper name is still a pane-table lookup: every one of
+        # them turns a command into the keys bound to it, and they differ only
+        # in whether they keep the first hit. The names are minified locals that
+        # get reshuffled every release, so when the alias is unknown but the
+        # argument is a real pane command, go by the command. A call whose
+        # argument is not one falls through untouched, as before.
+        if kind is not None or found:
+            return found[0] if (kind == "first" and found) else (" / ".join(found) or key)
     m = TERNARY_ARR_RE.match(key)
     if m:
         return " / ".join(QUOTED_RE.findall(m.group(1)))
@@ -939,18 +1131,48 @@ LITERAL_KEYS = {"esc", "enter", "tab", "space", "delete", "backspace", "click",
                 "up", "down", "left", "right", "home", "end", "pageup", "pagedown"}
 LITERAL_KEYS |= {f"f{n}" for n in range(1, 13)}
 MODAL_ANCHOR_RE = re.compile(r'shortcutId:"shortcuts_modal"')
+# Characters no real key contains, so their presence means the row kept a scrap
+# of JS: a helper call (`y("toggleExpandPane")??[]`), a registry id that nothing
+# resolved (`@archive_code_session_chord`), a ternary. `.` and `]` are NOT here —
+# ⌘. and ⌘⇧] are real keys.
+UNRESOLVED_CHARS = '()"@{}'
+
+
+def key_resolved(key):
+    """Whether a modal key came out as a key and not as leftover source."""
+    if not key:
+        return False
+    if any(c in key for c in UNRESOLVED_CHARS):
+        return False
+    return not (BARE_IDENT_RE.fullmatch(key) and key.lower() not in LITERAL_KEYS)
+
+
+# Which cached chunk each section was read from, for --sources and the staleness
+# check. Filled by collect(); a section missing here was never found at all.
+SOURCES = {}
 
 
 def collect():
     data = {"version": app_version(), "pane": [], "registry": {}, "modal": []}
     helpers, modal_src = {}, None
-    for _, src in chunks():
-        if not data["pane"]:
+    SOURCES.clear()
+    # The cached corpus is thousands of chunks and a few hundred MB of text, and
+    # the section parsers are expensive enough that running them on every chunk
+    # costs minutes. A plain substring that every real hit must contain settles
+    # it first; only a chunk that passes gets parsed.
+    for fname, src in chunks():
+        if not data["pane"] and '{command:"' in src:
             data["pane"] = pane_table(src)
-        if not data["registry"]:
+            if data["pane"]:
+                SOURCES["pane"] = fname
+        if not data["registry"] and "shortcut:{bindings:" in src:
             data["registry"] = registry(src)
-        if modal_src is None and MODAL_ANCHOR_RE.search(src):
+            if data["registry"]:
+                SOURCES["registry"] = fname
+        if (modal_src is None and 'shortcuts_modal' in src
+                and MODAL_ANCHOR_RE.search(src)):
             modal_src = src
+            SOURCES["modal"] = fname
         if data["pane"] and data["registry"] and modal_src is not None:
             break
     # The modal is parsed after the loop: a hook row resolves its key AND its label
@@ -960,6 +1182,19 @@ def collect():
         helpers = find_helpers(modal_src)
     for row in data["modal"]:
         row["key"] = resolve_key(row["key"], data["registry"], data["pane"], helpers)
+    # A row that still carries JS where its key should be would otherwise enter
+    # the table as a brand-new shortcut called `y("toggleExpandPane")??[]`, and
+    # push the real row out as removed. Drop it and let carry_forward put the
+    # last known good row back.
+    unresolved = [r for r in data["modal"] if not key_resolved(r["key"])]
+    if unresolved:
+        DRIFT.add("modal")
+        data["modal"] = [r for r in data["modal"] if key_resolved(r["key"])]
+        shown = ", ".join(f'{r["label"]}={r["key"]}' for r in unresolved[:4])
+        print(f"WARN: dropped {len(unresolved)} modal row(s) whose key never "
+              f"resolved ({shown}{', …' if len(unresolved) > 4 else ''}) — a key "
+              "shape changed; extract.py needs updating. Those rows are NOT "
+              "removed shortcuts.", file=sys.stderr)
     return data
 
 
@@ -1008,6 +1243,39 @@ def flatten(snap):
     return out
 
 
+def carry_forward(old, new, section):
+    """Put back the rows the previous snapshot had and this run did not read.
+
+    Called only for a section that reported drift. Without it an entry whose
+    shape changed leaves the table as a removal, which is exactly the wrong
+    story: the shortcut is still in the app, this script just stopped being able
+    to see it. A shortcut that was genuinely dropped lingers one extra run as the
+    price, and the WARN above says which section to trust less.
+    """
+    have = set(flatten(new)[section])
+    kept = 0
+    if section == "registry":
+        for name, value in old.get("registry", {}).items():
+            if name not in have:
+                new["registry"][name] = value
+                kept += 1
+        return kept
+    for entry in old.get(section, []):
+        # Don't bring back a row that was already unreadable last time: an old
+        # `b("newTerminal")` would sit in the table next to the real row the
+        # moment this run learns to read it.
+        if section == "modal" and not key_resolved(entry.get("key", "")):
+            continue
+        probe = {s: {} if s == "registry" else [] for s in SECTIONS}
+        probe[section] = [entry]
+        ids = set(flatten(probe)[section])
+        if ids and not ids & have:
+            new[section].append(entry)
+            have |= ids
+            kept += 1
+    return kept
+
+
 def diff(old, new):
     """(lines, marks) — marks is {section: {id: 'added'|old_key}} for rendering."""
     lines, marks = [], {s: {} for s in SECTIONS}
@@ -1021,6 +1289,11 @@ def diff(old, new):
             marks[s][k] = "added"
             lines.append(f"+ [{s}] {n[k][0]}: {n[k][1]}")
         for k in sorted(o.keys() - n.keys()):
+            # A row whose old "key" was a scrap of JS was never a shortcut, so
+            # it leaving is this script getting better, not Anthropic removing
+            # anything. Announcing it reads as a removal and it is not one.
+            if not key_resolved(o[k][1]):
+                continue
             lines.append(f"- [{s}] {o[k][0]}: {o[k][1]} (removed)")
         for k in sorted(o.keys() & n.keys()):
             if o[k][1] != n[k][1]:
@@ -1075,12 +1348,68 @@ def render(new, marks, removed_lines):
     return "\n".join(md)
 
 
+def report_sources(stream=sys.stderr):
+    """One line per section naming the chunk it was read from. The date is when
+    that copy was written to the cache, which is not the same as how current it
+    is — a chunk unchanged across deploys is never rewritten. It is here to show
+    which file a surprising row came out of, not to date the build."""
+    for section in SECTIONS:
+        fname = SOURCES.get(section)
+        if not fname:
+            print(f"source: {section:<8} NOT FOUND in the cached bundle", file=stream)
+            continue
+        mtime = chunk_mtime(fname)
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)) if mtime else "?"
+        print(f"source: {section:<8} {fname}  cached {when}", file=stream)
+
+
+def grep(pattern, context=240, limit=20):
+    """Print matches of `pattern` across the cached bundle, with the chunk they
+    came from. The weekly write-up has to look up what a command actually does,
+    and the bundle is now zstd blobs in a cache directory, so hand-rolled greps
+    find nothing — this is the way in."""
+    rx = re.compile(pattern)
+    found = 0
+    for fname, src in chunks():
+        for m in rx.finditer(src):
+            lo, hi = max(0, m.start() - context), m.end() + context
+            print(f"--- {fname} @{m.start()}\n{src[lo:hi]}\n")
+            found += 1
+            if found >= limit:
+                print(f"[stopped at {limit} matches]")
+                return 0
+    if not found:
+        print(f"no match for {pattern!r} in {len(index())} cached chunks")
+    return 0
+
+
 def main():
-    if not ASSETS.is_dir():
-        print(f"ERROR: {ASSETS} not found — is Claude.app installed?", file=sys.stderr)
+    if "--grep" in sys.argv:
+        at = sys.argv.index("--grep")
+        if at + 1 >= len(sys.argv):
+            print("usage: extract.py --grep PATTERN", file=sys.stderr)
+            return 2
+        return grep(sys.argv[at + 1])
+
+    if "--sources" in sys.argv:
+        collect()
+        report_sources(sys.stdout)
+        return 0
+
+    if not CACHE.is_dir():
+        print(f"ERROR: {CACHE} not found — the app's HTTP cache is where the UI "
+              "bundle lives now; has Claude.app ever run on this Mac?",
+              file=sys.stderr)
+        return 2
+    if not index():
+        print(f"ERROR: no claude-ai asset chunk cached in the last {WINDOW_DAYS:g} "
+              f"days under {CACHE}. Use Claude for a minute and run this again, or "
+              "widen CCD_SHORTCUTS_CACHE_DAYS. This is NOT shortcuts being removed.",
+              file=sys.stderr)
         return 2
 
     new = collect()
+    report_sources()
     # A handful of rows means the regex latched onto the wrong chunk, which reads
     # as "everything was removed" — treat it as missing so the WARN path kicks in.
     MIN_ROWS = {"pane": 5, "registry": 10, "modal": 10}
@@ -1097,8 +1426,17 @@ def main():
         for k in missing:
             if old.get(k):
                 new[k] = old[k]
+                DRIFT.discard(k)
                 print(f"WARN: section '{k}' no longer parses; kept previous data. "
                       "extract.py likely needs updating.", file=sys.stderr)
+        # A partially parsed section would otherwise report every row it failed
+        # to read as a removed shortcut.
+        for k in sorted(DRIFT):
+            kept = carry_forward(old, new, k)
+            if kept:
+                print(f"WARN: carried {kept} previously known '{k}' row(s) forward "
+                      "because this run could not parse them. They are NOT new and "
+                      "NOT removed; extract.py needs updating.", file=sys.stderr)
         changes, marks = diff(old, new)
     else:
         changes, marks = [], {s: {} for s in SECTIONS}
@@ -1155,8 +1493,9 @@ def demo():
         "default-table bindings no longer resolve"
     # A modal key left as a bare identifier means a local was never followed —
     # single-word key literals (enter, esc, …) are not identifiers in that sense.
-    LITERAL = set(PRETTY) | {"enter", "esc", "escape", "space", "delete", "tab",
-                             "backspace", "esc esc"}
+    # Same alphabet collect() filters on, so the self-check and the run agree on
+    # what counts as a key spelled as a bare word (f6, esc, enter).
+    LITERAL = set(PRETTY) | LITERAL_KEYS | {"escape", "esc esc"}
     stray = [r for r in live["modal"]
              if re.fullmatch(r"[A-Za-z_$]\w*", r["key"]) and r["key"] not in LITERAL]
     assert not stray, f"unresolved modal locals: {stray}"
